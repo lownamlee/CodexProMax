@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.vite/
+.playwright-cli/
+.playwright-mcp/
+coverage/
+output/
+runs/
+attachments/
+status.txt
+progress.md
+output.md
+instruction.txt
+events.ndjson
+*.log
+*.tmp
