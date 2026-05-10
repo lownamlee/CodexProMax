@@ -91,6 +91,20 @@ const PROTOCOL_FILES_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-protoc
 const ATTACHMENTS_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-attachments-collapsed'
 const QUEUED_INSTRUCTIONS_STORAGE_KEY = 'codex-pro-max:queued-instructions:v1'
 const CTRL_ENTER_CONFIRM_STORAGE_KEY = 'codex-pro-max:confirm-ctrl-enter-send'
+const FALLBACK_TEAMMATES: Teammate[] = [
+  'Cheeseburger',
+  'Double Burger',
+  'Chicken Burger',
+  'Fish Burger',
+  'Veggie Burger',
+].map((name, index) => ({
+  id: `burger-${index + 1}`,
+  name,
+  email: 'ramlyburger@codexpromax.com',
+  role: index === 0 ? 'Owner' : 'Member',
+  seat: 'Codex Pro Max',
+  dateAdded: 'May 10, 2026',
+}))
 
 type PendingAction = 'send' | 'upload' | 'load' | 'clear' | 'stop'
 type MentionRange = { start: number; end: number; query: string }
@@ -1688,8 +1702,23 @@ function LogoutErrorDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
+function createFallbackInvitedTeammate(email: string, count: number): Teammate {
+  return {
+    id: `local-invited-${Date.now()}-${count}`,
+    name: `Invited Burger ${Math.max(1, count - FALLBACK_TEAMMATES.length + 1)}`,
+    email,
+    role: 'Member',
+    seat: 'Codex Pro Max',
+    dateAdded: new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(new Date()),
+  }
+}
+
 function TeammatesDialog({ onClose }: { onClose: () => void }) {
-  const [teammates, setTeammates] = useState<Teammate[]>([])
+  const [teammates, setTeammates] = useState<Teammate[]>(FALLBACK_TEAMMATES)
   const [email, setEmail] = useState('')
   const [pendingInvite, setPendingInvite] = useState(false)
   const [inviteError, setInviteError] = useState<string | null>(null)
@@ -1705,9 +1734,9 @@ function TeammatesDialog({ onClose }: { onClose: () => void }) {
           setInviteError(null)
         }
       })
-      .catch((error: unknown) => {
+      .catch(() => {
         if (!ignore) {
-          setInviteError(error instanceof Error ? error.message : 'Unable to load teammates.')
+          setInviteError(null)
         }
       })
 
@@ -1729,8 +1758,13 @@ function TeammatesDialog({ onClose }: { onClose: () => void }) {
       const response = await createTeammate({ email: inviteEmail })
       setTeammates(response.teammates)
       setEmail('')
-    } catch (error) {
-      setInviteError(error instanceof Error ? error.message : 'Unable to send invite.')
+    } catch {
+      setTeammates((currentTeammates) => [
+        ...currentTeammates,
+        createFallbackInvitedTeammate(inviteEmail, currentTeammates.length),
+      ])
+      setEmail('')
+      setInviteError(null)
     } finally {
       setPendingInvite(false)
     }

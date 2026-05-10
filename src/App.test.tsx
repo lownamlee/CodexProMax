@@ -344,6 +344,43 @@ describe('App', () => {
     expect(screen.queryByRole('dialog', { name: 'Settings' })).not.toBeInTheDocument()
   })
 
+  it('keeps the teammates popup populated when the teammate endpoint is unavailable', async () => {
+    vi.mocked(fetch).mockImplementation(async (url: string | URL | Request) => {
+      const requestUrl = String(url)
+      if (requestUrl === '/api/teammates') {
+        return jsonResponse({ ok: false, error: 'Not found' }, 404)
+      }
+
+      if (requestUrl === '/api/snapshot') {
+        return jsonResponse(managerFactory())
+      }
+
+      if (requestUrl.includes('/api/runs/run-a/snapshot')) {
+        return jsonResponse(snapshotFactory({
+          runId: 'run-a',
+          displayName: 'Run A',
+          outputMd: '## Draft A\n\nReady for review.',
+          attachments: [attachmentFactory('existing.png')],
+        }))
+      }
+
+      return jsonResponse({ ok: false, error: 'Not found' }, 404)
+    })
+
+    render(<App />)
+    await getEventSource()
+
+    fireEvent.click(await screen.findByRole('button', { name: /open profile menu/i }))
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Profile menu' })).getByRole('menuitem', {
+      name: /Add teammates/i,
+    }))
+
+    const teammatesDialog = screen.getByRole('dialog', { name: /invite members to the ramlyburger workspace/i })
+    expect(within(teammatesDialog).getByText('Cheeseburger')).toBeInTheDocument()
+    expect(within(teammatesDialog).getByText('Veggie Burger')).toBeInTheDocument()
+    expect(within(teammatesDialog).queryByText('Not found')).not.toBeInTheDocument()
+  })
+
   it('persists right sidebar section collapse state across remounts', async () => {
     const { unmount } = render(<App />)
     await getEventSource()
