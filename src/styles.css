@@ -353,7 +353,7 @@ button:disabled {
 
 .profile-menu-account:hover,
 .profile-menu-item:hover {
-  background: var(--bg-hover);
+  background: #f1f5f9;
 }
 
 .profile-menu-item:hover > i:first-child,
