@@ -276,6 +276,7 @@ describe('App', () => {
       expect(within(sidebar).getByRole('button', { name: /User request 3/i })).toBeInTheDocument()
 
       const scrollPane = screen.getByTestId('chat-scroll')
+      const userBubble = (text: string) => within(scrollPane).getByText(text).closest('.user-bubble') as HTMLElement
       const outlineList = screen.getByTestId('outline-list')
       setScrollMetrics(scrollPane, {
         clientHeight: 300,
@@ -292,10 +293,10 @@ describe('App', () => {
         offsetHeight: 28,
       })
       mockElementRect(scrollPane, { top: 0, bottom: 300 })
-      mockElementRect(within(scrollPane).getByText('User request 1').closest('article') as HTMLElement, { top: -260, bottom: -120 })
-      mockElementRect(within(scrollPane).getByText('User request 2').closest('article') as HTMLElement, { top: -80, bottom: 60 })
-      mockElementRect(within(scrollPane).getByText('User request 3').closest('article') as HTMLElement, { top: 40, bottom: 180 })
-      mockElementRect(within(scrollPane).getByText('User request 4').closest('article') as HTMLElement, { top: 330, bottom: 470 })
+      mockElementRect(userBubble('User request 1'), { top: -260, bottom: -120 })
+      mockElementRect(userBubble('User request 2'), { top: -80, bottom: 60 })
+      mockElementRect(userBubble('User request 3'), { top: 40, bottom: 180 })
+      mockElementRect(userBubble('User request 4'), { top: 330, bottom: 470 })
       fireEvent.scroll(scrollPane)
 
       await waitFor(() =>
@@ -303,19 +304,37 @@ describe('App', () => {
       )
       await waitFor(() => expect(outlineList.scrollTop).toBe(80))
 
-      mockElementRect(within(scrollPane).getByText('User request 4').closest('article') as HTMLElement, { top: 220, bottom: 360 })
-      mockElementRect(within(scrollPane).getByText('User request 5').closest('article') as HTMLElement, { top: 420, bottom: 560 })
+      mockElementRect(userBubble('User request 4'), { top: 220, bottom: 360 })
+      mockElementRect(userBubble('User request 5'), { top: 420, bottom: 560 })
       fireEvent.scroll(scrollPane)
 
       await waitFor(() =>
         expect(within(sidebar).getByRole('button', { name: /User request 3/i })).toHaveClass('active'),
       )
 
-      mockElementRect(within(scrollPane).getByText('User request 4').closest('article') as HTMLElement, { top: 150, bottom: 290 })
+      mockElementRect(userBubble('User request 4'), { top: 150, bottom: 290 })
       fireEvent.scroll(scrollPane)
 
       await waitFor(() =>
         expect(within(sidebar).getByRole('button', { name: /User request 4/i })).toHaveClass('active'),
+      )
+
+      scrollPane.scrollTop = 260
+      mockElementRect(userBubble('User request 3'), { top: -30, bottom: 110 })
+      mockElementRect(userBubble('User request 4'), { top: 180, bottom: 320 })
+      fireEvent.scroll(scrollPane)
+
+      await waitFor(() =>
+        expect(within(sidebar).getByRole('button', { name: /User request 4/i })).toHaveClass('active'),
+      )
+
+      scrollPane.scrollTop = 240
+      mockElementRect(userBubble('User request 3'), { top: 20, bottom: 160 })
+      mockElementRect(userBubble('User request 4'), { top: 230, bottom: 370 })
+      fireEvent.scroll(scrollPane)
+
+      await waitFor(() =>
+        expect(within(sidebar).getByRole('button', { name: /User request 3/i })).toHaveClass('active'),
       )
 
       fireEvent.click(within(sidebar).getByRole('button', { name: /User request 12/i }))

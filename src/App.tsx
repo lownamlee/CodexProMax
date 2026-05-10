@@ -70,6 +70,7 @@ const RIGHT_SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-collaps
 
 type PendingAction = 'send' | 'upload' | 'load' | 'clear' | 'stop'
 type MentionRange = { start: number; end: number; query: string }
+type ScrollDirection = 'up' | 'down' | 'none'
 type UserMessageOutline = Pick<ChatMessage, 'id' | 'content' | 'createdAtIso'>
 type ProtocolFilePreview = {
   fileName: ProtocolTextFile
@@ -104,6 +105,7 @@ function App() {
   const [previewProtocolFile, setPreviewProtocolFile] = useState<ProtocolFilePreview | null>(null)
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
   const chatPinnedToBottomRef = useRef(true)
+  const lastChatScrollTopRef = useRef(0)
   const userMessageRefs = useRef(new Map<string, HTMLElement>())
 
   const runs = managerSnapshot?.runs ?? []
@@ -494,6 +496,7 @@ function App() {
 
   useLayoutEffect(() => {
     chatPinnedToBottomRef.current = true
+    lastChatScrollTopRef.current = 0
     setChatAtBottom(true)
     setActiveUserMessageId(null)
   }, [selectedRunId])
@@ -538,7 +541,7 @@ function App() {
 
   function setUserMessageElement(messageId: string, element: HTMLElement | null) {
     if (element) {
-      userMessageRefs.current.set(messageId, element)
+      userMessageRefs.current.set(messageId, element.querySelector<HTMLElement>('.user-bubble') ?? element)
       return
     }
 
@@ -563,18 +566,41 @@ function App() {
       return
     }
 
+    const scrollTop = scrollElement.scrollTop
+    const scrollDirection: ScrollDirection =
+      scrollTop < lastChatScrollTopRef.current
+        ? 'up'
+        : scrollTop > lastChatScrollTopRef.current
+          ? 'down'
+          : 'none'
+    lastChatScrollTopRef.current = scrollTop
     const scrollRect = scrollElement.getBoundingClientRect()
+    const bubblePositions = userMessageOutlines.flatMap((message) => {
+      const element = userMessageRefs.current.get(message.id)
+      return element ? [{ id: message.id, top: element.getBoundingClientRect().top }] : []
+    })
+
+    if (bubblePositions.length === 0) {
+      setActiveUserMessageId(null)
+      return
+    }
+
+    if (scrollDirection === 'up') {
+      const topActivationY = scrollRect.top + 8
+      const firstBubbleAtTop = bubblePositions.find((message) => message.top >= topActivationY)
+      setActiveUserMessageId((currentId) => {
+        const nextActiveId = firstBubbleAtTop?.id ?? bubblePositions[bubblePositions.length - 1].id
+        return currentId === nextActiveId ? currentId : nextActiveId
+      })
+      return
+    }
+
     const activationOffset = Math.min(Math.max(scrollElement.clientHeight * 0.55, 96), 260)
     const activeThresholdY = scrollRect.top + activationOffset
-    let nextActiveId = userMessageOutlines[0].id
+    let nextActiveId = bubblePositions[0].id
 
-    for (const message of userMessageOutlines) {
-      const element = userMessageRefs.current.get(message.id)
-      if (!element) {
-        continue
-      }
-
-      if (element.getBoundingClientRect().top <= activeThresholdY) {
+    for (const message of bubblePositions) {
+      if (message.top <= activeThresholdY) {
         nextActiveId = message.id
       } else {
         break
