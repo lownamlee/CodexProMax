@@ -67,6 +67,17 @@ beforeEach(() => {
         }))
       }
 
+      if (requestUrl === '/api/runs/run-a/files/output.md') {
+        const content = '## File Preview\n\nReady for preview.'
+        return jsonResponse({
+          ok: true,
+          fileName: 'output.md',
+          content,
+          truncated: false,
+          size: content.length,
+        })
+      }
+
       if (requestUrl === '/api/runs/run-a/messages' && init?.method === 'DELETE') {
         const snapshot = snapshotFactory({
           runId: 'run-a',
@@ -391,7 +402,7 @@ describe('App', () => {
         }),
       ),
     )
-    expect(await screen.findByRole('button', { name: 'uploaded.png' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /preview uploaded\.png/i })).toBeInTheDocument()
     expect(screen.getByLabelText('Instruction')).toHaveValue('@uploaded.png')
     expect(screen.getByRole('button', { name: /mention attachment uploaded\.png/i })).toBeInTheDocument()
   })
@@ -515,6 +526,30 @@ describe('App', () => {
     )
   })
 
+  it('opens protocol files in a document preview', async () => {
+    const fetchMock = vi.mocked(fetch)
+    render(<App />)
+    await getEventSource()
+
+    const sidebar = screen.getByLabelText('Protocol details')
+    fireEvent.click(await within(sidebar).findByRole('button', { name: /preview output\.md/i }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/runs/run-a/files/output.md'))
+    const dialog = await screen.findByRole('dialog', { name: 'output.md' })
+    expect(within(dialog).getByText('## File Preview')).toBeInTheDocument()
+    expect(within(dialog).getByText('Ready for preview.')).toBeInTheDocument()
+  })
+
+  it('opens right-sidebar attachments in the image preview', async () => {
+    render(<App />)
+    await getEventSource()
+
+    const sidebar = screen.getByLabelText('Protocol details')
+    fireEvent.click(await within(sidebar).findByRole('button', { name: /preview existing\.png/i }))
+
+    expect(screen.getByRole('dialog', { name: 'existing.png' })).toBeInTheDocument()
+  })
+
   it('shows only draft attachments in the composer tray with remove controls', async () => {
     render(<App />)
     await getEventSource()
@@ -545,7 +580,7 @@ describe('App', () => {
     await getEventSource()
 
     const input = await screen.findByLabelText('Instruction')
-    fireEvent.click(await screen.findByRole('button', { name: 'existing.png' }))
+    fireEvent.click(await screen.findByRole('button', { name: /add attachment mention existing\.png/i }))
 
     expect(input).toHaveValue('@existing.png')
     expect(screen.getByRole('button', { name: /mention attachment existing\.png/i })).toBeInTheDocument()
@@ -618,7 +653,7 @@ describe('App', () => {
     render(<App />)
     await getEventSource()
 
-    expect(await screen.findByRole('button', { name: 'existing.png' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /preview existing\.png/i })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /delete attachment existing\.png/i }))
 
     await waitFor(() =>
@@ -626,7 +661,7 @@ describe('App', () => {
         method: 'DELETE',
       }),
     )
-    expect(screen.queryByRole('button', { name: 'existing.png' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /preview existing\.png/i })).not.toBeInTheDocument()
   })
 
   it('keeps the chat pinned to the bottom when a new message arrives while already at bottom', async () => {

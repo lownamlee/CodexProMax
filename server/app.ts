@@ -1,8 +1,9 @@
 import express, { type ErrorRequestHandler, type RequestHandler } from 'express'
 import multer from 'multer'
+import fs from 'node:fs/promises'
 import path from 'node:path'
-import type { InstructionRequest } from '../src/shared/protocol'
-import { LEGACY_RUN_ID } from '../src/shared/protocol'
+import type { InstructionRequest, ProtocolTextFile } from '../src/shared/protocol'
+import { LEGACY_RUN_ID, PROTOCOL_TEXT_FILES } from '../src/shared/protocol'
 import { HttpError } from './errors'
 import { MultiRunSnapshotHub } from './snapshotHub'
 import {
@@ -16,6 +17,7 @@ import {
   deleteRun,
   ensureRunMetadata,
   getAttachmentsPath,
+  getProtocolPath,
   getRunPath,
   isSafeRunId,
   resolveProtocolRoot,
@@ -44,6 +46,7 @@ const upload = multer({
 })
 
 const STOP_SESSION_INSTRUCTION = 'Stop this Codex Pro Max HITL session now.'
+const PROTOCOL_FILE_PREVIEW_BYTES = 1024 * 1024
 
 export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
   const rootPath = resolveProtocolRoot(options.rootPath)
@@ -64,6 +67,19 @@ export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
   app.get('/api/runs/:runId/snapshot', async (request, response) => {
     const runId = parseRunId(request.params.runId)
     response.json(await hub.readRunSnapshot(runId))
+  })
+
+  app.get('/api/runs/:runId/files/:fileName', async (request, response) => {
+    const runId = parseRunId(request.params.runId)
+    const fileName = parseProtocolFileName(request.params.fileName)
+    const runPath = getRunPath(rootPath, runId)
+    const file = await readProtocolFilePreview(getProtocolPath(runPath, fileName))
+
+    response.json({
+      ok: true,
+      fileName,
+      ...file,
+    })
   })
 
   app.post('/api/runs/:runId/action', async (request, response) => {
@@ -276,6 +292,52 @@ function parseAttachmentName(value: string | undefined): string {
   return fileName
 }
 
+function parseProtocolFileName(value: string | undefined): ProtocolTextFile {
+  const fileName = value ?? ''
+  if (!PROTOCOL_TEXT_FILES.includes(fileName as ProtocolTextFile)) {
+    throw new HttpError(400, 'Unknown protocol file.')
+  }
+
+  return fileName as ProtocolTextFile
+}
+
+async function readProtocolFilePreview(filePath: string): Promise<{
+  content: string
+  truncated: boolean
+  size: number
+}> {
+  let stats
+  try {
+    stats = await fs.stat(filePath)
+  } catch (error) {
+    if (isNodeError(error) && error.code === 'ENOENT') {
+      throw new HttpError(404, 'Protocol file not found.')
+    }
+    throw error
+  }
+
+  if (stats.size <= PROTOCOL_FILE_PREVIEW_BYTES) {
+    return {
+      content: await fs.readFile(filePath, 'utf8'),
+      truncated: false,
+      size: stats.size,
+    }
+  }
+
+  const file = await fs.open(filePath, 'r')
+  try {
+    const buffer = Buffer.alloc(PROTOCOL_FILE_PREVIEW_BYTES)
+    const { bytesRead } = await file.read(buffer, 0, PROTOCOL_FILE_PREVIEW_BYTES, 0)
+    return {
+      content: buffer.subarray(0, bytesRead).toString('utf8'),
+      truncated: true,
+      size: stats.size,
+    }
+  } finally {
+    await file.close()
+  }
+}
+
 function validateInstruction(instruction: string): void {
   if (instruction.trim().length === 0) {
     throw new HttpError(400, 'Instructions require instruction text.')
@@ -299,6 +361,10 @@ const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => 
 
   console.error(error)
   response.status(500).json({ ok: false, error: 'Internal server error' })
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error
 }
 
 export function getApiPort(): number {

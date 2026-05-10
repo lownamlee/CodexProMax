@@ -176,6 +176,23 @@ describe('Codex Pro Max multi-run API', () => {
     })
   })
 
+  it('returns selected protocol file content for preview', async () => {
+    const runA = getRunPath(rootPath, 'run-a')
+    await fs.mkdir(runA, { recursive: true })
+    await fs.writeFile(path.join(runA, 'output.md'), '## Preview\n\nReady.', 'utf8')
+    appHandle = createApp({ rootPath, startWatcher: false })
+
+    const response = await request(appHandle.app).get('/api/runs/run-a/files/output.md').expect(200)
+
+    expect(response.body).toMatchObject({
+      ok: true,
+      fileName: 'output.md',
+      content: '## Preview\n\nReady.',
+      truncated: false,
+      size: 18,
+    })
+  })
+
   it('maps legacy approval statuses out of snapshots', async () => {
     const runA = getRunPath(rootPath, 'run-a')
     const runB = getRunPath(rootPath, 'run-b')

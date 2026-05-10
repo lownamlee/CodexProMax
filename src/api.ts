@@ -3,6 +3,8 @@ import type {
   InstructionRequest,
   ManagerResponse,
   ManagerSnapshot,
+  ProtocolFileContentResponse,
+  ProtocolTextFile,
   RunSnapshotResponse,
   Snapshot,
   UploadAttachmentResponse,
@@ -16,6 +18,16 @@ export async function fetchSnapshot(): Promise<ManagerSnapshot> {
 export async function fetchRunSnapshot(runId: string): Promise<Snapshot> {
   const response = await fetch(`/api/runs/${encodeURIComponent(runId)}/snapshot`)
   return parseJsonResponse<Snapshot>(response)
+}
+
+export async function fetchProtocolFile(
+  runId: string,
+  fileName: ProtocolTextFile,
+): Promise<ProtocolFileContentResponse> {
+  const response = await fetch(
+    `/api/runs/${encodeURIComponent(runId)}/files/${encodeURIComponent(fileName)}`,
+  )
+  return parseJsonResponse<ProtocolFileContentResponse>(response)
 }
 
 export async function submitInstruction(

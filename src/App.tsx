@@ -19,6 +19,7 @@ import {
   clearConversationHistory as clearConversationHistoryRequest,
   deleteAttachment as deleteAttachmentRequest,
   deleteRun as deleteRunRequest,
+  fetchProtocolFile,
   fetchRunSnapshot,
   requestSessionStop,
   submitInstruction,
@@ -60,6 +61,14 @@ const USER_PROFILE_IMAGE = '/burger.png'
 type PendingAction = 'send' | 'upload' | 'load' | 'clear' | 'stop'
 type MentionRange = { start: number; end: number; query: string }
 type UserMessageOutline = Pick<ChatMessage, 'id' | 'content' | 'createdAtIso'>
+type ProtocolFilePreview = {
+  fileName: ProtocolTextFile
+  content: string
+  loading: boolean
+  error: string | null
+  truncated: boolean
+  size: number | null
+}
 
 function App() {
   const { snapshot: managerSnapshot, connectionState, error: streamError } = useSnapshotStream()
@@ -77,6 +86,7 @@ function App() {
   const [composerHeight, setComposerHeight] = useState(DEFAULT_COMPOSER_HEIGHT_PX)
   const [chatAtBottom, setChatAtBottom] = useState(true)
   const [previewAttachment, setPreviewAttachment] = useState<AttachmentMeta | null>(null)
+  const [previewProtocolFile, setPreviewProtocolFile] = useState<ProtocolFilePreview | null>(null)
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
   const chatPinnedToBottomRef = useRef(true)
   const userMessageRefs = useRef(new Map<string, HTMLElement>())
@@ -260,6 +270,48 @@ function App() {
       setActionError(error instanceof Error ? error.message : 'Delete attachment failed')
     } finally {
       setDeletingAttachmentName(null)
+    }
+  }
+
+  async function handleProtocolFilePreview(fileName: ProtocolTextFile) {
+    if (!selectedRunId) {
+      setActionError('Select a run before previewing files.')
+      return
+    }
+
+    const meta = runSnapshot?.files[fileName]
+    if (!meta?.exists) {
+      return
+    }
+
+    setPreviewProtocolFile({
+      fileName,
+      content: '',
+      loading: true,
+      error: null,
+      truncated: false,
+      size: meta.size,
+    })
+
+    try {
+      const response = await fetchProtocolFile(selectedRunId, fileName)
+      setPreviewProtocolFile({
+        fileName: response.fileName,
+        content: response.content,
+        loading: false,
+        error: null,
+        truncated: response.truncated,
+        size: response.size,
+      })
+    } catch (error) {
+      setPreviewProtocolFile({
+        fileName,
+        content: '',
+        loading: false,
+        error: error instanceof Error ? error.message : 'File preview failed',
+        truncated: false,
+        size: meta.size,
+      })
     }
   }
 
@@ -644,6 +696,7 @@ function App() {
         collapsed={rightCollapsed}
         snapshot={runSnapshot}
         attachments={attachments}
+        onProtocolFilePreview={(fileName) => void handleProtocolFilePreview(fileName)}
         onAttachmentPreview={setPreviewAttachment}
         onAttachmentMention={mentionSessionAttachment}
         onAttachmentDelete={(attachment) => void handleDeleteAttachment(attachment)}
@@ -655,6 +708,13 @@ function App() {
 
       {previewAttachment && (
         <AttachmentPreview attachment={previewAttachment} onClose={() => setPreviewAttachment(null)} />
+      )}
+
+      {previewProtocolFile && (
+        <ProtocolFilePreviewDialog
+          preview={previewProtocolFile}
+          onClose={() => setPreviewProtocolFile(null)}
+        />
       )}
     </div>
   )
@@ -1297,6 +1357,7 @@ function ProtocolSidebar({
   collapsed,
   snapshot,
   attachments,
+  onProtocolFilePreview,
   onAttachmentPreview,
   onAttachmentMention,
   onAttachmentDelete,
@@ -1308,6 +1369,7 @@ function ProtocolSidebar({
   collapsed: boolean
   snapshot: Snapshot | null
   attachments: AttachmentMeta[]
+  onProtocolFilePreview: (fileName: ProtocolTextFile) => void
   onAttachmentPreview: (attachment: AttachmentMeta) => void
   onAttachmentMention: (name: string) => void
   onAttachmentDelete: (attachment: AttachmentMeta) => void
@@ -1339,7 +1401,12 @@ function ProtocolSidebar({
           </div>
           <div className="file-card-list">
             {PROTOCOL_TEXT_FILES.map((fileName) => (
-              <FileCard key={fileName} fileName={fileName} snapshot={snapshot} />
+              <FileCard
+                key={fileName}
+                fileName={fileName}
+                snapshot={snapshot}
+                onPreview={onProtocolFilePreview}
+              />
             ))}
           </div>
         </div>
@@ -1397,15 +1464,24 @@ function UserMessageOutlineList({
 function FileCard({
   fileName,
   snapshot,
+  onPreview,
 }: {
   fileName: ProtocolTextFile
   snapshot: Snapshot | null
+  onPreview: (fileName: ProtocolTextFile) => void
 }) {
   const meta = snapshot?.files[fileName]
   const exists = Boolean(snapshot && meta?.exists)
 
   return (
-    <div className={`file-card ${exists ? 'exists' : 'missing'}`} title={exists && snapshot ? fileMeta(snapshot, fileName) : 'missing'}>
+    <button
+      type="button"
+      className={`file-card protocol-file-card ${exists ? 'exists' : 'missing'}`}
+      title={exists && snapshot ? fileMeta(snapshot, fileName) : 'missing'}
+      aria-label={`Preview ${fileName}`}
+      disabled={!exists}
+      onClick={() => onPreview(fileName)}
+    >
       <div className="file-icon" aria-hidden="true">
         <i className={FILE_ICONS[fileName]} />
       </div>
@@ -1413,7 +1489,7 @@ function FileCard({
         <div className="file-name">{fileName}</div>
         <div className="file-meta">{snapshot && meta?.exists ? fileMeta(snapshot, fileName) : 'missing'}</div>
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -1465,8 +1541,8 @@ function AttachmentList({
             type="button"
             className="attachment-thumb-button"
             onClick={() => onPreview(attachment)}
-            aria-label={`Preview ${attachment.name}`}
-            title={`Preview ${attachment.name}`}
+            aria-label={`Preview thumbnail ${attachment.name}`}
+            title={`Preview thumbnail ${attachment.name}`}
           >
             <AttachmentThumbnail attachment={attachment} />
           </button>
@@ -1474,12 +1550,23 @@ function AttachmentList({
             <button
               type="button"
               className="file-name attachment-preview-button"
-              onClick={() => onMention(attachment.name)}
+              onClick={() => onPreview(attachment)}
+              aria-label={`Preview ${attachment.name}`}
+              title={`Preview ${attachment.name}`}
             >
               {attachment.name}
             </button>
             <div className="file-meta">{formatBytes(attachment.size)}</div>
           </div>
+          <button
+            type="button"
+            className="attachment-mention-button"
+            onClick={() => onMention(attachment.name)}
+            aria-label={`Add attachment mention ${attachment.name}`}
+            title={`Add mention ${attachment.name}`}
+          >
+            <i className="ri-at-line" aria-hidden="true" />
+          </button>
           <button
             type="button"
             className="attachment-delete-button"
@@ -1493,6 +1580,127 @@ function AttachmentList({
         </li>
       ))}
     </ul>
+  )
+}
+
+function ProtocolFilePreviewDialog({
+  preview,
+  onClose,
+}: {
+  preview: ProtocolFilePreview
+  onClose: () => void
+}) {
+  const [wrapContent, setWrapContent] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const content = preview.content || ''
+  const lines = content.replace(/\r\n/g, '\n').split('\n')
+  const language = detectViewerLanguage(preview.fileName, content)
+  const canCopy = !preview.loading && !preview.error && content.length > 0
+
+  useEffect(() => {
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
+  async function copyContent() {
+    if (!canCopy) {
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1400)
+    } catch {
+      setCopied(false)
+    }
+  }
+
+  return (
+    <div className="preview-backdrop document-preview-backdrop" role="presentation" onClick={onClose}>
+      <section
+        className="document-preview"
+        role="dialog"
+        aria-modal="true"
+        aria-label={preview.fileName}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="preview-header document-preview-header">
+          <div className="preview-title">
+            <span>
+              <i className={FILE_ICONS[preview.fileName]} aria-hidden="true" />
+              {preview.fileName}
+            </span>
+            <small>
+              {preview.size === null ? 'Loading file' : formatBytes(preview.size)}
+              {preview.truncated ? ' - truncated preview' : ''}
+            </small>
+          </div>
+          <div className="preview-actions">
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => setWrapContent((value) => !value)}
+              aria-label={wrapContent ? 'Disable wrap' : 'Wrap content'}
+              title={wrapContent ? 'Disable wrap' : 'Wrap content'}
+              disabled={preview.loading}
+            >
+              <i className={wrapContent ? 'ri-text-wrap' : 'ri-text'} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className={`icon-btn ${copied ? 'is-copied' : ''}`}
+              onClick={() => void copyContent()}
+              aria-label="Copy file content"
+              title="Copy file content"
+              disabled={!canCopy}
+            >
+              <i className={copied ? 'ri-check-line' : 'ri-clipboard-line'} aria-hidden="true" />
+            </button>
+            <button type="button" className="icon-btn" onClick={onClose} aria-label="Close preview">
+              <i className="ri-close-line" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+
+        {preview.loading ? (
+          <div className="document-preview-state">
+            <i className="ri-loader-4-line" aria-hidden="true" />
+            Loading file preview...
+          </div>
+        ) : preview.error ? (
+          <div className="document-preview-state error-message" role="alert">
+            <i className="ri-error-warning-line" aria-hidden="true" />
+            <span>{preview.error}</span>
+          </div>
+        ) : (
+          <>
+            {preview.truncated && (
+              <div className="document-warning">
+                <i className="ri-alert-line" aria-hidden="true" />
+                Rendering the first {formatBytes(content.length)} of {formatBytes(preview.size ?? content.length)}.
+              </div>
+            )}
+            <div className={`document-viewer language-${language} ${wrapContent ? 'is-wrapped' : ''}`}>
+              <div className="document-gutter" aria-hidden="true">
+                {lines.map((_, index) => (
+                  <span className="document-line-number" key={index}>
+                    {index + 1}
+                  </span>
+                ))}
+              </div>
+              <pre className="document-code"><code>{highlightViewerContent(content, language)}</code></pre>
+            </div>
+          </>
+        )}
+      </section>
+    </div>
   )
 }
 
@@ -1592,6 +1800,93 @@ function fileMeta(snapshot: Snapshot, fileName: ProtocolTextFile): string {
   }
 
   return `${formatBytes(meta.size)} - ${dateFormatter.format(new Date(meta.mtimeIso))}`
+}
+
+function detectViewerLanguage(title: string, content: string): 'json' | 'markdown' | 'text' {
+  const label = `${title} ${content.slice(0, 120)}`.toLowerCase()
+  if (/json|payload|data|ndjson/.test(label)) {
+    return 'json'
+  }
+  if (/^\s*[\[{]/.test(content)) {
+    return 'json'
+  }
+  if (/(^\s*#|\n\s*[-*]\s+|\n\s*\d+\.\s+|^\s*>|\*\*[^*]+\*\*)/.test(content)) {
+    return 'markdown'
+  }
+  return 'text'
+}
+
+function highlightViewerContent(content: string, language: 'json' | 'markdown' | 'text') {
+  const lines = content.replace(/\r\n/g, '\n').split('\n')
+  return lines.map((line, index) => (
+    <Fragment key={index}>
+      {highlightViewerLine(line, language)}
+      {index < lines.length - 1 ? '\n' : null}
+    </Fragment>
+  ))
+}
+
+function highlightViewerLine(line: string, language: 'json' | 'markdown' | 'text') {
+  if (language === 'json') return highlightJsonLine(line)
+  if (language === 'markdown') return highlightMarkdownLine(line)
+  return highlightTextLine(line)
+}
+
+function highlightJsonLine(line: string) {
+  const nodes: ReactNode[] = []
+  const pattern = /("(?:\\.|[^"\\])*"\s*:)|("(?:\\.|[^"\\])*")|\b(true|false|null)\b|-?\b\d+(?:\.\d+)?(?:e[+-]?\d+)?\b|[{}\[\],:]/gi
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = pattern.exec(line))) {
+    if (match.index > lastIndex) nodes.push(line.slice(lastIndex, match.index))
+    const value = match[0]
+    const className = match[1]
+      ? 'viewer-token property'
+      : match[2]
+        ? 'viewer-token string'
+        : /^(true|false|null)$/i.test(value)
+          ? 'viewer-token boolean'
+          : /^-?\d/.test(value)
+            ? 'viewer-token number'
+            : 'viewer-token punctuation'
+    nodes.push(<span className={className} key={`${match.index}-${value}`}>{value}</span>)
+    lastIndex = pattern.lastIndex
+  }
+
+  if (lastIndex < line.length) nodes.push(line.slice(lastIndex))
+  return nodes.length ? nodes : line
+}
+
+function highlightMarkdownLine(line: string) {
+  if (/^#{1,6}\s+/.test(line)) {
+    return <span className="viewer-token heading">{line}</span>
+  }
+  if (/^\s*([-*]|\d+\.)\s+/.test(line)) {
+    return <span className="viewer-token list">{line}</span>
+  }
+  return highlightTextLine(line)
+}
+
+function highlightTextLine(line: string) {
+  const nodes: ReactNode[] = []
+  const pattern = /(https?:\/\/[^\s)]+)|\b(error|failed|failure|success|completed|running|warning|true|false|null|idle|waiting_for_review|instruction_received|blocked)\b/gi
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = pattern.exec(line))) {
+    if (match.index > lastIndex) nodes.push(line.slice(lastIndex, match.index))
+    const value = match[0]
+    nodes.push(
+      <span className={/^https?:/i.test(value) ? 'viewer-token url' : 'viewer-token keyword'} key={`${match.index}-${value}`}>
+        {value}
+      </span>,
+    )
+    lastIndex = pattern.lastIndex
+  }
+
+  if (lastIndex < line.length) nodes.push(line.slice(lastIndex))
+  return nodes.length ? nodes : line
 }
 
 function formatMessageTime(value: string): string {

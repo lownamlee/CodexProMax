@@ -159,6 +159,14 @@ export interface UploadAttachmentResponse extends RunSnapshotResponse {
   attachment: AttachmentMeta
 }
 
+export interface ProtocolFileContentResponse {
+  ok: true
+  fileName: ProtocolTextFile
+  content: string
+  truncated: boolean
+  size: number
+}
+
 export interface ManagerResponse {
   ok: true
   snapshot: ManagerSnapshot
