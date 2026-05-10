@@ -4,13 +4,17 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
   type ClipboardEvent,
   type DragEvent,
+  type KeyboardEvent,
+  type SyntheticEvent,
   type UIEvent,
 } from 'react'
 import ReactMarkdown from 'react-markdown'
 import {
   clearConversationHistory as clearConversationHistoryRequest,
+  deleteAttachment as deleteAttachmentRequest,
   deleteRun as deleteRunRequest,
   fetchRunSnapshot,
   requestSessionStop,
@@ -46,6 +50,7 @@ const FILE_ICONS: Record<ProtocolTextFile, string> = {
 const CHAT_BOTTOM_THRESHOLD_PX = 12
 
 type PendingAction = 'send' | 'upload' | 'load' | 'clear' | 'stop'
+type MentionRange = { start: number; end: number; query: string }
 
 function App() {
   const { snapshot: managerSnapshot, connectionState, error: streamError } = useSnapshotStream()
@@ -54,6 +59,7 @@ function App() {
   const [instruction, setInstruction] = useState('')
   const [pending, setPending] = useState<PendingAction | null>(null)
   const [deletingRunId, setDeletingRunId] = useState<string | null>(null)
+  const [deletingAttachmentName, setDeletingAttachmentName] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [leftCollapsed, setLeftCollapsed] = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
@@ -184,18 +190,18 @@ function App() {
     }
   }
 
-  async function handleUpload(file: File | undefined) {
+  async function handleUpload(file: File | undefined): Promise<AttachmentMeta | null> {
     if (!file) {
-      return
+      return null
     }
 
     if (!selectedRunId) {
       setActionError('Select a run before adding attachments.')
-      return
+      return null
     }
 
     if (pending) {
-      return
+      return null
     }
 
     setPending('upload')
@@ -204,21 +210,50 @@ function App() {
     try {
       const response = await uploadAttachment(selectedRunId, file)
       setRunSnapshot(response.snapshot)
+      return response.attachment
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Upload failed')
+      return null
     } finally {
       setPending(null)
     }
   }
 
-  function handleComposerPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
-    const file = getPastedImageFile(event.clipboardData)
-    if (!file) {
+  async function handleDeleteAttachment(attachment: AttachmentMeta) {
+    if (!selectedRunId) {
+      setActionError('Select a run before deleting attachments.')
       return
     }
 
+    const confirmed = window.confirm(`Delete attachment "${attachment.name}"?`)
+    if (!confirmed) {
+      return
+    }
+
+    setDeletingAttachmentName(attachment.name)
+    setActionError(null)
+
+    try {
+      const response = await deleteAttachmentRequest(selectedRunId, attachment.name)
+      setRunSnapshot(response.snapshot)
+      if (previewAttachment?.name === attachment.name) {
+        setPreviewAttachment(null)
+      }
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Delete attachment failed')
+    } finally {
+      setDeletingAttachmentName(null)
+    }
+  }
+
+  async function handleComposerPaste(event: ClipboardEvent<HTMLTextAreaElement>): Promise<AttachmentMeta | null> {
+    const file = getPastedImageFile(event.clipboardData)
+    if (!file) {
+      return null
+    }
+
     event.preventDefault()
-    void handleUpload(file)
+    return handleUpload(file)
   }
 
   function handleAttachmentDragEnter(event: DragEvent<HTMLElement>) {
@@ -465,6 +500,7 @@ function App() {
         <ReviewComposer
           instruction={instruction}
           onInstructionChange={setInstruction}
+          attachments={attachments}
           pending={pending}
           canSend={Boolean(selectedRunId) && instruction.trim().length > 0 && !busy}
           onSend={() => void sendInstruction()}
@@ -482,6 +518,8 @@ function App() {
         snapshot={runSnapshot}
         attachments={attachments}
         onAttachmentPreview={setPreviewAttachment}
+        onAttachmentDelete={(attachment) => void handleDeleteAttachment(attachment)}
+        deletingAttachmentName={deletingAttachmentName}
         filesPresent={filesPresent}
       />
 
@@ -660,6 +698,7 @@ function MarkdownWarning({ safety }: { safety: MarkdownSafety }) {
 function ReviewComposer({
   instruction,
   onInstructionChange,
+  attachments,
   pending,
   canSend,
   onSend,
@@ -669,18 +708,133 @@ function ReviewComposer({
 }: {
   instruction: string
   onInstructionChange: (value: string) => void
+  attachments: AttachmentMeta[]
   pending: PendingAction | null
   canSend: boolean
   onSend: () => void
   onUpload: (file: File | undefined) => void
-  onPasteAttachment: (event: ClipboardEvent<HTMLTextAreaElement>) => void
+  onPasteAttachment: (event: ClipboardEvent<HTMLTextAreaElement>) => Promise<AttachmentMeta | null>
   error: string | null
 }) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const [mentionRange, setMentionRange] = useState<MentionRange | null>(null)
+  const [activeMentionIndex, setActiveMentionIndex] = useState(0)
+  const mentionOptions = useMemo(() => {
+    if (!mentionRange) {
+      return []
+    }
+
+    const query = mentionRange.query.toLowerCase()
+    return attachments
+      .filter((attachment) => attachment.name.toLowerCase().includes(query))
+      .slice(0, 6)
+  }, [attachments, mentionRange])
+  const showMentionMenu = mentionOptions.length > 0
+
+  useEffect(() => {
+    setActiveMentionIndex(0)
+  }, [mentionRange?.query])
+
+  useEffect(() => {
+    if (activeMentionIndex >= mentionOptions.length) {
+      setActiveMentionIndex(0)
+    }
+  }, [activeMentionIndex, mentionOptions.length])
+
+  function updateMentionRange(value: string, caret: number | null) {
+    setMentionRange(caret === null ? null : findMentionRange(value, caret))
+  }
+
+  function handleInstructionChange(event: ChangeEvent<HTMLTextAreaElement>) {
+    onInstructionChange(event.target.value)
+    updateMentionRange(event.target.value, event.target.selectionStart)
+  }
+
+  function handleTextareaCursor(event: SyntheticEvent<HTMLTextAreaElement>) {
+    updateMentionRange(event.currentTarget.value, event.currentTarget.selectionStart)
+  }
+
+  function insertAttachmentMention(attachmentName: string, range = mentionRange) {
+    const textarea = textareaRef.current
+    const value = textarea?.value ?? instruction
+    const fallbackStart = textarea?.selectionStart ?? value.length
+    const fallbackEnd = textarea?.selectionEnd ?? fallbackStart
+    const start = range?.start ?? fallbackStart
+    const end = range?.end ?? fallbackEnd
+    const leading = start > 0 && !/\s/.test(value[start - 1]) ? ' ' : ''
+    const trailing = end >= value.length || !/\s/.test(value[end]) ? ' ' : ''
+    const inserted = `${leading}@${attachmentName}${trailing}`
+    const next = `${value.slice(0, start)}${inserted}${value.slice(end)}`
+    const cursor = start + inserted.length
+
+    onInstructionChange(next)
+    setMentionRange(null)
+    requestAnimationFrame(() => {
+      textarea?.focus()
+      textarea?.setSelectionRange(cursor, cursor)
+    })
+  }
+
+  async function handleTextareaPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const attachment = await onPasteAttachment(event)
+    if (attachment) {
+      insertAttachmentMention(attachment.name)
+    }
+  }
+
+  function handleTextareaKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (!showMentionMenu) {
+      return
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setActiveMentionIndex((value) => (value + 1) % mentionOptions.length)
+      return
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setActiveMentionIndex((value) => (value - 1 + mentionOptions.length) % mentionOptions.length)
+      return
+    }
+
+    if (event.key === 'Enter' || event.key === 'Tab') {
+      event.preventDefault()
+      insertAttachmentMention(mentionOptions[activeMentionIndex].name)
+      return
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      setMentionRange(null)
+    }
+  }
+
   return (
     <section className="composer-wrapper" aria-label="Review">
       <label className="sr-only" htmlFor="instruction">
         Instruction
       </label>
+      {showMentionMenu && (
+        <div className="mention-menu" role="listbox" aria-label="Attachment mentions">
+          {mentionOptions.map((attachment, index) => (
+            <button
+              key={attachment.name}
+              type="button"
+              className={`mention-option ${index === activeMentionIndex ? 'active' : ''}`}
+              role="option"
+              aria-selected={index === activeMentionIndex}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => insertAttachmentMention(attachment.name)}
+            >
+              <i className="ri-attachment-2" aria-hidden="true" />
+              <span className="mention-name">{attachment.name}</span>
+              <span className="mention-size">{formatBytes(attachment.size)}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <div className="composer">
         <label className="composer-btn" title={pending === 'upload' ? 'Uploading...' : 'Attach review image'}>
           <i className={pending === 'upload' ? 'ri-loader-4-line' : 'ri-attachment-2'} aria-hidden="true" />
@@ -697,10 +851,15 @@ function ReviewComposer({
         </label>
 
         <textarea
+          ref={textareaRef}
           id="instruction"
           value={instruction}
-          onChange={(event) => onInstructionChange(event.target.value)}
-          onPaste={onPasteAttachment}
+          onChange={handleInstructionChange}
+          onClick={handleTextareaCursor}
+          onKeyUp={handleTextareaCursor}
+          onKeyDown={handleTextareaKeyDown}
+          onPaste={(event) => void handleTextareaPaste(event)}
+          onBlur={() => setMentionRange(null)}
           rows={1}
           placeholder="Write your instructions to Codex..."
           spellCheck
@@ -773,6 +932,20 @@ function imageFileExtension(mimeType: string): string {
   }
 }
 
+function findMentionRange(value: string, caret: number): MentionRange | null {
+  const beforeCaret = value.slice(0, caret)
+  const match = /(^|\s)@([a-zA-Z0-9._-]*)$/.exec(beforeCaret)
+  if (!match) {
+    return null
+  }
+
+  return {
+    start: beforeCaret.length - match[2].length - 1,
+    end: caret,
+    query: match[2],
+  }
+}
+
 function eventHasFiles(event: DragEvent<HTMLElement>) {
   return Array.from(event.dataTransfer.types).includes('Files')
 }
@@ -789,6 +962,8 @@ function ProtocolSidebar({
   snapshot,
   attachments,
   onAttachmentPreview,
+  onAttachmentDelete,
+  deletingAttachmentName,
   filesPresent,
 }: {
   collapsed: boolean
@@ -798,6 +973,8 @@ function ProtocolSidebar({
   snapshot: Snapshot | null
   attachments: AttachmentMeta[]
   onAttachmentPreview: (attachment: AttachmentMeta) => void
+  onAttachmentDelete: (attachment: AttachmentMeta) => void
+  deletingAttachmentName: string | null
   filesPresent: number
 }) {
   return (
@@ -838,7 +1015,12 @@ function ProtocolSidebar({
 
         <div className="meta-group">
           <h4>Attachments</h4>
-          <AttachmentList attachments={attachments} onPreview={onAttachmentPreview} />
+          <AttachmentList
+            attachments={attachments}
+            deletingAttachmentName={deletingAttachmentName}
+            onPreview={onAttachmentPreview}
+            onDelete={onAttachmentDelete}
+          />
         </div>
       </div>
     </aside>
@@ -870,10 +1052,14 @@ function FileCard({
 
 function AttachmentList({
   attachments,
+  deletingAttachmentName,
   onPreview,
+  onDelete,
 }: {
   attachments: AttachmentMeta[]
+  deletingAttachmentName: string | null
   onPreview: (attachment: AttachmentMeta) => void
+  onDelete: (attachment: AttachmentMeta) => void
 }) {
   if (attachments.length === 0) {
     return (
@@ -901,6 +1087,16 @@ function AttachmentList({
             </button>
             <div className="file-meta">{formatBytes(attachment.size)}</div>
           </div>
+          <button
+            type="button"
+            className="attachment-delete-button"
+            onClick={() => onDelete(attachment)}
+            disabled={deletingAttachmentName === attachment.name}
+            aria-label={`Delete attachment ${attachment.name}`}
+            title={`Delete ${attachment.name}`}
+          >
+            <i className={deletingAttachmentName === attachment.name ? 'ri-loader-4-line' : 'ri-delete-bin-6-line'} aria-hidden="true" />
+          </button>
         </li>
       ))}
     </ul>

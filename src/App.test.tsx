@@ -54,6 +54,7 @@ beforeEach(() => {
           runId: 'run-a',
           displayName: 'Run A',
           outputMd: '## Draft A\n\nReady for review.',
+          attachments: [attachmentFactory('existing.png')],
         }))
       }
 
@@ -72,6 +73,7 @@ beforeEach(() => {
           displayName: 'Run A',
           outputMd: '## Draft A\n\nReady for review.',
           messages: [],
+          attachments: [attachmentFactory('existing.png')],
         })
         snapshot.files['session.md'] = fileMeta(true)
         return jsonResponse({
@@ -96,6 +98,17 @@ beforeEach(() => {
                 createdAtIso: '2026-05-07T00:00:03.000Z',
               },
             ],
+          }),
+        })
+      }
+
+      if (requestUrl === '/api/runs/run-a/attachments/existing.png' && init?.method === 'DELETE') {
+        return jsonResponse({
+          ok: true,
+          snapshot: snapshotFactory({
+            runId: 'run-a',
+            displayName: 'Run A',
+            attachments: [],
           }),
         })
       }
@@ -137,18 +150,12 @@ beforeEach(() => {
       }
 
       if (requestUrl.includes('/api/runs/') && requestUrl.includes('/upload')) {
+        const attachment = attachmentFactory('uploaded.png')
         return jsonResponse({
           ok: true,
+          attachment,
           snapshot: snapshotFactory({
-            attachments: [
-              {
-                name: 'uploaded.png',
-                url: '/api/runs/run-a/attachments/uploaded.png',
-                size: 42,
-                mtimeMs: 1,
-                mtimeIso: '2026-05-07T00:00:00.000Z',
-              },
-            ],
+            attachments: [attachment],
           }),
         })
       }
@@ -271,6 +278,24 @@ describe('App', () => {
     expect(screen.getByText('Stop this Codex Pro Max HITL session now.')).toBeInTheDocument()
   })
 
+  it('inserts attachment mentions from the composer at-menu', async () => {
+    render(<App />)
+    await getEventSource()
+
+    const input = await screen.findByLabelText('Instruction')
+    const value = 'Review @ex'
+    fireEvent.change(input, {
+      target: { value },
+    })
+    const textarea = input as HTMLTextAreaElement
+    textarea.setSelectionRange(value.length, value.length)
+    fireEvent.keyUp(input)
+
+    fireEvent.click(await screen.findByRole('option', { name: /existing\.png/i }))
+
+    expect(input).toHaveValue('Review @existing.png ')
+  })
+
   it('uploads a pasted image attachment from the instruction field', async () => {
     const fetchMock = vi.mocked(fetch)
     render(<App />)
@@ -299,6 +324,7 @@ describe('App', () => {
       ),
     )
     expect(await screen.findByRole('button', { name: 'uploaded.png' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Instruction')).toHaveValue('@uploaded.png ')
   })
 
   it('renders status ownership and help text', async () => {
@@ -366,6 +392,23 @@ describe('App', () => {
       'src',
       '/api/runs/run-a/attachments/uploaded.png',
     )
+  })
+
+  it('deletes an attachment from the selected run', async () => {
+    const fetchMock = vi.mocked(fetch)
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    render(<App />)
+    await getEventSource()
+
+    expect(await screen.findByRole('button', { name: 'existing.png' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /delete attachment existing\.png/i }))
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/runs/run-a/attachments/existing.png', {
+        method: 'DELETE',
+      }),
+    )
+    expect(screen.queryByRole('button', { name: 'existing.png' })).not.toBeInTheDocument()
   })
 
   it('keeps the chat pinned to the bottom when a new message arrives while already at bottom', async () => {
@@ -556,6 +599,16 @@ function snapshotFactory(overrides: Partial<Snapshot> = {}): Snapshot {
       serverTimeIso: '2026-05-07T00:00:00.000Z',
     },
     ...overrides,
+  }
+}
+
+function attachmentFactory(name: string) {
+  return {
+    name,
+    url: `/api/runs/run-a/attachments/${name}`,
+    size: 42,
+    mtimeMs: 1,
+    mtimeIso: '2026-05-07T00:00:00.000Z',
   }
 }
 

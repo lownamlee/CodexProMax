@@ -12,6 +12,7 @@ import {
   appendAuditEvent,
   appendChatMessage,
   clearConversationHistory,
+  deleteAttachment,
   deleteRun,
   ensureRunMetadata,
   getAttachmentsPath,
@@ -105,6 +106,24 @@ export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
   })
 
   app.post('/api/runs/:runId/upload', upload.single('file'), uploadHandler(rootPath, hub))
+
+  app.delete('/api/runs/:runId/attachments/:fileName', async (request, response) => {
+    const runId = parseRunId(request.params.runId)
+    const rawFileName = Array.isArray(request.params.fileName)
+      ? request.params.fileName[0]
+      : request.params.fileName
+    const fileName = parseAttachmentName(rawFileName)
+    const runPath = getRunPath(rootPath, runId)
+
+    await deleteAttachment(runPath, fileName)
+    await appendAuditEvent(runPath, 'attachment.deleted', { fileName })
+    await hub.broadcastSnapshot()
+
+    response.json({
+      ok: true,
+      snapshot: await hub.readRunSnapshot(runId),
+    })
+  })
 
   app.get('/api/runs/:runId/attachments/:fileName', async (request, response) => {
     const runId = parseRunId(request.params.runId)

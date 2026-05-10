@@ -175,6 +175,7 @@ Legacy chat logs are read only for compatibility. When the backend or scripts ne
 | `POST /api/runs/:runId/action` | Writes one non-empty instruction and sets `INSTRUCTION_RECEIVED`. |
 | `POST /api/runs/:runId/upload` | Uploads one raster image attachment. |
 | `GET /api/runs/:runId/attachments/:fileName` | Serves an uploaded attachment. |
+| `DELETE /api/runs/:runId/attachments/:fileName` | Deletes one attachment from the selected run. |
 | `DELETE /api/runs/:runId/messages` | Clears `session.md` for the selected run while keeping the run open. |
 | `POST /api/runs/:runId/stop` | Sends the canonical stop instruction through the selected run. |
 | `DELETE /api/runs/:runId` | Deletes a real run folder. `legacy-root` is protected. |
@@ -232,8 +233,8 @@ Main surfaces:
 - Left sidebar: run inbox, active run selection, delete controls for real runs.
 - Center: chat-style conversation from `session.md`, with assistant and user messages in chronological order.
 - Header actions: sidebar toggles, connection state, run count, stop session, and conversation-history clearing.
-- Bottom composer: one text box and one send button for all human input.
-- Attachment control: image upload from file picker, drag/drop, or pasted clipboard image.
+- Bottom composer: one text box, one send button, and `@` attachment mentions.
+- Attachment control: image upload from file picker, drag/drop, or pasted clipboard image; pasted images are inserted into the composer as `@file-name` references.
 - Right sidebar: workspace path, current status, protocol file presence, and attachment list.
 
 Important UI behavior:
@@ -286,6 +287,7 @@ Common event types:
 - `session.stop.requested`: stop instruction preview and byte count.
 - `conversation.cleared`: selected run history was cleared.
 - `upload.image`: accepted image upload metadata.
+- `attachment.deleted`: selected attachment name.
 - `protocol.file.changed`: watched protocol file add/change/unlink with preview when available.
 - `run.metadata.changed`: `run.json` changes.
 - `attachment.changed`: attachment additions, changes, and removals.

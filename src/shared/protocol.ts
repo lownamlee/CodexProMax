@@ -155,6 +155,10 @@ export interface RunSnapshotResponse {
   snapshot: Snapshot
 }
 
+export interface UploadAttachmentResponse extends RunSnapshotResponse {
+  attachment: AttachmentMeta
+}
+
 export interface ManagerResponse {
   ok: true
   snapshot: ManagerSnapshot

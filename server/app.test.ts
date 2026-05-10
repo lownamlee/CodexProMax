@@ -234,6 +234,24 @@ describe('Codex Pro Max multi-run API', () => {
     expect(runBExists).toBe(false)
   })
 
+  it('deletes one attachment without deleting the selected run', async () => {
+    const runA = getRunPath(rootPath, 'run-a')
+    const attachmentsPath = path.join(runA, 'attachments')
+    await fs.mkdir(attachmentsPath, { recursive: true })
+    await fs.writeFile(path.join(runA, 'status.txt'), 'WAITING_FOR_REVIEW\n', 'utf8')
+    await fs.writeFile(path.join(attachmentsPath, 'evidence.png'), 'fake image', 'utf8')
+    appHandle = createApp({ rootPath, startWatcher: false })
+
+    const response = await request(appHandle.app)
+      .delete('/api/runs/run-a/attachments/evidence.png')
+      .expect(200)
+
+    expect(response.body.snapshot.runId).toBe('run-a')
+    expect(response.body.snapshot.attachments).toEqual([])
+    await expect(pathExists(path.join(attachmentsPath, 'evidence.png'))).resolves.toBe(false)
+    await expect(pathExists(runA)).resolves.toBe(true)
+  })
+
   it('logs user messages and watched protocol file changes', async () => {
     appHandle = createApp({ rootPath })
     await waitForWatcher(appHandle)

@@ -855,6 +855,57 @@ code,
   transition: all 0.3s var(--ease-spring);
 }
 
+.mention-menu {
+  width: min(800px, 100%);
+  max-height: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  margin: 0 auto 8px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-md);
+  pointer-events: auto;
+}
+
+.mention-option {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  text-align: left;
+}
+
+.mention-option:hover,
+.mention-option.active {
+  background: var(--bg-hover);
+  color: var(--primary);
+}
+
+.mention-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mention-size {
+  color: var(--text-light);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
 .composer:focus-within {
   border-color: var(--primary-soft);
   box-shadow: var(--shadow-lg);
@@ -1091,6 +1142,7 @@ code,
 
 .file-copy {
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 .file-name {
@@ -1122,6 +1174,22 @@ code,
   width: 100%;
   padding: 0;
   text-align: left;
+}
+
+.attachment-delete-button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  color: var(--text-light);
+  font-size: 15px;
+}
+
+.attachment-delete-button:hover:not(:disabled) {
+  background: #fff1f2;
+  color: var(--danger);
 }
 
 .preview-backdrop {

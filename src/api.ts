@@ -5,6 +5,7 @@ import type {
   ManagerSnapshot,
   RunSnapshotResponse,
   Snapshot,
+  UploadAttachmentResponse,
 } from './shared/protocol'
 
 export async function fetchSnapshot(): Promise<ManagerSnapshot> {
@@ -32,7 +33,7 @@ export async function submitInstruction(
   return parseJsonResponse<RunSnapshotResponse>(response)
 }
 
-export async function uploadAttachment(runId: string, file: File): Promise<RunSnapshotResponse> {
+export async function uploadAttachment(runId: string, file: File): Promise<UploadAttachmentResponse> {
   const formData = new FormData()
   formData.append('file', file)
 
@@ -40,6 +41,17 @@ export async function uploadAttachment(runId: string, file: File): Promise<RunSn
     method: 'POST',
     body: formData,
   })
+
+  return parseJsonResponse<UploadAttachmentResponse>(response)
+}
+
+export async function deleteAttachment(runId: string, fileName: string): Promise<RunSnapshotResponse> {
+  const response = await fetch(
+    `/api/runs/${encodeURIComponent(runId)}/attachments/${encodeURIComponent(fileName)}`,
+    {
+      method: 'DELETE',
+    },
+  )
 
   return parseJsonResponse<RunSnapshotResponse>(response)
 }

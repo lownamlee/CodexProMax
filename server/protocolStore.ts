@@ -386,6 +386,18 @@ export async function saveAttachment(
   }
 }
 
+export async function deleteAttachment(runPath: string, fileName: string): Promise<void> {
+  const attachmentsPath = getAttachmentsPath(runPath)
+  const targetPath = path.resolve(attachmentsPath, fileName)
+  const relative = path.relative(attachmentsPath, targetPath)
+
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`Attachment path escapes attachments directory: ${fileName}`)
+  }
+
+  await fs.rm(targetPath, { force: true })
+}
+
 export async function deleteRun(rootPath: string, runId: string): Promise<void> {
   if (runId === LEGACY_RUN_ID) {
     throw new Error('Legacy root cannot be deleted as a run.')
