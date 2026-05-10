@@ -1,3 +1,8 @@
+param(
+  [string]$RunDir = "",
+  [int]$MaxSeconds = 0
+)
+
 $ErrorActionPreference = 'SilentlyContinue'
 
 function Get-SafeRunId([string]$value) {
@@ -14,7 +19,10 @@ function Get-SafeRunId([string]$value) {
   return $safe
 }
 
-$runDir = $env:CODEX_PRO_MAX_RUN_DIR
+$runDir = $RunDir
+if ([string]::IsNullOrWhiteSpace($runDir)) {
+  $runDir = $env:CODEX_PRO_MAX_RUN_DIR
+}
 
 if ([string]::IsNullOrWhiteSpace($runDir)) {
   $root = $env:CODEX_PRO_MAX_ROOT
@@ -46,6 +54,11 @@ if (-not [string]::IsNullOrWhiteSpace($env:CODEX_PRO_MAX_POLL_SECONDS)) {
 
 Write-Output "Polling $statusFile every $pollSeconds seconds..."
 
+$deadline = $null
+if ($MaxSeconds -gt 0) {
+  $deadline = (Get-Date).AddSeconds($MaxSeconds)
+}
+
 while ($true) {
   $current = ''
   if (Test-Path -LiteralPath $statusFile) {
@@ -55,6 +68,17 @@ while ($true) {
   if ($current -eq 'INSTRUCTION_RECEIVED') {
     Write-Output "STATUS_CHANGED: $current"
     exit 0
+  }
+
+  if ($null -ne $deadline) {
+    $remainingSeconds = ($deadline - (Get-Date)).TotalSeconds
+    if ($remainingSeconds -le 0) {
+      Write-Output "STILL_WAITING: $current"
+      exit 0
+    }
+
+    Start-Sleep -Seconds ([Math]::Max(1, [Math]::Min($pollSeconds, [int][Math]::Ceiling($remainingSeconds))))
+    continue
   }
 
   Start-Sleep -Seconds $pollSeconds

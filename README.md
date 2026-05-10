@@ -272,8 +272,7 @@ Helper scripts:
 | --- | --- |
 | `request_review.ps1` | Writes `output.md`, appends assistant history to `session.md`, cleans obsolete run notes, sets `WAITING_FOR_REVIEW`. |
 | `consume_instruction.ps1` | Reads `instruction.txt`, appends user history to `session.md`, clears instruction, sets `RUNNING`, returns JSON. |
-| `wait_for_review.ps1` | Blocks until `status.txt` becomes `INSTRUCTION_RECEIVED`. |
-| `wait_for_review.sh` | Shell equivalent for non-Windows environments. |
+| `wait_for_review.ps1` | Polls until `status.txt` becomes `INSTRUCTION_RECEIVED`; use `-RunDir` to pin the exact run and `-MaxSeconds` for bounded heartbeat waits. |
 
 The agent should only stop when `consume_instruction.ps1` returns `shouldFinish=true`.
 

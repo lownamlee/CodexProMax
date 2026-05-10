@@ -77,6 +77,26 @@ describe('Codex Pro Max wait script', () => {
     expect(started.output.stdout).toContain('STATUS_CHANGED: INSTRUCTION_RECEIVED')
   })
 
+  it('supports explicit bounded waits for a run directory', async () => {
+    const root = await createTempRoot()
+    const runDir = path.join(root, 'runs', 'target-run')
+    await mkdir(runDir, { recursive: true })
+    await writeFile(path.join(runDir, 'status.txt'), 'WAITING_FOR_REVIEW')
+
+    const started = startWaitScript(
+      {
+        CODEX_PRO_MAX_POLL_SECONDS: '1',
+      },
+      ['-RunDir', runDir, '-MaxSeconds', '1'],
+    )
+
+    const result = await waitForExit(started, 4_000)
+
+    expect(result.code).toBe(0)
+    expect(started.output.stdout).toContain(path.join(runDir, 'status.txt'))
+    expect(started.output.stdout).toContain('STILL_WAITING: WAITING_FOR_REVIEW')
+  })
+
   it('request review writes output and session while deleting progress', async () => {
     const root = await createTempRoot()
     const runDir = path.join(root, 'runs', 'target-run')
@@ -208,11 +228,11 @@ async function createTempRoot() {
   return root
 }
 
-function startWaitScript(env: Record<string, string>): StartedWaitScript {
+function startWaitScript(env: Record<string, string>, args: string[] = []): StartedWaitScript {
   const output = { stdout: '', stderr: '' }
   const child = spawn(
     'powershell',
-    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', WAIT_SCRIPT],
+    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', WAIT_SCRIPT, ...args],
     {
       env: { ...process.env, ...env },
       windowsHide: true,
