@@ -3006,7 +3006,7 @@ function AttachmentPreview({
             </button>
           </div>
         </div>
-        <div className={`preview-stage ${showGalleryControls ? 'has-gallery-controls' : ''}`}>
+        <div className={`attachment-preview-main ${showGalleryControls ? 'has-gallery-controls' : ''}`}>
           {showGalleryControls && (
             <button
               type="button"
@@ -3018,7 +3018,9 @@ function AttachmentPreview({
               <i className="ri-arrow-left-s-line" aria-hidden="true" />
             </button>
           )}
-          <img src={attachment.url} alt={attachment.name} />
+          <div className="preview-stage">
+            <img src={attachment.url} alt={attachment.name} />
+          </div>
           {showGalleryControls && (
             <button
               type="button"

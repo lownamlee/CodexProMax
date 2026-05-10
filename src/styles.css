@@ -2272,7 +2272,7 @@ code,
 }
 
 .attachment-preview > .preview-header,
-.attachment-preview > .preview-stage,
+.attachment-preview > .attachment-preview-main,
 .attachment-preview > .attachment-preview-strip {
   position: relative;
   z-index: 1;
@@ -2366,6 +2366,29 @@ code,
   box-shadow: var(--shadow-sm);
 }
 
+.attachment-preview-main {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 14px;
+}
+
+.attachment-preview-main.has-gallery-controls {
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+}
+
+.attachment-preview-main > .preview-stage {
+  grid-column: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.attachment-preview-main.has-gallery-controls > .preview-stage {
+  grid-column: 2;
+}
+
 .attachment-preview .preview-stage {
   min-height: 0;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -2373,12 +2396,6 @@ code,
   background: rgba(0, 0, 0, 0.22);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   padding: 0;
-}
-
-.attachment-preview .preview-stage.has-gallery-controls {
-  grid-template-columns: 56px minmax(0, 1fr) 56px;
-  gap: 12px;
-  padding: 0 8px;
 }
 
 .attachment-preview .preview-stage > img {
@@ -2392,10 +2409,6 @@ code,
   background: transparent;
   box-shadow: none;
   object-fit: contain;
-}
-
-.attachment-preview .preview-stage.has-gallery-controls > img {
-  grid-column: 2;
 }
 
 .attachment-preview-nav {
@@ -2421,7 +2434,7 @@ code,
   color: #ffffff;
 }
 
-.attachment-preview .preview-stage.has-gallery-controls .attachment-preview-nav {
+.attachment-preview-main.has-gallery-controls .attachment-preview-nav {
   position: static;
   top: auto;
   right: auto;
@@ -2435,7 +2448,7 @@ code,
   left: 14px;
 }
 
-.attachment-preview .preview-stage.has-gallery-controls .attachment-preview-nav.previous {
+.attachment-preview-main.has-gallery-controls .attachment-preview-nav.previous {
   grid-column: 1;
 }
 
@@ -2443,7 +2456,7 @@ code,
   right: 14px;
 }
 
-.attachment-preview .preview-stage.has-gallery-controls .attachment-preview-nav.next {
+.attachment-preview-main.has-gallery-controls .attachment-preview-nav.next {
   grid-column: 3;
 }
 
