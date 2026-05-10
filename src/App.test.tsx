@@ -434,14 +434,16 @@ describe('App', () => {
     await waitFor(() => expect(scrollPane.scrollTop).toBe(240))
   })
 
-  it('renders status ownership and help text', async () => {
+  it('omits workspace and current status fields from the right sidebar', async () => {
     render(<App />)
     await getEventSource()
 
-    fireEvent.click(await screen.findByRole('button', { name: /Run B/i }))
+    const sidebar = screen.getByLabelText('Protocol details')
 
-    expect(await screen.findByTestId('status-owner')).toHaveTextContent('ui')
-    expect(screen.getAllByText(/consumes instruction.txt/i).length).toBeGreaterThan(0)
+    expect(await screen.findByTestId('current-status')).toHaveTextContent('WAITING_FOR_REVIEW')
+    expect(within(sidebar).queryByRole('heading', { name: 'Workspace' })).not.toBeInTheDocument()
+    expect(within(sidebar).queryByRole('heading', { name: 'Current Status' })).not.toBeInTheDocument()
+    expect(within(sidebar).getByRole('heading', { name: 'Outlines' })).toBeInTheDocument()
   })
 
   it('renders markdown safety warnings', async () => {

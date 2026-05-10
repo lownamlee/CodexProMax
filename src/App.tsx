@@ -35,7 +35,7 @@ import type {
   RunSummary,
   Snapshot,
 } from './shared/protocol'
-import { PROTOCOL_TEXT_FILES, STATUS_DETAILS } from './shared/protocol'
+import { PROTOCOL_TEXT_FILES } from './shared/protocol'
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
@@ -374,7 +374,6 @@ function App() {
   }
 
   const status: ProtocolStatus = runSnapshot?.status ?? selectedRun?.status ?? 'IDLE'
-  const statusDetails = STATUS_DETAILS[status]
   const aiWorking = isCodexWorking(status)
   const attachments = useMemo(() => runSnapshot?.attachments ?? [], [runSnapshot?.attachments])
   const draftAttachments = useMemo(
@@ -439,7 +438,6 @@ function App() {
   const canSendInstruction =
     Boolean(selectedRunId) && instruction.trim().length > 0 && !busy && !aiWorking
   const selectedTitle = selectedRun?.displayName ?? runSnapshot?.displayName ?? 'No run selected'
-  const managerRoot = managerSnapshot?.rootPath ?? 'Loading workspace...'
   const draggingAttachment = attachmentDragDepth > 0
   const chatContainerStyle = {
     '--composer-bottom-space': `${composerHeight + 16}px`,
@@ -610,9 +608,6 @@ function App() {
 
       <ProtocolSidebar
         collapsed={rightCollapsed}
-        managerRoot={managerRoot}
-        status={status}
-        statusDetails={statusDetails}
         snapshot={runSnapshot}
         attachments={attachments}
         onAttachmentPreview={setPreviewAttachment}
@@ -1266,9 +1261,6 @@ function isScrolledNearBottom(element: HTMLElement) {
 
 function ProtocolSidebar({
   collapsed,
-  managerRoot,
-  status,
-  statusDetails,
   snapshot,
   attachments,
   onAttachmentPreview,
@@ -1280,9 +1272,6 @@ function ProtocolSidebar({
   onUserMessageSelect,
 }: {
   collapsed: boolean
-  managerRoot: string
-  status: ProtocolStatus
-  statusDetails: (typeof STATUS_DETAILS)[ProtocolStatus]
   snapshot: Snapshot | null
   attachments: AttachmentMeta[]
   onAttachmentPreview: (attachment: AttachmentMeta) => void
@@ -1300,22 +1289,6 @@ function ProtocolSidebar({
       aria-label="Protocol details"
     >
       <div className="sidebar-inner">
-        <div className="meta-group">
-          <h4>Workspace</h4>
-          <p className="root-path" title={managerRoot}>
-            {managerRoot}
-          </p>
-        </div>
-
-        <div className="meta-group">
-          <h4>Current Status</h4>
-          <div className="status-card">
-            <span data-testid="current-status">{status}</span>
-            <small data-testid="status-owner">{statusDetails.owner}</small>
-            <p>{statusDetails.help}</p>
-          </div>
-        </div>
-
         <div className="meta-group">
           <h4>Outlines</h4>
           <UserMessageOutlineList
@@ -1566,7 +1539,7 @@ function EmptyConversationHistory() {
 
 function StatusBadge({ status }: { status: ProtocolStatus }) {
   const className = `status-badge status-${status.toLowerCase().replaceAll('_', '-')}`
-  return <span className={className}>{status}</span>
+  return <span className={className} data-testid="current-status">{status}</span>
 }
 
 function ConnectionPill({ state }: { state: string }) {
