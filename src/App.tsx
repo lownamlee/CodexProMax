@@ -554,7 +554,7 @@ function App() {
     chatPinnedToBottomRef.current = false
     setChatAtBottom(false)
     setActiveUserMessageId(messageId)
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   function updateActiveUserMessage(scrollElement = chatScrollRef.current) {

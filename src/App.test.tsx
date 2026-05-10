@@ -287,7 +287,7 @@ describe('App', () => {
 
       fireEvent.click(within(sidebar).getByRole('button', { name: /User request 12/i }))
 
-      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' })
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
     } finally {
       Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', {
         configurable: true,

@@ -2,7 +2,7 @@
 
 Use the global Codex Pro Max HITL runtime only when the manager is actually running at `C:\Users\ramly\Desktop\CodexProMax`.
 
-HITL is active when `CODEX_PRO_MAX_RUN_DIR` or `CODEX_PRO_MAX_ROOT` is set, or when `http://127.0.0.1:5127/api/snapshot` is reachable.
+HITL is active when `CODEX_PRO_MAX_RUN_DIR` or `CODEX_PRO_MAX_ROOT` is set, or when `http://127.0.0.1:53127/api/snapshot` is reachable.
 
 When HITL is active:
 - Use `C:\Users\ramly\.codex\skills\codex-pro-max-hitl\SKILL.md`.

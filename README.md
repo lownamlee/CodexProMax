@@ -28,7 +28,7 @@ The normal flow is:
 5. The human writes one instruction and clicks `Send to Codex`.
 6. The backend writes `instruction.txt`, appends the user message to `session.md`, and sets `status.txt` to `INSTRUCTION_RECEIVED`.
 7. Codex's wait script exits.
-8. Codex calls `consume_instruction.ps1`, which reads and clears `instruction.txt`, sets `status.txt` to `IDLE`, and returns the instruction plus `sessionPath`.
+8. Codex calls `consume_instruction.ps1`, which reads and clears `instruction.txt`, sets `status.txt` to `RUNNING`, and returns the instruction plus `sessionPath`.
 9. Codex continues unless `shouldFinish=true`.
 
 ## Requirements
@@ -37,7 +37,7 @@ The normal flow is:
 - npm 11 or newer.
 - Windows PowerShell for the bundled `.ps1` helper scripts.
 
-The default API port is `5127`. The default Vite UI port is `5173`.
+The default API port is `53127`. The default Vite UI port is `5173`.
 
 ## Getting Started
 
@@ -62,7 +62,7 @@ http://127.0.0.1:5173/
 The API listens on:
 
 ```text
-http://127.0.0.1:5127/
+http://127.0.0.1:53127/
 ```
 
 ## Scripts
@@ -79,7 +79,7 @@ http://127.0.0.1:5127/
 | Variable | Purpose |
 | --- | --- |
 | `CODEX_PRO_MAX_ROOT` | Optional manager root. Defaults to the current workspace directory. |
-| `CODEX_PRO_MAX_API_PORT` | Optional API port. Defaults to `5127`. |
+| `CODEX_PRO_MAX_API_PORT` | Optional API port. Defaults to `53127`. |
 | `CODEX_PRO_MAX_RUN_DIR` | Exact run directory for one Codex session. Highest priority for the skill. |
 | `CODEX_PRO_MAX_RUN_ID` | Run id used as `runs/<runId>` under the manager root. |
 | `CODEX_THREAD_ID` | Codex thread id fallback for stable per-session run folders. |
@@ -126,7 +126,7 @@ Normal statuses:
 
 | Status | Owner | Meaning |
 | --- | --- | --- |
-| `IDLE` | Agent | No unconsumed instruction is waiting. Codex can work or wait. |
+| `RUNNING` | Agent | Codex has consumed any instruction and is working or ready to continue. |
 | `WAITING_FOR_REVIEW` | Agent | Codex has paused and the human can send the next instruction. |
 | `INSTRUCTION_RECEIVED` | UI | The UI wrote a human instruction and Codex should consume it. |
 
@@ -141,7 +141,7 @@ Legacy status handling:
 
 - Old UI-owned statuses are normalized in snapshots.
 - If an old run has a pending instruction, snapshots map it to `INSTRUCTION_RECEIVED`.
-- If an old run has no pending instruction, snapshots map it to `IDLE`.
+- If an old run has no pending instruction, snapshots map it to `RUNNING`.
 
 ### Session History
 
@@ -271,7 +271,7 @@ Helper scripts:
 | Script | Purpose |
 | --- | --- |
 | `request_review.ps1` | Writes `output.md`, appends assistant history to `session.md`, cleans obsolete run notes, sets `WAITING_FOR_REVIEW`. |
-| `consume_instruction.ps1` | Reads `instruction.txt`, appends user history to `session.md`, clears instruction, sets `IDLE`, returns JSON. |
+| `consume_instruction.ps1` | Reads `instruction.txt`, appends user history to `session.md`, clears instruction, sets `RUNNING`, returns JSON. |
 | `wait_for_review.ps1` | Blocks until `status.txt` becomes `INSTRUCTION_RECEIVED`. |
 | `wait_for_review.sh` | Shell equivalent for non-Windows environments. |
 

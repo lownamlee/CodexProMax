@@ -619,11 +619,12 @@ code,
 }
 
 .message {
-  max-width: 800px;
+  width: 100%;
+  max-width: none;
   display: flex;
   gap: 16px;
-  margin: 0 auto;
-  padding: 0 24px;
+  margin: 0;
+  padding: 0 clamp(16px, 3vw, 32px);
   animation: fadeUp 0.6s var(--ease-spring) forwards;
 }
 
@@ -636,12 +637,12 @@ code,
 }
 
 .user-message .message-content {
-  max-width: min(640px, 100%);
+  max-width: none;
   padding-top: 0;
 }
 
 .assistant-message .message-content {
-  max-width: min(720px, 100%);
+  max-width: none;
 }
 
 .message-label-row {
@@ -676,6 +677,7 @@ code,
 }
 
 .user-bubble {
+  width: 100%;
   padding: 12px 14px;
   border: 1px solid #bae6fd;
   border-radius: 16px 16px 4px 16px;

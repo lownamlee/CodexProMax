@@ -26,7 +26,7 @@ import {
   isProtocolStatus,
 } from '../src/shared/protocol'
 
-export const DEFAULT_API_PORT = 5127
+export const DEFAULT_API_PORT = 53127
 export const ATTACHMENTS_DIR_NAME = 'attachments'
 export const RUN_METADATA_FILE = 'run.json'
 export const SESSION_FILE = 'session.md'
