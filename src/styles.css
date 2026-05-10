@@ -2396,10 +2396,10 @@ code,
 
 .attachment-preview .preview-stage {
   min-height: 0;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 24px;
-  background: rgba(0, 0, 0, 0.22);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  /* border: 1px solid rgba(255, 255, 255, 0.12); */
+  /* border-radius: 24px; */
+  background: transparent;
+  /* box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2); */
   padding: 0;
 }
 
@@ -2569,7 +2569,7 @@ code,
 
 .shortcut-confirm-dialog {
   width: min(348px, 100%);
-  min-height: 430px;
+  min-height: 300px;
   display: flex;
   flex-direction: column;
   gap: 30px;
@@ -2623,7 +2623,6 @@ code,
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-top: auto;
-  padding-top: 18px;
 }
 
 .confirm-icon {
