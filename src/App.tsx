@@ -2992,9 +2992,6 @@ function AttachmentPreview({
         aria-label={attachment.name}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="attachment-preview-bg" aria-hidden="true">
-          <img src={attachment.url} alt="" />
-        </div>
         <div className="preview-header">
           <div className="preview-title">
             <span>{attachment.name}</span>
