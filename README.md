@@ -47,6 +47,14 @@ Install dependencies:
 npm install
 ```
 
+Install the Codex HITL skill and global instructions for this clone:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install-codex-pro-max.ps1
+```
+
+The installer writes the current project directory into the generated `.codex` instructions, so the repo does not need to live under `Desktop`.
+
 Start the local API and UI:
 
 ```bash

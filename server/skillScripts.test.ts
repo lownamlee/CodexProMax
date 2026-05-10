@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 const WAIT_SCRIPT = 'C:\\Users\\ramly\\.codex\\skills\\codex-pro-max-hitl\\scripts\\wait_for_review.ps1'
 const REQUEST_SCRIPT = 'C:\\Users\\ramly\\.codex\\skills\\codex-pro-max-hitl\\scripts\\request_review.ps1'
 const CONSUME_SCRIPT = 'C:\\Users\\ramly\\.codex\\skills\\codex-pro-max-hitl\\scripts\\consume_instruction.ps1'
+const INSTALL_SCRIPT = path.resolve('install-codex-pro-max.ps1')
 
 interface StartedWaitScript {
   child: ReturnType<typeof spawn>
@@ -95,6 +96,23 @@ describe('Codex Pro Max wait script', () => {
     expect(result.code).toBe(0)
     expect(started.output.stdout).toContain(path.join(runDir, 'status.txt'))
     expect(started.output.stdout).toContain('STILL_WAITING: WAITING_FOR_REVIEW')
+  })
+
+  it('installer writes portable global instructions and skill scripts', async () => {
+    const codexHome = await createTempRoot()
+
+    const result = await runPowerShellScript(INSTALL_SCRIPT, ['-CodexHome', codexHome, '-NoBackup'])
+
+    expect(result.code).toBe(0)
+    await expect(fileExists(path.join(codexHome, 'AGENTS.md'))).resolves.toBe(true)
+    await expect(fileExists(path.join(codexHome, 'skills', 'codex-pro-max-hitl', 'SKILL.md'))).resolves.toBe(true)
+    await expect(fileExists(path.join(codexHome, 'skills', 'codex-pro-max-hitl', 'scripts', 'request_review.ps1'))).resolves.toBe(true)
+    await expect(fileExists(path.join(codexHome, 'skills', 'codex-pro-max-hitl', 'scripts', 'consume_instruction.ps1'))).resolves.toBe(true)
+    await expect(fileExists(path.join(codexHome, 'skills', 'codex-pro-max-hitl', 'scripts', 'wait_for_review.ps1'))).resolves.toBe(true)
+
+    const agents = await readFile(path.join(codexHome, 'AGENTS.md'), 'utf8')
+    expect(agents).toContain(process.cwd())
+    expect(agents).toContain('wait_for_review.ps1 -RunDir "<run-dir>"')
   })
 
   it('request review writes output and session while deleting progress', async () => {
