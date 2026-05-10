@@ -133,6 +133,7 @@ function App() {
   )
   const [attachmentDragDepth, setAttachmentDragDepth] = useState(0)
   const [chatAtBottom, setChatAtBottom] = useState(true)
+  const [chatBottomSyncVersion, setChatBottomSyncVersion] = useState(0)
   const [activeUserMessageId, setActiveUserMessageId] = useState<string | null>(null)
   const [previewAttachment, setPreviewAttachment] = useState<AttachmentMeta | null>(null)
   const [previewProtocolFile, setPreviewProtocolFile] = useState<ProtocolFilePreview | null>(null)
@@ -653,6 +654,7 @@ function App() {
 
     if (atBottom) {
       clearSmoothScrollReleaseTimer()
+      setChatBottomSyncVersion((version) => version + 1)
     }
 
     chatPinnedToBottomRef.current = atBottom
@@ -738,6 +740,7 @@ function App() {
     chatPinnedToBottomRef.current = true
     lastChatScrollTopRef.current = 0
     setChatAtBottom(true)
+    setChatBottomSyncVersion((version) => version + 1)
     setActiveUserMessageId(null)
   }, [selectedRunId])
 
@@ -886,6 +889,7 @@ function App() {
     lastChatScrollTopRef.current = scrollTop
     if (isScrolledNearBottom(scrollElement)) {
       setActiveUserMessageId((currentId) => (currentId === latestUserMessageId ? currentId : latestUserMessageId))
+      setChatBottomSyncVersion((version) => version + 1)
       return
     }
 
@@ -971,6 +975,7 @@ function App() {
 
       scrollElement.scrollTop = scrollElement.scrollHeight
       setChatAtBottom(true)
+      setChatBottomSyncVersion((version) => version + 1)
       updateActiveUserMessage(scrollElement)
     })
   }
@@ -994,6 +999,7 @@ function App() {
         chatPinnedToBottomRef.current = atBottom
         setChatAtBottom(atBottom)
         if (atBottom) {
+          setChatBottomSyncVersion((version) => version + 1)
           updateActiveUserMessage(currentScrollElement)
         }
       }, 900)
@@ -1008,6 +1014,7 @@ function App() {
 
     chatPinnedToBottomRef.current = true
     setChatAtBottom(true)
+    setChatBottomSyncVersion((version) => version + 1)
     updateActiveUserMessage(scrollElement)
     if (behavior !== 'smooth') {
       queuePinnedBottomCorrection(scrollElement)
@@ -1186,6 +1193,8 @@ function App() {
         filesPresent={filesPresent}
         userMessageOutlines={userMessageOutlines}
         activeUserMessageId={activeUserMessageId}
+        chatAtBottom={chatAtBottom}
+        chatBottomSyncVersion={chatBottomSyncVersion}
         onUserMessageSelect={jumpToUserMessage}
       />
 
@@ -2231,6 +2240,8 @@ function ProtocolSidebar({
   filesPresent,
   userMessageOutlines,
   activeUserMessageId,
+  chatAtBottom,
+  chatBottomSyncVersion,
   onUserMessageSelect,
 }: {
   collapsed: boolean
@@ -2245,6 +2256,8 @@ function ProtocolSidebar({
   filesPresent: number
   userMessageOutlines: UserMessageOutline[]
   activeUserMessageId: string | null
+  chatAtBottom: boolean
+  chatBottomSyncVersion: number
   onUserMessageSelect: (messageId: string) => void
 }) {
   const [outlinesCollapsed, setOutlinesCollapsed] = useState(() =>
@@ -2285,6 +2298,8 @@ function ProtocolSidebar({
           <UserMessageOutlineList
             outlines={userMessageOutlines}
             activeMessageId={activeUserMessageId}
+            chatAtBottom={chatAtBottom}
+            chatBottomSyncVersion={chatBottomSyncVersion}
             onSelect={onUserMessageSelect}
           />
         </SidebarMetaGroup>
@@ -2385,10 +2400,14 @@ function SidebarMetaGroup({
 function UserMessageOutlineList({
   outlines,
   activeMessageId,
+  chatAtBottom,
+  chatBottomSyncVersion,
   onSelect,
 }: {
   outlines: UserMessageOutline[]
   activeMessageId: string | null
+  chatAtBottom: boolean
+  chatBottomSyncVersion: number
   onSelect: (messageId: string) => void
 }) {
   const outlineListRef = useRef<HTMLOListElement | null>(null)
@@ -2413,8 +2432,9 @@ function UserMessageOutlineList({
     }
 
     if (activeMessageId === latestOutline?.id) {
-      if (outlinePinnedToBottomRef.current) {
+      if (chatAtBottom || outlinePinnedToBottomRef.current) {
         outlineList.scrollTop = outlineList.scrollHeight
+        outlinePinnedToBottomRef.current = true
         lastOutlineScrollAnchorRef.current = outlineScrollAnchor
       }
       setVisibleActiveMessageId(activeMessageId)
@@ -2437,7 +2457,7 @@ function UserMessageOutlineList({
 
     outlinePinnedToBottomRef.current = isScrolledNearBottom(outlineList)
     setVisibleActiveMessageId(activeMessageId)
-  }, [activeMessageId, latestOutline?.id, outlineScrollAnchor])
+  }, [activeMessageId, chatAtBottom, chatBottomSyncVersion, latestOutline?.id, outlineScrollAnchor])
 
   useLayoutEffect(() => {
     const outlineList = outlineListRef.current

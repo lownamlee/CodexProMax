@@ -374,7 +374,7 @@ describe('App', () => {
       await waitFor(() =>
         expect(within(sidebar).getByRole('button', { name: /User request 3/i })).toHaveClass('active'),
       )
-      await waitFor(() => expect(outlineList.scrollTop).toBe(80))
+      await waitFor(() => expect(outlineList.scrollTop).toBe(260))
 
       mockElementRect(userBubble('User request 4'), { top: 220, bottom: 360 })
       mockElementRect(userBubble('User request 5'), { top: 420, bottom: 560 })
@@ -392,7 +392,7 @@ describe('App', () => {
       await waitFor(() =>
         expect(within(sidebar).getByRole('button', { name: /User request 4/i })).toHaveClass('active'),
       )
-      await waitFor(() => expect(outlineList.scrollTop).toBe(96))
+      await waitFor(() => expect(outlineList.scrollTop).toBe(276))
 
       mockElementRect(userBubble('User request 4'), { top: 150, bottom: 290 })
       fireEvent.scroll(scrollPane)
@@ -442,7 +442,7 @@ describe('App', () => {
     }
   })
 
-  it('keeps the outline list pinned to bottom only when already at bottom', async () => {
+  it('keeps the latest outline visible when the chat is at bottom', async () => {
     const initialMessages: Snapshot['messages'] = [
       {
         id: 'user-1',
@@ -518,7 +518,54 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /send to codex/i }))
 
     expect(await within(screen.getByTestId('chat-scroll')).findByText('Fourth outline')).toBeInTheDocument()
-    expect(outlineList.scrollTop).toBe(40)
+    await waitFor(() => expect(outlineList.scrollTop).toBe(320))
+  })
+
+  it('reveals the latest outline again when the chat scrolls back to bottom', async () => {
+    const messages: Snapshot['messages'] = Array.from({ length: 4 }, (_, index) => ({
+      id: `user-${index + 1}`,
+      role: 'user',
+      content: `Bottom sync request ${index + 1}`,
+      createdAtIso: `2026-05-07T00:0${index}:00.000Z`,
+    }))
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(jsonResponse(managerFactory()))
+      .mockResolvedValueOnce(jsonResponse(snapshotFactory({ messages })))
+
+    render(<App />)
+    await getEventSource()
+
+    const scrollPane = screen.getByTestId('chat-scroll')
+    const outlineList = await screen.findByTestId('outline-list')
+    setScrollMetrics(scrollPane, {
+      clientHeight: 100,
+      scrollHeight: 400,
+      scrollTop: 300,
+    })
+    setScrollMetrics(outlineList, {
+      clientHeight: 80,
+      scrollHeight: 260,
+      scrollTop: 180,
+    })
+
+    fireEvent.scroll(scrollPane)
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Bottom sync request 4/i })).toHaveClass('active'),
+    )
+    await waitFor(() => expect(outlineList.scrollTop).toBe(260))
+
+    outlineList.scrollTop = 20
+    fireEvent.scroll(outlineList)
+
+    scrollPane.scrollTop = 240
+    fireEvent.scroll(scrollPane)
+    expect(outlineList.scrollTop).toBe(20)
+
+    scrollPane.scrollTop = 300
+    fireEvent.scroll(scrollPane)
+
+    await waitFor(() => expect(outlineList.scrollTop).toBe(260))
   })
 
   it('selects a different run and switches detail content', async () => {
