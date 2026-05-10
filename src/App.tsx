@@ -1443,7 +1443,7 @@ function LogoutErrorDialog({ onClose }: { onClose: () => void }) {
           <h2>Unable to logout</h2>
           <p>The current local profile cannot be signed out from this console.</p>
         </div>
-        <button type="button" className="confirm-button primary" onClick={onClose}>
+        <button type="button" className="confirm-button primary" onClick={onClose} autoFocus>
           Close
         </button>
       </section>
@@ -2807,6 +2807,7 @@ function ConfirmDialog({
             type="button"
             className={`confirm-button ${tone === 'danger' ? 'danger' : 'primary'}`}
             onClick={() => onResolve(true)}
+            autoFocus
           >
             {dialog.confirmLabel}
           </button>
@@ -2887,7 +2888,7 @@ function ProtocolFilePreviewDialog({
             >
               <i className={copied ? 'ri-check-line' : 'ri-clipboard-line'} aria-hidden="true" />
             </button>
-            <button type="button" className="icon-btn" onClick={onClose} aria-label="Close preview">
+            <button type="button" className="icon-btn" onClick={onClose} aria-label="Close preview" autoFocus>
               <i className="ri-close-line" aria-hidden="true" />
             </button>
           </div>
@@ -2955,7 +2956,7 @@ function AttachmentPreview({
             <a href={attachment.url} target="_blank" rel="noreferrer" className="icon-btn" aria-label="Open image">
               <i className="ri-external-link-line" aria-hidden="true" />
             </a>
-            <button type="button" className="icon-btn" onClick={onClose} aria-label="Close preview">
+            <button type="button" className="icon-btn" onClick={onClose} aria-label="Close preview" autoFocus>
               <i className="ri-close-line" aria-hidden="true" />
             </button>
           </div>

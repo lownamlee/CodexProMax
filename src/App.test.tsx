@@ -272,6 +272,7 @@ describe('App', () => {
     const logoutError = screen.getByRole('dialog', { name: 'Unable to logout' })
     expect(logoutError.closest('.left-sidebar')).toBeNull()
     expect(logoutError.closest('.preview-backdrop')?.parentElement).toBe(document.body)
+    await waitFor(() => expect(within(logoutError).getByRole('button', { name: 'Close' })).toHaveFocus())
     expect(within(logoutError).getByRole('img', { name: /unable to logout sticker/i })).toHaveAttribute(
       'src',
       'https://media.tenor.com/fTH4D95V-oQAAAAi/quby.gif',
@@ -876,7 +877,8 @@ describe('App', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /clear conversation history/i }))
 
-    expect(await screen.findByRole('dialog', { name: 'Clear conversation history' })).toBeInTheDocument()
+    const dialog = await screen.findByRole('dialog', { name: 'Clear conversation history' })
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Clear history' })).toHaveFocus())
 
     fireEvent.keyDown(document, { key: 'Escape' })
 
@@ -1108,6 +1110,7 @@ describe('App', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'uploaded.png' })
     expect(dialog).toBeInTheDocument()
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Close preview' })).toHaveFocus())
     expect(within(dialog).getByRole('img', { name: 'uploaded.png' })).toHaveAttribute(
       'src',
       '/api/runs/run-a/attachments/uploaded.png',
@@ -1144,6 +1147,7 @@ describe('App', () => {
     expect(dialog.querySelector('.document-viewer')).toHaveClass('is-wrapped')
     expect(dialog.querySelectorAll('.document-row')).toHaveLength(3)
     expect(dialog.querySelector('.viewer-token.heading')).toHaveTextContent('## File Preview')
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Close preview' })).toHaveFocus())
 
     fireEvent.click(within(dialog).getByRole('button', { name: /disable wrap/i }))
 
