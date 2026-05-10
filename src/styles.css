@@ -1761,6 +1761,15 @@ code,
   white-space: pre;
 }
 
+.document-code code {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
 .document-row:first-child .document-line-number,
 .document-row:first-child .document-code {
   padding-top: 18px;
