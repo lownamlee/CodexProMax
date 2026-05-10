@@ -1455,7 +1455,7 @@ code,
 }
 
 .outline-list {
-  max-height: clamp(160px, 34vh, 360px);
+  max-height: clamp(260px, 52vh, 560px);
   display: flex;
   flex-direction: column;
   gap: 4px;
