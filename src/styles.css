@@ -344,7 +344,21 @@ button:disabled {
 .sidebar-profile-button:hover,
 .profile-menu-account:hover,
 .profile-menu-item:hover {
+  color: var(--text-main);
+}
+
+.sidebar-profile-button:hover {
   background: var(--bg-surface);
+}
+
+.profile-menu-account:hover,
+.profile-menu-item:hover {
+  background: var(--bg-hover);
+}
+
+.profile-menu-item:hover > i:first-child,
+.profile-menu-item:hover .profile-menu-chevron {
+  color: var(--text-main);
 }
 
 .sidebar-profile-avatar,
