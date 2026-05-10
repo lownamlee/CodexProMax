@@ -66,6 +66,8 @@ const COMPOSER_TEXTAREA_MAX_HEIGHT_PX = 180
 const DEFAULT_COMPOSER_HEIGHT_PX = 120
 const CODEX_PROFILE_IMAGE = '/codex-color.png'
 const USER_PROFILE_IMAGE = '/burger.png'
+const LEFT_SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-pro-max:left-sidebar-collapsed'
+const RIGHT_SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-collapsed'
 
 type PendingAction = 'send' | 'upload' | 'load' | 'clear' | 'stop'
 type MentionRange = { start: number; end: number; query: string }
@@ -89,8 +91,12 @@ function App() {
   const [deletingRunId, setDeletingRunId] = useState<string | null>(null)
   const [deletingAttachmentName, setDeletingAttachmentName] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [leftCollapsed, setLeftCollapsed] = useState(false)
-  const [rightCollapsed, setRightCollapsed] = useState(false)
+  const [leftCollapsed, setLeftCollapsed] = useState(() =>
+    readStoredBoolean(LEFT_SIDEBAR_COLLAPSED_STORAGE_KEY, false),
+  )
+  const [rightCollapsed, setRightCollapsed] = useState(() =>
+    readStoredBoolean(RIGHT_SIDEBAR_COLLAPSED_STORAGE_KEY, false),
+  )
   const [attachmentDragDepth, setAttachmentDragDepth] = useState(0)
   const [composerHeight, setComposerHeight] = useState(DEFAULT_COMPOSER_HEIGHT_PX)
   const [chatAtBottom, setChatAtBottom] = useState(true)
@@ -145,6 +151,14 @@ function App() {
       ignore = true
     }
   }, [selectedRunId, managerSnapshot?.health.serverTimeIso])
+
+  useEffect(() => {
+    writeStoredBoolean(LEFT_SIDEBAR_COLLAPSED_STORAGE_KEY, leftCollapsed)
+  }, [leftCollapsed])
+
+  useEffect(() => {
+    writeStoredBoolean(RIGHT_SIDEBAR_COLLAPSED_STORAGE_KEY, rightCollapsed)
+  }, [rightCollapsed])
 
   async function sendInstruction() {
     if (!selectedRunId) {
@@ -1325,6 +1339,23 @@ function appendAttachmentMention(value: string, attachmentName: string): string 
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function readStoredBoolean(key: string, fallback: boolean): boolean {
+  try {
+    const stored = window.localStorage.getItem(key)
+    return stored === null ? fallback : stored === 'true'
+  } catch {
+    return fallback
+  }
+}
+
+function writeStoredBoolean(key: string, value: boolean) {
+  try {
+    window.localStorage.setItem(key, String(value))
+  } catch {
+    // Ignore storage failures so browser privacy settings do not break the UI.
+  }
 }
 
 function renderComposerHighlights(value: string) {

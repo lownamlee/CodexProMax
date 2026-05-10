@@ -40,6 +40,7 @@ class MockEventSource {
 
 beforeEach(() => {
   MockEventSource.instances = []
+  window.localStorage.clear()
   vi.stubGlobal('EventSource', MockEventSource)
   vi.stubGlobal(
     'fetch',
@@ -198,6 +199,27 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Draft A' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Run A/i }).querySelector('.run-status-waiting-for-review')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Run B/i }).querySelector('.run-status-instruction-received')).toBeInTheDocument()
+  })
+
+  it('persists collapsed sidebar state across remounts', async () => {
+    const { unmount } = render(<App />)
+    await getEventSource()
+
+    fireEvent.click(await screen.findByRole('button', { name: /toggle runs/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /toggle protocol details/i }))
+
+    expect(screen.getByLabelText('Run inbox')).toHaveClass('collapsed')
+    expect(screen.getByLabelText('Protocol details')).toHaveClass('collapsed')
+    expect(window.localStorage.getItem('codex-pro-max:left-sidebar-collapsed')).toBe('true')
+    expect(window.localStorage.getItem('codex-pro-max:right-sidebar-collapsed')).toBe('true')
+
+    unmount()
+    MockEventSource.instances = []
+    render(<App />)
+    await getEventSource()
+
+    expect(screen.getByLabelText('Run inbox')).toHaveClass('collapsed')
+    expect(screen.getByLabelText('Protocol details')).toHaveClass('collapsed')
   })
 
   it('shows the latest user messages as outlines and jumps to a selected message', async () => {
