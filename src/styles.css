@@ -2583,6 +2583,11 @@ code,
   color: var(--danger);
 }
 
+.confirm-icon.warning {
+  background: #fffbeb;
+  color: var(--warning);
+}
+
 .confirm-copy {
   min-width: 0;
 }
@@ -2604,6 +2609,28 @@ code,
 
 .confirm-copy p + p {
   margin-top: 8px;
+}
+
+.confirm-checkbox {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-app);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.confirm-checkbox input,
+.settings-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
 }
 
 .confirm-actions {
@@ -2699,6 +2726,86 @@ code,
   color: var(--text-muted);
   font-size: 12px;
   line-height: 1.5;
+}
+
+.settings-backdrop {
+  z-index: 123;
+}
+
+.settings-dialog {
+  width: min(520px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid rgba(224, 239, 248, 0.95);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  transform: scale(0.9) translateY(10px);
+  animation: modalScaleUp 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: 0.02s;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.settings-header h2 {
+  margin: 3px 0 0;
+  color: var(--text-main);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.settings-list {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-app);
+}
+
+.settings-row-icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--primary);
+  font-size: 18px;
+}
+
+.settings-row-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.settings-row-copy span {
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.settings-row-copy small {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .document-preview-backdrop {
@@ -2974,6 +3081,7 @@ button:focus-visible,
   .preview-backdrop,
   .attachment-preview,
   .confirm-dialog,
+  .settings-dialog,
   .logout-error-dialog,
   .document-preview {
     opacity: 1;

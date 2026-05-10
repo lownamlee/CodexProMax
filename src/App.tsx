@@ -58,7 +58,7 @@ const PROFILE_MENU_ITEMS = [
   { label: 'Workspace settings', icon: 'ri-building-2-line' },
   { label: 'Skills', icon: 'ri-box-3-line' },
   { label: 'Personalization', icon: 'ri-sparkling-2-line' },
-  { label: 'Settings', icon: 'ri-settings-3-line' },
+  { label: 'Settings', icon: 'ri-settings-3-line', action: 'settings' },
   { label: 'Help', icon: 'ri-question-line', separated: true, chevron: true },
   { label: 'Log out', icon: 'ri-logout-box-r-line', action: 'logout' },
 ]
@@ -85,6 +85,7 @@ const OUTLINES_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-outlines-col
 const PROTOCOL_FILES_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-protocol-files-collapsed:v2'
 const ATTACHMENTS_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-attachments-collapsed'
 const QUEUED_INSTRUCTIONS_STORAGE_KEY = 'codex-pro-max:queued-instructions:v1'
+const CTRL_ENTER_CONFIRM_STORAGE_KEY = 'codex-pro-max:confirm-ctrl-enter-send'
 
 type PendingAction = 'send' | 'upload' | 'load' | 'clear' | 'stop'
 type MentionRange = { start: number; end: number; query: string }
@@ -132,6 +133,11 @@ function App() {
   const [deletingAttachmentNames, setDeletingAttachmentNames] = useState<string[]>([])
   const [actionError, setActionError] = useState<string | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [ctrlEnterConfirmOpen, setCtrlEnterConfirmOpen] = useState(false)
+  const [confirmCtrlEnterSend, setConfirmCtrlEnterSend] = useState(() =>
+    readStoredBoolean(CTRL_ENTER_CONFIRM_STORAGE_KEY, true),
+  )
   const [leftCollapsed, setLeftCollapsed] = useState(() =>
     readStoredBoolean(LEFT_SIDEBAR_COLLAPSED_STORAGE_KEY, false),
   )
@@ -238,6 +244,10 @@ function App() {
   }, [rightCollapsed])
 
   useEffect(() => {
+    writeStoredBoolean(CTRL_ENTER_CONFIRM_STORAGE_KEY, confirmCtrlEnterSend)
+  }, [confirmCtrlEnterSend])
+
+  useEffect(() => {
     return () => {
       if (activeMessageFrameRef.current !== null) {
         window.cancelAnimationFrame(activeMessageFrameRef.current)
@@ -338,6 +348,27 @@ function App() {
     } catch (error) {
       // submitInstructionText owns the user-facing error state.
     }
+  }
+
+  function handleComposerShortcutSend() {
+    if (!canSendInstruction || ctrlEnterConfirmOpen) {
+      return
+    }
+
+    if (!confirmCtrlEnterSend) {
+      void sendInstruction()
+      return
+    }
+
+    setCtrlEnterConfirmOpen(true)
+  }
+
+  function handleCtrlEnterSendConfirm(dontShowAgain: boolean) {
+    setCtrlEnterConfirmOpen(false)
+    if (dontShowAgain) {
+      setConfirmCtrlEnterSend(false)
+    }
+    void sendInstruction()
   }
 
   async function handleClearConversationHistory() {
@@ -1069,6 +1100,7 @@ function App() {
         selectedRunId={selectedRunId}
         deletingRunId={deletingRunId}
         collapsed={leftCollapsed}
+        onSettingsOpen={() => setSettingsOpen(true)}
         onSelect={(runId) => {
           setInstruction('')
           setDraftAttachmentNames([])
@@ -1211,6 +1243,7 @@ function App() {
           autoSendingQueuedInstructionId={selectedAutoSendingQueuedInstructionId}
           composerFocusToken={composerFocusToken}
           onSend={() => void sendInstruction()}
+          onShortcutSend={handleComposerShortcutSend}
           onQueuedInstructionEdit={handleQueuedInstructionEdit}
           onQueuedInstructionDelete={handleQueuedInstructionDelete}
           onUpload={(file) => void handleUpload(file)}
@@ -1244,6 +1277,21 @@ function App() {
         <ConfirmDialog dialog={confirmDialog} onResolve={resolveConfirmation} />
       )}
 
+      {ctrlEnterConfirmOpen && (
+        <CtrlEnterSendDialog
+          onCancel={() => setCtrlEnterConfirmOpen(false)}
+          onConfirm={handleCtrlEnterSendConfirm}
+        />
+      )}
+
+      {settingsOpen && (
+        <SettingsDialog
+          confirmCtrlEnterSend={confirmCtrlEnterSend}
+          onConfirmCtrlEnterSendChange={setConfirmCtrlEnterSend}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
+
       {previewAttachment && (
         <AttachmentPreview
           attachment={previewAttachment}
@@ -1268,6 +1316,7 @@ function RunInbox({
   selectedRunId,
   deletingRunId,
   collapsed,
+  onSettingsOpen,
   onSelect,
   onDelete,
 }: {
@@ -1275,6 +1324,7 @@ function RunInbox({
   selectedRunId: string | null
   deletingRunId: string | null
   collapsed: boolean
+  onSettingsOpen: () => void
   onSelect: (runId: string) => void
   onDelete: (run: RunSummary) => void
 }) {
@@ -1385,6 +1435,13 @@ function RunInbox({
                       if (item.action === 'logout') {
                         setProfileMenuOpen(false)
                         setProfileLogoutError(true)
+                        return
+                      }
+
+                      if (item.action === 'settings') {
+                        setProfileLogoutError(false)
+                        setProfileMenuOpen(false)
+                        onSettingsOpen()
                         return
                       }
 
@@ -1694,6 +1751,7 @@ function ReviewComposer({
   autoSendingQueuedInstructionId,
   composerFocusToken,
   onSend,
+  onShortcutSend,
   onQueuedInstructionEdit,
   onQueuedInstructionDelete,
   onUpload,
@@ -1715,6 +1773,7 @@ function ReviewComposer({
   autoSendingQueuedInstructionId: string | null
   composerFocusToken: number
   onSend: () => void
+  onShortcutSend: () => void
   onQueuedInstructionEdit: (item: QueuedInstruction) => void
   onQueuedInstructionDelete: (item: QueuedInstruction) => void
   onUpload: (file: File | undefined) => void
@@ -1843,6 +1902,15 @@ function ReviewComposer({
 
   function handleTextareaKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     const textarea = event.currentTarget
+    if (event.key === 'Enter' && event.ctrlKey && !event.altKey && !event.metaKey) {
+      event.preventDefault()
+      setMentionRange(null)
+      if (canSend) {
+        onShortcutSend()
+      }
+      return
+    }
+
     if (
       (event.key === 'ArrowLeft' || event.key === 'ArrowRight')
       && !event.altKey
@@ -2841,6 +2909,109 @@ function ConfirmDialog({
           >
             {dialog.confirmLabel}
           </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function CtrlEnterSendDialog({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void
+  onConfirm: (dontShowAgain: boolean) => void
+}) {
+  const [dontShowAgain, setDontShowAgain] = useState(false)
+  useEscapeToClose(onCancel)
+
+  return (
+    <div className="preview-backdrop confirm-backdrop" role="presentation" onClick={onCancel}>
+      <section
+        className="confirm-dialog shortcut-confirm-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Send with Ctrl Enter"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="confirm-icon warning" aria-hidden="true">
+          <i className="ri-keyboard-line" />
+        </div>
+        <div className="confirm-copy">
+          <h2>Send with Ctrl+Enter?</h2>
+          <p>This shortcut will send now, or queue the message while Codex is working.</p>
+        </div>
+        <label className="confirm-checkbox">
+          <input
+            type="checkbox"
+            checked={dontShowAgain}
+            onChange={(event) => setDontShowAgain(event.target.checked)}
+          />
+          <span>Do not show again</span>
+        </label>
+        <div className="confirm-actions">
+          <button type="button" className="confirm-button secondary" onClick={onCancel}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="confirm-button primary"
+            onClick={() => onConfirm(dontShowAgain)}
+            autoFocus
+          >
+            Send
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function SettingsDialog({
+  confirmCtrlEnterSend,
+  onConfirmCtrlEnterSendChange,
+  onClose,
+}: {
+  confirmCtrlEnterSend: boolean
+  onConfirmCtrlEnterSendChange: (enabled: boolean) => void
+  onClose: () => void
+}) {
+  useEscapeToClose(onClose)
+
+  return (
+    <div className="preview-backdrop settings-backdrop" role="presentation" onClick={onClose}>
+      <section
+        className="settings-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Settings"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="settings-header">
+          <div>
+            <span className="label-super">Settings</span>
+            <h2>Preferences</h2>
+          </div>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close settings" autoFocus>
+            <i className="ri-close-line" aria-hidden="true" />
+          </button>
+        </header>
+        <div className="settings-list">
+          <label className="settings-row">
+            <span className="settings-row-icon" aria-hidden="true">
+              <i className="ri-keyboard-line" />
+            </span>
+            <span className="settings-row-copy">
+              <span>Confirm Ctrl+Enter send</span>
+              <small>Warn before sending or queueing from the composer.</small>
+            </span>
+            <input
+              type="checkbox"
+              checked={confirmCtrlEnterSend}
+              onChange={(event) => onConfirmCtrlEnterSendChange(event.target.checked)}
+              aria-label="Confirm Ctrl Enter send"
+            />
+          </label>
         </div>
       </section>
     </div>

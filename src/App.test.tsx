@@ -289,6 +289,17 @@ describe('App', () => {
     const reopenedProfileMenu = screen.getByRole('menu', { name: 'Profile menu' })
     fireEvent.click(within(reopenedProfileMenu).getByRole('menuitem', { name: /^Settings$/i }))
     expect(screen.queryByRole('menu', { name: 'Profile menu' })).not.toBeInTheDocument()
+    const settingsDialog = screen.getByRole('dialog', { name: 'Settings' })
+    const shortcutConfirmSetting = within(settingsDialog).getByRole('checkbox', {
+      name: /confirm ctrl enter send/i,
+    })
+    expect(shortcutConfirmSetting).toBeChecked()
+
+    fireEvent.click(shortcutConfirmSetting)
+    expect(window.localStorage.getItem('codex-pro-max:confirm-ctrl-enter-send')).toBe('false')
+
+    fireEvent.click(within(settingsDialog).getByRole('button', { name: /close settings/i }))
+    expect(screen.queryByRole('dialog', { name: 'Settings' })).not.toBeInTheDocument()
   })
 
   it('persists right sidebar section collapse state across remounts', async () => {
@@ -1076,7 +1087,7 @@ describe('App', () => {
     expect(await screen.findByRole('button', { name: /preview slow-upload\.png/i })).toBeInTheDocument()
   })
 
-  it('does not send the current instruction with Ctrl Enter', async () => {
+  it('confirms Ctrl Enter before sending the current instruction', async () => {
     const fetchMock = vi.mocked(fetch)
     render(<App />)
     await getEventSource()
@@ -1087,7 +1098,48 @@ describe('App', () => {
     })
     fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
 
-    expect(fetchMock).not.toHaveBeenCalledWith('/api/runs/run-a/action', expect.anything())
+    const actionCallsBeforeConfirm = fetchMock.mock.calls.filter(([url]) => String(url).includes('/action'))
+    expect(actionCallsBeforeConfirm).toHaveLength(0)
+
+    const confirmDialog = screen.getByRole('dialog', { name: /send with ctrl enter/i })
+    const dontShowAgain = within(confirmDialog).getByRole('checkbox', { name: /do not show again/i })
+    fireEvent.click(dontShowAgain)
+    fireEvent.click(within(confirmDialog).getByRole('button', { name: 'Send' }))
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/runs/run-a/action',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ instruction: 'Send with shortcut.' }),
+        }),
+      ),
+    )
+    expect(window.localStorage.getItem('codex-pro-max:confirm-ctrl-enter-send')).toBe('false')
+  })
+
+  it('sends immediately with Ctrl Enter when shortcut confirmation is disabled', async () => {
+    window.localStorage.setItem('codex-pro-max:confirm-ctrl-enter-send', 'false')
+    const fetchMock = vi.mocked(fetch)
+    render(<App />)
+    await getEventSource()
+
+    const input = await screen.findByLabelText('Instruction')
+    fireEvent.change(input, {
+      target: { value: 'Shortcut without warning.' },
+    })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+
+    expect(screen.queryByRole('dialog', { name: /send with ctrl enter/i })).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/runs/run-a/action',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ instruction: 'Shortcut without warning.' }),
+        }),
+      ),
+    )
   })
 
   it('caps the auto-growing instruction field height and keeps chat pinned to bottom', async () => {
