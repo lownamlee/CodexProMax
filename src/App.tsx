@@ -1578,6 +1578,7 @@ function UserMessageOutlineList({
   const outlineListRef = useRef<HTMLOListElement | null>(null)
   const outlineButtonRefs = useRef(new Map<string, HTMLButtonElement>())
   const outlinePinnedToBottomRef = useRef(true)
+  const [visibleActiveMessageId, setVisibleActiveMessageId] = useState<string | null>(activeMessageId)
   const latestOutline = outlines.length > 0 ? outlines[outlines.length - 1] : null
   const outlineScrollAnchor = latestOutline ? `${outlines.length}:${latestOutline.id}` : 'empty'
 
@@ -1592,12 +1593,14 @@ function UserMessageOutlineList({
 
   useLayoutEffect(() => {
     if (!activeMessageId) {
+      setVisibleActiveMessageId(null)
       return
     }
 
     const outlineList = outlineListRef.current
     const activeButton = outlineButtonRefs.current.get(activeMessageId)
     if (!outlineList || !activeButton) {
+      setVisibleActiveMessageId(activeMessageId)
       return
     }
 
@@ -1613,6 +1616,7 @@ function UserMessageOutlineList({
     }
 
     outlinePinnedToBottomRef.current = isScrolledNearBottom(outlineList)
+    setVisibleActiveMessageId(activeMessageId)
   }, [activeMessageId])
 
   function handleOutlineScroll(event: UIEvent<HTMLOListElement>) {
@@ -1639,21 +1643,24 @@ function UserMessageOutlineList({
 
   return (
     <ol className="outline-list" ref={outlineListRef} onScroll={handleOutlineScroll} data-testid="outline-list">
-      {outlines.map((message) => (
-        <li key={message.id} className="outline-item">
-          <button
-            ref={(element) => setOutlineButtonElement(message.id, element)}
-            type="button"
-            className={`outline-button ${message.id === activeMessageId ? 'active' : ''}`}
-            onClick={() => onSelect(message.id)}
-            aria-current={message.id === activeMessageId ? 'true' : undefined}
-            title={getMessageOutlineText(message.content, 160)}
-          >
-            <span className="outline-text">{getMessageOutlineText(message.content, 72)}</span>
-            <span className="outline-time">{formatMessageTime(message.createdAtIso)}</span>
-          </button>
-        </li>
-      ))}
+      {outlines.map((message) => {
+        const active = message.id === visibleActiveMessageId
+        return (
+          <li key={message.id} className="outline-item">
+            <button
+              ref={(element) => setOutlineButtonElement(message.id, element)}
+              type="button"
+              className={`outline-button ${active ? 'active' : ''}`}
+              onClick={() => onSelect(message.id)}
+              aria-current={active ? 'true' : undefined}
+              title={getMessageOutlineText(message.content, 160)}
+            >
+              <span className="outline-text">{getMessageOutlineText(message.content, 72)}</span>
+              <span className="outline-time">{formatMessageTime(message.createdAtIso)}</span>
+            </button>
+          </li>
+        )
+      })}
     </ol>
   )
 }
