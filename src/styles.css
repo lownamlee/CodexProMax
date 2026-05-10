@@ -471,6 +471,28 @@ button:disabled {
   border-top: 1px solid var(--border);
 }
 
+.profile-menu-error {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid #fecdd3;
+  border-radius: 10px;
+  background: #fff1f2;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.profile-menu-error img {
+  width: 34px;
+  height: 34px;
+  display: block;
+  object-fit: contain;
+}
+
 .left-sidebar.collapsed .sidebar-profile-area {
   padding: 10px 8px 12px;
 }

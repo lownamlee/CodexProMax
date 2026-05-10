@@ -263,6 +263,17 @@ describe('App', () => {
     expect(within(profileMenu).getByText('Pro Max')).toBeInTheDocument()
     expect(within(profileMenu).getByRole('menuitem', { name: /Add teammates/i })).toBeInTheDocument()
     expect(within(profileMenu).getByRole('menuitem', { name: /Workspace settings/i })).toBeInTheDocument()
+    const logoutButton = within(profileMenu).getByRole('menuitem', { name: /Log out/i })
+    expect(logoutButton.querySelector('.profile-menu-chevron')).not.toBeInTheDocument()
+
+    fireEvent.click(logoutButton)
+
+    const logoutError = within(profileMenu).getByRole('alert')
+    expect(logoutError).toHaveTextContent('Unable to logout')
+    expect(within(logoutError).getByRole('img', { name: /unable to logout sticker/i })).toHaveAttribute(
+      'src',
+      'https://media.tenor.com/fTH4D95V-oQAAAAi/quby.gif',
+    )
 
     fireEvent.pointerDown(document.body)
     expect(screen.queryByRole('menu', { name: 'Profile menu' })).not.toBeInTheDocument()

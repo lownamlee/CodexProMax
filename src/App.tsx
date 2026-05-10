@@ -59,8 +59,9 @@ const PROFILE_MENU_ITEMS = [
   { label: 'Personalization', icon: 'ri-sparkling-2-line' },
   { label: 'Settings', icon: 'ri-settings-3-line' },
   { label: 'Help', icon: 'ri-question-line', separated: true, chevron: true },
-  { label: 'Log out', icon: 'ri-logout-box-r-line', chevron: true },
+  { label: 'Log out', icon: 'ri-logout-box-r-line', action: 'logout' },
 ]
+const LOGOUT_ERROR_STICKER = 'https://media.tenor.com/fTH4D95V-oQAAAAi/quby.gif'
 
 const RUN_STATUS_ICONS: Record<ProtocolStatus, string> = {
   RUNNING: 'ri-loader-4-line',
@@ -1041,6 +1042,7 @@ function RunInbox({
   onDelete: (run: RunSummary) => void
 }) {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [profileLogoutError, setProfileLogoutError] = useState(false)
   const profileAreaRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -1055,6 +1057,7 @@ function RunInbox({
       }
 
       setProfileMenuOpen(false)
+      setProfileLogoutError(false)
     }
 
     document.addEventListener('pointerdown', handlePointerDown)
@@ -1141,7 +1144,15 @@ function RunInbox({
                     type="button"
                     className={`profile-menu-item ${item.separated ? 'separated' : ''}`}
                     role="menuitem"
-                    onClick={() => setProfileMenuOpen(false)}
+                    onClick={() => {
+                      if (item.action === 'logout') {
+                        setProfileLogoutError(true)
+                        return
+                      }
+
+                      setProfileLogoutError(false)
+                      setProfileMenuOpen(false)
+                    }}
                   >
                     <i className={item.icon} aria-hidden="true" />
                     <span>{item.label}</span>
@@ -1149,13 +1160,28 @@ function RunInbox({
                   </button>
                 ))}
               </div>
+
+              {profileLogoutError && (
+                <div className="profile-menu-error" role="alert">
+                  <img src={LOGOUT_ERROR_STICKER} alt="Unable to logout sticker" />
+                  <span>Unable to logout</span>
+                </div>
+              )}
             </div>
           )}
 
           <button
             type="button"
             className="sidebar-profile-button"
-            onClick={() => setProfileMenuOpen((value) => !value)}
+            onClick={() => {
+              setProfileMenuOpen((value) => {
+                const nextValue = !value
+                if (!nextValue) {
+                  setProfileLogoutError(false)
+                }
+                return nextValue
+              })
+            }}
             aria-haspopup="menu"
             aria-expanded={profileMenuOpen}
             aria-label="Open profile menu"
