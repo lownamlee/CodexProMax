@@ -2983,6 +2983,15 @@ function AttachmentPreview({
     onSelect(attachments[nextIndex])
   }
 
+  function closeFromEmptyPreviewArea(event: SyntheticEvent<HTMLElement>) {
+    event.stopPropagation()
+    onClose()
+  }
+
+  function keepPreviewOpen(event: SyntheticEvent<HTMLElement>) {
+    event.stopPropagation()
+  }
+
   return (
     <div className="preview-backdrop" role="presentation" onClick={onClose}>
       <section
@@ -2990,9 +2999,9 @@ function AttachmentPreview({
         role="dialog"
         aria-modal="true"
         aria-label={attachment.name}
-        onClick={(event) => event.stopPropagation()}
+        onClick={closeFromEmptyPreviewArea}
       >
-        <div className="preview-header">
+        <div className="preview-header" onClick={keepPreviewOpen}>
           <div className="preview-title">
             <span>{attachment.name}</span>
             <small>{formatBytes(attachment.size)}</small>
@@ -3011,21 +3020,27 @@ function AttachmentPreview({
             <button
               type="button"
               className="attachment-preview-nav previous"
-              onClick={() => selectRelativeAttachment(-1)}
+              onClick={(event) => {
+                event.stopPropagation()
+                selectRelativeAttachment(-1)
+              }}
               aria-label="Previous image"
               title="Previous image"
             >
               <i className="ri-arrow-left-s-line" aria-hidden="true" />
             </button>
           )}
-          <div className="preview-stage">
+          <div className="preview-stage" onClick={keepPreviewOpen}>
             <img src={attachment.url} alt={attachment.name} />
           </div>
           {showGalleryControls && (
             <button
               type="button"
               className="attachment-preview-nav next"
-              onClick={() => selectRelativeAttachment(1)}
+              onClick={(event) => {
+                event.stopPropagation()
+                selectRelativeAttachment(1)
+              }}
               aria-label="Next image"
               title="Next image"
             >
@@ -3034,7 +3049,7 @@ function AttachmentPreview({
           )}
         </div>
         {showGalleryControls && (
-          <div className="attachment-preview-strip" aria-label="Image list">
+          <div className="attachment-preview-strip" aria-label="Image list" onClick={keepPreviewOpen}>
             {attachments.map((item, index) => {
               const active = item.url === attachment.url
               return (

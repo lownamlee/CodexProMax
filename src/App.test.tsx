@@ -1238,6 +1238,24 @@ describe('App', () => {
     expect(screen.getByRole('dialog', { name: 'existing.png' })).toBeInTheDocument()
   })
 
+  it('closes the image preview when clicking empty preview space', async () => {
+    render(<App />)
+    await getEventSource()
+
+    const sidebar = screen.getByLabelText('Protocol details')
+    fireEvent.click(await within(sidebar).findByRole('button', { name: /preview existing\.png/i }))
+
+    const dialog = screen.getByRole('dialog', { name: 'existing.png' })
+    const stage = dialog.querySelector('.preview-stage')
+    expect(stage).not.toBeNull()
+
+    fireEvent.click(stage as Element)
+    expect(screen.getByRole('dialog', { name: 'existing.png' })).toBeInTheDocument()
+
+    fireEvent.click(dialog)
+    expect(screen.queryByRole('dialog', { name: 'existing.png' })).not.toBeInTheDocument()
+  })
+
   it('shows gallery controls for multiple image previews', async () => {
     const attachments = [
       attachmentFactory('first.png'),
