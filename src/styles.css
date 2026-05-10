@@ -2785,6 +2785,165 @@ code,
   line-height: 1.5;
 }
 
+.teammates-backdrop {
+  z-index: 126;
+}
+
+.teammates-dialog {
+  width: min(640px, 100%);
+  max-height: min(680px, calc(100vh - 48px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(224, 239, 248, 0.95);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  transform: scale(0.9) translateY(10px);
+  animation: modalScaleUp 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: 0.02s;
+}
+
+.teammates-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.teammates-header h2 {
+  margin: 0 0 7px;
+  color: var(--text-main);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.teammates-header p {
+  max-width: 470px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.teammates-invite-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: end;
+  gap: 10px;
+  padding: 14px 18px 16px;
+  border-bottom: 1px solid var(--border);
+  background: #fbfdff;
+}
+
+.teammates-invite-row label {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.teammates-invite-row label span {
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.teammates-invite-row input {
+  min-width: 0;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text-main);
+  font-size: 13px;
+}
+
+.teammates-invite-row .confirm-button {
+  height: 38px;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.teammates-table-wrap {
+  overflow: auto;
+}
+
+.teammates-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--text-main);
+  font-size: 13px;
+}
+
+.teammates-table th,
+.teammates-table td {
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.teammates-table th {
+  background: #ffffff;
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.teammates-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.teammate-person {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.teammate-avatar {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #fff7ed;
+}
+
+.teammate-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.teammate-person strong,
+.teammate-person small {
+  max-width: 190px;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teammate-person strong {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.teammate-person small {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .settings-backdrop {
   z-index: 123;
 }
@@ -3140,6 +3299,7 @@ button:focus-visible,
   .confirm-dialog,
   .settings-dialog,
   .logout-error-dialog,
+  .teammates-dialog,
   .document-preview {
     opacity: 1;
     transform: none;
@@ -3220,5 +3380,18 @@ button:focus-visible,
   .right-sidebar.collapsed .sidebar-inner {
     grid-template-columns: 1fr;
     max-height: 210px;
+  }
+
+  .teammates-dialog {
+    max-height: calc(100vh - 28px);
+  }
+
+  .teammates-invite-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .teammates-invite-row .confirm-button {
+    width: 100%;
   }
 }

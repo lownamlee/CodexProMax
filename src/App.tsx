@@ -54,7 +54,7 @@ const FILE_ICONS: Record<ProtocolTextFile, string> = {
 }
 
 const PROFILE_MENU_ITEMS = [
-  { label: 'Add teammates', icon: 'ri-group-line' },
+  { label: 'Add teammates', icon: 'ri-group-line', action: 'teammates' },
   { label: 'Workspace settings', icon: 'ri-building-2-line' },
   { label: 'Skills', icon: 'ri-box-3-line' },
   { label: 'Personalization', icon: 'ri-sparkling-2-line' },
@@ -88,6 +88,14 @@ const PROTOCOL_FILES_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-protoc
 const ATTACHMENTS_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-attachments-collapsed'
 const QUEUED_INSTRUCTIONS_STORAGE_KEY = 'codex-pro-max:queued-instructions:v1'
 const CTRL_ENTER_CONFIRM_STORAGE_KEY = 'codex-pro-max:confirm-ctrl-enter-send'
+const RAMLYBURGER_TEAMMATES = Array.from({ length: 5 }, (_, index) => ({
+  id: `ramlyburger-${index + 1}`,
+  name: `Ramlyburger ${index + 1}`,
+  email: 'ramlyburger@codexpromax.com',
+  role: index === 0 ? 'Owner' : 'Member',
+  seat: 'Codex Pro Max',
+  dateAdded: 'May 10, 2026',
+}))
 
 type PendingAction = 'send' | 'upload' | 'load' | 'clear' | 'stop'
 type MentionRange = { start: number; end: number; query: string }
@@ -1483,6 +1491,7 @@ function RunInbox({
 }) {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [profileLogoutError, setProfileLogoutError] = useState(false)
+  const [teammatesDialogOpen, setTeammatesDialogOpen] = useState(false)
   const profileAreaRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -1598,6 +1607,13 @@ function RunInbox({
                         return
                       }
 
+                      if (item.action === 'teammates') {
+                        setProfileLogoutError(false)
+                        setProfileMenuOpen(false)
+                        setTeammatesDialogOpen(true)
+                        return
+                      }
+
                       setProfileLogoutError(false)
                       setProfileMenuOpen(false)
                     }}
@@ -1644,6 +1660,10 @@ function RunInbox({
         <LogoutErrorDialog onClose={() => setProfileLogoutError(false)} />,
         document.body,
       )}
+      {teammatesDialogOpen && createPortal(
+        <TeammatesDialog onClose={() => setTeammatesDialogOpen(false)} />,
+        document.body,
+      )}
     </aside>
   )
 }
@@ -1668,6 +1688,79 @@ function LogoutErrorDialog({ onClose }: { onClose: () => void }) {
         <button type="button" className="confirm-button primary" onClick={onClose} autoFocus>
           Close
         </button>
+      </section>
+    </div>
+  )
+}
+
+function TeammatesDialog({ onClose }: { onClose: () => void }) {
+  useEscapeToClose(onClose)
+
+  return (
+    <div className="preview-backdrop teammates-backdrop" role="presentation" onClick={onClose}>
+      <section
+        className="teammates-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Invite members to the Ramlyburger workspace"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="teammates-header">
+          <div>
+            <h2>Invite members to the Ramlyburger workspace</h2>
+            <p>This workspace is private. Only selected burgers can enter this very serious business console.</p>
+          </div>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close teammates dialog" autoFocus>
+            <i className="ri-close-line" aria-hidden="true" />
+          </button>
+        </header>
+
+        <div className="teammates-invite-row">
+          <label>
+            <span>Email</span>
+            <input type="email" placeholder="Email" readOnly />
+          </label>
+          <button type="button" className="confirm-button secondary">
+            <i className="ri-add-line" aria-hidden="true" />
+            Add more
+          </button>
+          <button type="button" className="confirm-button primary" disabled>
+            Send invites
+          </button>
+        </div>
+
+        <div className="teammates-table-wrap">
+          <table className="teammates-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Role</th>
+                <th>Seat type</th>
+                <th>Date added</th>
+              </tr>
+            </thead>
+            <tbody>
+              {RAMLYBURGER_TEAMMATES.map((teammate) => (
+                <tr key={teammate.id}>
+                  <td>
+                    <span className="teammate-person">
+                      <span className="teammate-avatar">
+                        <img src={USER_PROFILE_IMAGE} alt="Ramlyburger logo" />
+                      </span>
+                      <span>
+                        <strong>{teammate.name}</strong>
+                        <small>{teammate.email}</small>
+                      </span>
+                    </span>
+                  </td>
+                  <td>{teammate.role}</td>
+                  <td>{teammate.seat}</td>
+                  <td>{teammate.dateAdded}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   )
