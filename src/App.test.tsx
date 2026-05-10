@@ -187,6 +187,44 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Draft A' })).toBeInTheDocument()
   })
 
+  it('shows the latest user messages as outlines and jumps to a selected message', async () => {
+    const messages: Snapshot['messages'] = Array.from({ length: 12 }, (_, index) => ({
+      id: `user-${index + 1}`,
+      role: 'user',
+      content: `User request ${index + 1}`,
+      createdAtIso: `2026-05-07T00:${String(index).padStart(2, '0')}:00.000Z`,
+    }))
+    const scrollIntoView = vi.fn()
+    const originalScrollIntoView = window.HTMLElement.prototype.scrollIntoView
+
+    Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    })
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(jsonResponse(managerFactory()))
+      .mockResolvedValueOnce(jsonResponse(snapshotFactory({ messages })))
+
+    try {
+      render(<App />)
+      await getEventSource()
+
+      const sidebar = screen.getByLabelText('Protocol details')
+      expect(await within(sidebar).findByRole('heading', { name: 'Outlines' })).toBeInTheDocument()
+      expect(within(sidebar).queryByRole('button', { name: /User request 2/i })).not.toBeInTheDocument()
+      expect(within(sidebar).getByRole('button', { name: /User request 3/i })).toBeInTheDocument()
+
+      fireEvent.click(within(sidebar).getByRole('button', { name: /User request 12/i }))
+
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' })
+    } finally {
+      Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', {
+        configurable: true,
+        value: originalScrollIntoView,
+      })
+    }
+  })
+
   it('selects a different run and switches detail content', async () => {
     render(<App />)
     await getEventSource()
@@ -260,7 +298,7 @@ describe('App', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: /send to codex/i }))
 
-    expect(await screen.findByText('Continue the implementation.')).toBeInTheDocument()
+    expect(await within(screen.getByTestId('chat-scroll')).findByText('Continue the implementation.')).toBeInTheDocument()
     expect(screen.getByTestId('ai-loading-indicator')).toBeInTheDocument()
 
     fireEvent.change(input, {
@@ -303,7 +341,7 @@ describe('App', () => {
       }),
     )
     expect(await screen.findByTestId('current-status')).toHaveTextContent('INSTRUCTION_RECEIVED')
-    expect(screen.getByText('Stop this Codex Pro Max HITL session now.')).toBeInTheDocument()
+    expect(within(screen.getByTestId('chat-scroll')).getByText('Stop this Codex Pro Max HITL session now.')).toBeInTheDocument()
   })
 
   it('inserts highlighted attachment mentions from the composer at-menu', async () => {
@@ -372,11 +410,18 @@ describe('App', () => {
     expect(fetchMock).not.toHaveBeenCalledWith('/api/runs/run-a/action', expect.anything())
   })
 
-  it('caps the auto-growing instruction field height', async () => {
+  it('caps the auto-growing instruction field height and keeps chat pinned to bottom', async () => {
     render(<App />)
     await getEventSource()
 
     const input = await screen.findByLabelText('Instruction')
+    const scrollPane = screen.getByTestId('chat-scroll')
+    setScrollMetrics(scrollPane, {
+      clientHeight: 100,
+      scrollHeight: 240,
+      scrollTop: 140,
+    })
+    fireEvent.scroll(scrollPane)
     Object.defineProperty(input, 'scrollHeight', {
       configurable: true,
       value: 260,
@@ -386,6 +431,7 @@ describe('App', () => {
     })
 
     await waitFor(() => expect(input).toHaveStyle({ height: '180px', overflowY: 'auto' }))
+    await waitFor(() => expect(scrollPane.scrollTop).toBe(240))
   })
 
   it('renders status ownership and help text', async () => {

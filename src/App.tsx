@@ -59,6 +59,7 @@ const USER_PROFILE_IMAGE = '/burger.png'
 
 type PendingAction = 'send' | 'upload' | 'load' | 'clear' | 'stop'
 type MentionRange = { start: number; end: number; query: string }
+type UserMessageOutline = Pick<ChatMessage, 'id' | 'content' | 'createdAtIso'>
 
 function App() {
   const { snapshot: managerSnapshot, connectionState, error: streamError } = useSnapshotStream()
@@ -77,6 +78,7 @@ function App() {
   const [previewAttachment, setPreviewAttachment] = useState<AttachmentMeta | null>(null)
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
   const chatPinnedToBottomRef = useRef(true)
+  const userMessageRefs = useRef(new Map<string, HTMLElement>())
 
   const runs = managerSnapshot?.runs ?? []
   const selectedRun = runs.find((run) => run.runId === selectedRunId) ?? null
@@ -380,6 +382,10 @@ function App() {
     [attachments, draftAttachmentNames],
   )
   const chatMessages = runSnapshot?.messages ?? []
+  const userMessageOutlines = useMemo(
+    () => chatMessages.filter((message) => message.role === 'user').slice(-10),
+    [chatMessages],
+  )
   const hasSessionHistoryFile = Boolean(runSnapshot?.files['session.md']?.exists)
   const lastChatMessage = chatMessages.length > 0 ? chatMessages[chatMessages.length - 1] : null
   const chatScrollAnchor = [
@@ -409,6 +415,15 @@ function App() {
     scrollElement.scrollTop = scrollElement.scrollHeight
   }, [chatScrollAnchor])
 
+  useLayoutEffect(() => {
+    const scrollElement = chatScrollRef.current
+    if (!scrollElement || !chatPinnedToBottomRef.current) {
+      return
+    }
+
+    scrollElement.scrollTop = scrollElement.scrollHeight
+  }, [composerHeight, instruction])
+
   useEffect(() => {
     if (!previewAttachment) return
     const stillExists = attachments.some((attachment) => attachment.url === previewAttachment.url)
@@ -429,6 +444,25 @@ function App() {
   const chatContainerStyle = {
     '--composer-bottom-space': `${composerHeight + 16}px`,
   } as CSSProperties
+
+  function setUserMessageElement(messageId: string, element: HTMLElement | null) {
+    if (element) {
+      userMessageRefs.current.set(messageId, element)
+      return
+    }
+
+    userMessageRefs.current.delete(messageId)
+  }
+
+  function jumpToUserMessage(messageId: string) {
+    const target = userMessageRefs.current.get(messageId)
+    if (!target) {
+      return
+    }
+
+    chatPinnedToBottomRef.current = false
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
 
   return (
     <div className={`app ${leftCollapsed ? 'left-collapsed' : ''} ${rightCollapsed ? 'right-collapsed' : ''}`}>
@@ -525,7 +559,14 @@ function App() {
             chatMessages.length > 0 ? (
               chatMessages.map((message, index) => (
                 <Fragment key={message.id}>
-                  <ChatMessageItem message={message} />
+                  <ChatMessageItem
+                    message={message}
+                    messageRef={
+                      message.role === 'user'
+                        ? (element) => setUserMessageElement(message.id, element)
+                        : undefined
+                    }
+                  />
                   {aiWorking && index === chatMessages.length - 1 && message.role === 'user' && (
                     <AiLoadingMessage />
                   )}
@@ -579,6 +620,8 @@ function App() {
         onAttachmentDelete={(attachment) => void handleDeleteAttachment(attachment)}
         deletingAttachmentName={deletingAttachmentName}
         filesPresent={filesPresent}
+        userMessageOutlines={userMessageOutlines}
+        onUserMessageSelect={jumpToUserMessage}
       />
 
       {previewAttachment && (
@@ -669,7 +712,13 @@ function RunInbox({
   )
 }
 
-function ChatMessageItem({ message }: { message: ChatMessage }) {
+function ChatMessageItem({
+  message,
+  messageRef,
+}: {
+  message: ChatMessage
+  messageRef?: (element: HTMLElement | null) => void
+}) {
   const isUser = message.role === 'user'
   const [copied, setCopied] = useState(false)
 
@@ -684,7 +733,10 @@ function ChatMessageItem({ message }: { message: ChatMessage }) {
   }
 
   return (
-    <article className={`message chat-message ${isUser ? 'user-message' : 'assistant-message'}`}>
+    <article
+      ref={messageRef}
+      className={`message chat-message ${isUser ? 'user-message' : 'assistant-message'}`}
+    >
       {!isUser && (
         <ProfileAvatar type="bot" />
       )}
@@ -1224,6 +1276,8 @@ function ProtocolSidebar({
   onAttachmentDelete,
   deletingAttachmentName,
   filesPresent,
+  userMessageOutlines,
+  onUserMessageSelect,
 }: {
   collapsed: boolean
   managerRoot: string
@@ -1236,6 +1290,8 @@ function ProtocolSidebar({
   onAttachmentDelete: (attachment: AttachmentMeta) => void
   deletingAttachmentName: string | null
   filesPresent: number
+  userMessageOutlines: UserMessageOutline[]
+  onUserMessageSelect: (messageId: string) => void
 }) {
   return (
     <aside
@@ -1258,6 +1314,14 @@ function ProtocolSidebar({
             <small data-testid="status-owner">{statusDetails.owner}</small>
             <p>{statusDetails.help}</p>
           </div>
+        </div>
+
+        <div className="meta-group">
+          <h4>Outlines</h4>
+          <UserMessageOutlineList
+            outlines={userMessageOutlines}
+            onSelect={onUserMessageSelect}
+          />
         </div>
 
         <div className="meta-group">
@@ -1285,6 +1349,41 @@ function ProtocolSidebar({
         </div>
       </div>
     </aside>
+  )
+}
+
+function UserMessageOutlineList({
+  outlines,
+  onSelect,
+}: {
+  outlines: UserMessageOutline[]
+  onSelect: (messageId: string) => void
+}) {
+  if (outlines.length === 0) {
+    return (
+      <p className="empty-state compact">
+        <i className="ri-list-check-2" aria-hidden="true" />
+        No user messages yet.
+      </p>
+    )
+  }
+
+  return (
+    <ol className="outline-list">
+      {outlines.map((message) => (
+        <li key={message.id} className="outline-item">
+          <button
+            type="button"
+            className="outline-button"
+            onClick={() => onSelect(message.id)}
+            title={getMessageOutlineText(message.content, 160)}
+          >
+            <span className="outline-text">{getMessageOutlineText(message.content, 72)}</span>
+            <span className="outline-time">{formatMessageTime(message.createdAtIso)}</span>
+          </button>
+        </li>
+      ))}
+    </ol>
   )
 }
 
@@ -1494,6 +1593,19 @@ function formatMessageTime(value: string): string {
     return ''
   }
   return dateFormatter.format(date)
+}
+
+function getMessageOutlineText(content: string, maxLength: number): string {
+  const normalized = content.replace(/\s+/g, ' ').trim()
+  if (!normalized) {
+    return 'Empty message'
+  }
+
+  if (normalized.length <= maxLength) {
+    return normalized
+  }
+
+  return `${normalized.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`
 }
 
 function formatBytes(bytes: number): string {
