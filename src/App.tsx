@@ -2934,8 +2934,10 @@ function CtrlEnterSendDialog({
         aria-label="Send with Ctrl Enter"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="confirm-icon warning" aria-hidden="true">
-          <i className="ri-keyboard-line" />
+        <div className="shortcut-key-row" aria-hidden="true">
+          <kbd>Ctrl</kbd>
+          <span>+</span>
+          <kbd>Enter</kbd>
         </div>
         <div className="confirm-copy">
           <h2>Send with Ctrl+Enter?</h2>

@@ -1102,6 +1102,8 @@ describe('App', () => {
     expect(actionCallsBeforeConfirm).toHaveLength(0)
 
     const confirmDialog = screen.getByRole('dialog', { name: /send with ctrl enter/i })
+    expect(within(confirmDialog).getByText('Ctrl')).toBeInTheDocument()
+    expect(within(confirmDialog).getByText('Enter')).toBeInTheDocument()
     const dontShowAgain = within(confirmDialog).getByRole('checkbox', { name: /do not show again/i })
     fireEvent.click(dontShowAgain)
     fireEvent.click(within(confirmDialog).getByRole('button', { name: 'Send' }))
