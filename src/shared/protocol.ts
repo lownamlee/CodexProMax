@@ -176,7 +176,7 @@ export const DEFAULT_TEAMMATES: Teammate[] = [
 ].map((name, index) => ({
   id: `burger-${index + 1}`,
   name,
-  email: 'ramlyburger@codexpromax.com',
+  email: `${name.toLowerCase().replace(/\s+/g, '')}@codexpromax.com`,
   avatarUrl: TEAMMATE_AVATAR_URLS[index],
   role: index === 0 ? 'Owner' : 'Member',
   seat: 'Codex Pro Max',

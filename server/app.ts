@@ -378,7 +378,7 @@ function normalizeTeammates(value: unknown): Teammate[] | null {
     teammates.push({
       id: item.id,
       name: item.name,
-      email: item.email,
+      email: normalizeTeammateEmail(item),
       avatarUrl,
       role: item.role,
       seat: item.seat,
@@ -416,6 +416,10 @@ function pickUnusedTeammateAvatar(teammates: Teammate[]) {
 
 function isAllowedTeammateAvatar(avatarUrl: string) {
   return (TEAMMATE_AVATAR_URLS as readonly string[]).includes(avatarUrl)
+}
+
+function normalizeTeammateEmail(teammate: { id: string; email: string }) {
+  return DEFAULT_TEAMMATES.find((defaultTeammate) => defaultTeammate.id === teammate.id)?.email ?? teammate.email
 }
 
 function isNodeErrorWithCode(error: unknown, code: string) {

@@ -51,6 +51,13 @@ describe('Codex Pro Max multi-run API', () => {
       'Fish Burger',
       'Veggie Burger',
     ])
+    expect(initialResponse.body.teammates.map((teammate: { email: string }) => teammate.email)).toEqual([
+      'cheeseburger@codexpromax.com',
+      'doubleburger@codexpromax.com',
+      'chickenburger@codexpromax.com',
+      'fishburger@codexpromax.com',
+      'veggieburger@codexpromax.com',
+    ])
     expect(new Set(initialResponse.body.teammates.map((teammate: { avatarUrl: string }) => teammate.avatarUrl)).size)
       .toBe(5)
 
