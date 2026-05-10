@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   Fragment,
   useLayoutEffect,
@@ -112,8 +113,22 @@ function App() {
   const lastChatScrollTopRef = useRef(0)
   const activeMessageFrameRef = useRef<number | null>(null)
   const activeMessageScrollElementRef = useRef<HTMLDivElement | null>(null)
+  const smoothScrollReleaseTimerRef = useRef<number | null>(null)
   const userMessageRefs = useRef(new Map<string, HTMLElement>())
   const revealedAssistantMessageIdsRef = useRef(new Set<string>())
+  const loadedRunIdRef = useRef<string | null>(null)
+
+  const markAssistantRevealComplete = useCallback((messageId: string) => {
+    revealedAssistantMessageIdsRef.current.add(messageId)
+  }, [])
+
+  const markAssistantMessagesRevealed = useCallback((messages: ChatMessage[]) => {
+    for (const message of messages) {
+      if (message.role === 'assistant') {
+        revealedAssistantMessageIdsRef.current.add(message.id)
+      }
+    }
+  }, [])
 
   const runs = managerSnapshot?.runs ?? []
   const selectedRun = runs.find((run) => run.runId === selectedRunId) ?? null
@@ -132,6 +147,7 @@ function App() {
   useEffect(() => {
     if (!selectedRunId) {
       setRunSnapshot(null)
+      loadedRunIdRef.current = null
       return
     }
 
@@ -142,6 +158,10 @@ function App() {
     fetchRunSnapshot(selectedRunId)
       .then((nextSnapshot) => {
         if (!ignore) {
+          if (loadedRunIdRef.current !== nextSnapshot.runId) {
+            markAssistantMessagesRevealed(nextSnapshot.messages)
+            loadedRunIdRef.current = nextSnapshot.runId
+          }
           setRunSnapshot(nextSnapshot)
         }
       })
@@ -159,7 +179,7 @@ function App() {
     return () => {
       ignore = true
     }
-  }, [selectedRunId, managerSnapshot?.health.serverTimeIso])
+  }, [markAssistantMessagesRevealed, selectedRunId, managerSnapshot?.health.serverTimeIso])
 
   useEffect(() => {
     writeStoredBoolean(LEFT_SIDEBAR_COLLAPSED_STORAGE_KEY, leftCollapsed)
@@ -174,6 +194,7 @@ function App() {
       if (activeMessageFrameRef.current !== null) {
         window.cancelAnimationFrame(activeMessageFrameRef.current)
       }
+      clearSmoothScrollReleaseTimer()
     }
   }, [])
 
@@ -446,6 +467,17 @@ function App() {
 
   function handleChatScroll(event: UIEvent<HTMLDivElement>) {
     const atBottom = isScrolledNearBottom(event.currentTarget)
+    if (smoothScrollReleaseTimerRef.current !== null && !atBottom) {
+      chatPinnedToBottomRef.current = true
+      setChatAtBottom(true)
+      scheduleActiveUserMessageUpdate(event.currentTarget)
+      return
+    }
+
+    if (atBottom) {
+      clearSmoothScrollReleaseTimer()
+    }
+
     chatPinnedToBottomRef.current = atBottom
     setChatAtBottom(atBottom)
     scheduleActiveUserMessageUpdate(event.currentTarget)
@@ -513,6 +545,7 @@ function App() {
     chatPinnedToBottomRef.current = true
     lastChatScrollTopRef.current = 0
     revealedAssistantMessageIdsRef.current.clear()
+    loadedRunIdRef.current = null
     setChatAtBottom(true)
     setActiveUserMessageId(null)
   }, [selectedRunId])
@@ -559,10 +592,6 @@ function App() {
     }
 
     userMessageRefs.current.delete(messageId)
-  }
-
-  function markAssistantRevealStarted(messageId: string) {
-    revealedAssistantMessageIdsRef.current.add(messageId)
   }
 
   function jumpToUserMessage(messageId: string) {
@@ -676,6 +705,13 @@ function App() {
     setActiveUserMessageId((currentId) => (currentId === nextActiveId ? currentId : nextActiveId))
   }
 
+  function clearSmoothScrollReleaseTimer() {
+    if (smoothScrollReleaseTimerRef.current !== null) {
+      window.clearTimeout(smoothScrollReleaseTimerRef.current)
+      smoothScrollReleaseTimerRef.current = null
+    }
+  }
+
   function scrollChatToBottom(behavior: ScrollBehavior = 'auto') {
     const scrollElement = chatScrollRef.current
     if (!scrollElement) {
@@ -683,11 +719,27 @@ function App() {
     }
 
     if (behavior === 'smooth' && typeof scrollElement.scrollTo === 'function') {
+      clearSmoothScrollReleaseTimer()
+      smoothScrollReleaseTimerRef.current = window.setTimeout(() => {
+        smoothScrollReleaseTimerRef.current = null
+        const currentScrollElement = chatScrollRef.current
+        if (!currentScrollElement) {
+          return
+        }
+
+        const atBottom = isScrolledNearBottom(currentScrollElement)
+        chatPinnedToBottomRef.current = atBottom
+        setChatAtBottom(atBottom)
+        if (atBottom) {
+          updateActiveUserMessage(currentScrollElement)
+        }
+      }, 900)
       scrollElement.scrollTo({
         top: scrollElement.scrollHeight,
         behavior,
       })
     } else {
+      clearSmoothScrollReleaseTimer()
       scrollElement.scrollTop = scrollElement.scrollHeight
     }
 
@@ -795,7 +847,7 @@ function App() {
                       && !revealedAssistantMessageIdsRef.current.has(message.id)
                       && pending !== 'load'
                     }
-                    onAssistantRevealStart={markAssistantRevealStarted}
+                    onAssistantRevealComplete={markAssistantRevealComplete}
                     messageRef={
                       message.role === 'user'
                         ? (element) => setUserMessageElement(message.id, element)
@@ -824,15 +876,17 @@ function App() {
             )
           )}
           {!chatAtBottom && (
-            <button
-              type="button"
-              className="scroll-bottom-button"
-              onClick={() => scrollChatToBottom('smooth')}
-              aria-label="Scroll to bottom"
-              title="Scroll to bottom"
-            >
-              <i className="ri-arrow-down-line" aria-hidden="true" />
-            </button>
+            <div className="scroll-bottom-button-layer">
+              <button
+                type="button"
+                className="scroll-bottom-button"
+                onClick={() => scrollChatToBottom('smooth')}
+                aria-label="Scroll to bottom"
+                title="Scroll to bottom"
+              >
+                <i className="ri-arrow-down-line" aria-hidden="true" />
+              </button>
+            </div>
           )}
         </div>
 
@@ -1011,14 +1065,14 @@ const ChatMessageItem = memo(function ChatMessageItem({
   attachments,
   onAttachmentPreview,
   animateReveal = false,
-  onAssistantRevealStart,
+  onAssistantRevealComplete,
   messageRef,
 }: {
   message: ChatMessage
   attachments: AttachmentMeta[]
   onAttachmentPreview: (attachment: AttachmentMeta) => void
   animateReveal?: boolean
-  onAssistantRevealStart?: (messageId: string) => void
+  onAssistantRevealComplete?: (messageId: string) => void
   messageRef?: (element: HTMLElement | null) => void
 }) {
   const isUser = message.role === 'user'
@@ -1083,8 +1137,9 @@ const ChatMessageItem = memo(function ChatMessageItem({
           )}
           {!isUser && animateReveal ? (
             <ShuffledMarkdownReveal
+              messageId={message.id}
               markdown={message.content}
-              onRevealStart={() => onAssistantRevealStart?.(message.id)}
+              onRevealComplete={onAssistantRevealComplete}
             />
           ) : (
             <MarkdownPanel
@@ -1103,7 +1158,9 @@ const ChatMessageItem = memo(function ChatMessageItem({
     </article>
   )
 }, (previousProps, nextProps) =>
-  previousProps.message === nextProps.message && previousProps.attachments === nextProps.attachments)
+  previousProps.message === nextProps.message
+  && previousProps.attachments === nextProps.attachments
+  && previousProps.animateReveal === nextProps.animateReveal)
 
 function AiLoadingMessage() {
   return (
@@ -1175,11 +1232,13 @@ const MarkdownPanel = memo(function MarkdownPanel({
 })
 
 function ShuffledMarkdownReveal({
+  messageId,
   markdown,
-  onRevealStart,
+  onRevealComplete,
 }: {
+  messageId: string
   markdown: string
-  onRevealStart: () => void
+  onRevealComplete?: (messageId: string) => void
 }) {
   const [displayText, setDisplayText] = useState(() => createShuffledResponse(markdown, 0))
   const [complete, setComplete] = useState(false)
@@ -1188,10 +1247,10 @@ function ShuffledMarkdownReveal({
     if (!markdown.trim() || prefersReducedMotion()) {
       setDisplayText(markdown)
       setComplete(true)
+      onRevealComplete?.(messageId)
       return
     }
 
-    onRevealStart()
     setComplete(false)
     setDisplayText(createShuffledResponse(markdown, 0))
 
@@ -1205,6 +1264,7 @@ function ShuffledMarkdownReveal({
         window.clearInterval(timer)
         setDisplayText(markdown)
         setComplete(true)
+        onRevealComplete?.(messageId)
         return
       }
 
@@ -1212,7 +1272,7 @@ function ShuffledMarkdownReveal({
     }, 32)
 
     return () => window.clearInterval(timer)
-  }, [markdown, onRevealStart])
+  }, [markdown, messageId, onRevealComplete])
 
   if (complete) {
     return (

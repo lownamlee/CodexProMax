@@ -733,21 +733,30 @@ code,
   scroll-behavior: smooth;
 }
 
-.scroll-bottom-button {
+.scroll-bottom-button-layer {
   position: sticky;
   bottom: 16px;
   z-index: 15;
+  height: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding-right: 24px;
+  pointer-events: none;
+}
+
+.scroll-bottom-button {
   width: 40px;
   height: 40px;
   display: grid;
   place-items: center;
-  margin: 16px 24px 0 auto;
+  transform: translateY(-56px);
   border: 1px solid var(--border);
   border-radius: 50%;
   background: var(--bg-surface);
   box-shadow: var(--shadow-md);
   color: var(--primary);
   font-size: 20px;
+  pointer-events: auto;
   transition:
     background 0.2s var(--ease-out),
     border-color 0.2s var(--ease-out),
@@ -759,7 +768,7 @@ code,
   border-color: #bae6fd;
   background: var(--primary-soft);
   color: var(--primary-hover);
-  transform: translateY(-2px);
+  transform: translateY(-58px);
 }
 
 .message {
@@ -1502,6 +1511,15 @@ code,
   text-transform: uppercase;
 }
 
+.meta-group {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.meta-group.collapsed .meta-group-heading {
+  margin-bottom: 0;
+}
+
 .meta-group-toggle {
   width: 100%;
   display: flex;
@@ -1538,7 +1556,7 @@ code,
 }
 
 .outline-list {
-  max-height: clamp(220px, 42vh, 440px);
+  height: clamp(220px, 42vh, 440px);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1628,11 +1646,13 @@ code,
 
 .file-card-list,
 .attachment-list {
+  max-height: 240px;
   display: flex;
   flex-direction: column;
   gap: 2px;
   margin: 0;
   padding: 0;
+  overflow-y: auto;
   list-style: none;
 }
 
@@ -2138,9 +2158,9 @@ button:focus-visible,
     display: none;
   }
 
-  .scroll-bottom-button {
+  .scroll-bottom-button-layer {
     bottom: 12px;
-    margin-right: 14px;
+    padding-right: 14px;
   }
 
   .message {

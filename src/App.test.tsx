@@ -1051,6 +1051,42 @@ describe('App', () => {
     expect(scrollPane.scrollTop).toBe(60)
   })
 
+  it('shows assistant shuffle text before replacing it with rendered markdown', async () => {
+    render(<App />)
+    await getEventSource()
+
+    expect(await screen.findByRole('heading', { name: 'Draft A' })).toBeInTheDocument()
+
+    const messages: Snapshot['messages'] = [
+      {
+        id: 'user-shuffle',
+        role: 'user',
+        content: 'Show animation.',
+        createdAtIso: '2026-05-07T00:00:01.000Z',
+      },
+      {
+        id: 'assistant-shuffle',
+        role: 'assistant',
+        content: '## Animated result\n\nDone.',
+        createdAtIso: '2026-05-07T00:00:02.000Z',
+      },
+    ]
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true, snapshot: snapshotFactory({ messages }) }))
+
+    fireEvent.change(screen.getByLabelText('Instruction'), {
+      target: { value: 'Show animation.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /send to codex/i }))
+
+    const resolving = await screen.findByLabelText('Codex response is resolving')
+    expect(resolving).toHaveClass('response-shuffle')
+    expect(resolving.textContent).not.toBe('## Animated result\n\nDone.')
+    expect(screen.queryByRole('heading', { name: 'Animated result' })).not.toBeInTheDocument()
+
+    expect(await screen.findByRole('heading', { name: 'Animated result' }, { timeout: 2500 })).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByLabelText('Codex response is resolving')).not.toBeInTheDocument())
+  })
+
   it('shows a floating scroll-to-bottom button only when chat is not at bottom', async () => {
     render(<App />)
     await getEventSource()
@@ -1072,11 +1108,43 @@ describe('App', () => {
 
     const scrollButton = screen.getByRole('button', { name: /scroll to bottom/i })
     expect(scrollButton).toBeInTheDocument()
+    expect(scrollButton.parentElement).toHaveClass('scroll-bottom-button-layer')
 
     fireEvent.click(scrollButton)
 
     expect(scrollPane.scrollTop).toBe(240)
     expect(screen.queryByRole('button', { name: /scroll to bottom/i })).not.toBeInTheDocument()
+  })
+
+  it('keeps the scroll-to-bottom button hidden during smooth programmatic scrolling', async () => {
+    const { unmount } = render(<App />)
+    await getEventSource()
+
+    expect(await screen.findByRole('heading', { name: 'Draft A' })).toBeInTheDocument()
+
+    const scrollPane = screen.getByTestId('chat-scroll')
+    setScrollMetrics(scrollPane, {
+      clientHeight: 100,
+      scrollHeight: 240,
+      scrollTop: 60,
+    })
+    Object.defineProperty(scrollPane, 'scrollTo', {
+      configurable: true,
+      value: vi.fn(),
+    })
+    fireEvent.scroll(scrollPane)
+
+    fireEvent.click(screen.getByRole('button', { name: /scroll to bottom/i }))
+    expect(screen.queryByRole('button', { name: /scroll to bottom/i })).not.toBeInTheDocument()
+
+    scrollPane.scrollTop = 90
+    fireEvent.scroll(scrollPane)
+    expect(screen.queryByRole('button', { name: /scroll to bottom/i })).not.toBeInTheDocument()
+
+    scrollPane.scrollTop = 140
+    fireEvent.scroll(scrollPane)
+    expect(screen.queryByRole('button', { name: /scroll to bottom/i })).not.toBeInTheDocument()
+    unmount()
   })
 
 })
