@@ -657,9 +657,10 @@ describe('App', () => {
 
     fireEvent.click(await screen.findByRole('option', { name: /existing\.png/i }))
 
-    expect(input).toHaveValue('Review @existing.png')
+    expect(input).toHaveValue('Review @existing.png ')
     expect(screen.getByRole('button', { name: /mention attachment existing\.png/i })).toBeInTheDocument()
     expect(container.querySelector('.composer-mention-highlight')).toHaveTextContent('@existing.png')
+    expect(screen.queryByRole('listbox', { name: /attachment mentions/i })).not.toBeInTheDocument()
   })
 
   it('treats completed attachment mentions as cursor tokens', async () => {
@@ -726,7 +727,7 @@ describe('App', () => {
       ),
     )
     expect(await screen.findByRole('button', { name: /preview uploaded\.png/i })).toBeInTheDocument()
-    expect(screen.getByLabelText('Instruction')).toHaveValue('@uploaded.png')
+    expect(screen.getByLabelText('Instruction')).toHaveValue('@uploaded.png ')
     expect(screen.getByRole('button', { name: /mention attachment uploaded\.png/i })).toBeInTheDocument()
   })
 
@@ -940,7 +941,7 @@ describe('App', () => {
     fireEvent.keyUp(input)
     fireEvent.click(await screen.findByRole('option', { name: /existing\.png/i }))
 
-    expect(input).toHaveValue('@existing.png')
+    expect(input).toHaveValue('@existing.png ')
     expect(screen.getByRole('button', { name: /mention attachment existing\.png/i })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /remove attachment existing\.png/i }))
