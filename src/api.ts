@@ -1,5 +1,6 @@
 import type {
   ApiErrorResponse,
+  CreateTeammateRequest,
   InstructionRequest,
   ManagerResponse,
   ManagerSnapshot,
@@ -7,6 +8,7 @@ import type {
   ProtocolTextFile,
   RunSnapshotResponse,
   Snapshot,
+  TeammatesResponse,
   UploadAttachmentResponse,
 } from './shared/protocol'
 
@@ -90,6 +92,23 @@ export async function deleteRun(runId: string): Promise<ManagerResponse> {
   })
 
   return parseJsonResponse<ManagerResponse>(response)
+}
+
+export async function fetchTeammates(): Promise<TeammatesResponse> {
+  const response = await fetch('/api/teammates')
+  return parseJsonResponse<TeammatesResponse>(response)
+}
+
+export async function createTeammate(request: CreateTeammateRequest): Promise<TeammatesResponse> {
+  const response = await fetch('/api/teammates', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  })
+
+  return parseJsonResponse<TeammatesResponse>(response)
 }
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {

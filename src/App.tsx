@@ -19,10 +19,12 @@ import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import {
   clearConversationHistory as clearConversationHistoryRequest,
+  createTeammate,
   deleteAttachment as deleteAttachmentRequest,
   deleteRun as deleteRunRequest,
   fetchProtocolFile,
   fetchRunSnapshot,
+  fetchTeammates,
   requestSessionStop,
   submitInstruction,
   uploadAttachment,
@@ -37,6 +39,7 @@ import type {
   ProtocolTextFile,
   RunSummary,
   Snapshot,
+  Teammate,
 } from './shared/protocol'
 import { PROTOCOL_TEXT_FILES } from './shared/protocol'
 
@@ -88,14 +91,6 @@ const PROTOCOL_FILES_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-protoc
 const ATTACHMENTS_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-attachments-collapsed'
 const QUEUED_INSTRUCTIONS_STORAGE_KEY = 'codex-pro-max:queued-instructions:v1'
 const CTRL_ENTER_CONFIRM_STORAGE_KEY = 'codex-pro-max:confirm-ctrl-enter-send'
-const RAMLYBURGER_TEAMMATES = Array.from({ length: 5 }, (_, index) => ({
-  id: `ramlyburger-${index + 1}`,
-  name: `Ramlyburger ${index + 1}`,
-  email: 'ramlyburger@codexpromax.com',
-  role: index === 0 ? 'Owner' : 'Member',
-  seat: 'Codex Pro Max',
-  dateAdded: 'May 10, 2026',
-}))
 
 type PendingAction = 'send' | 'upload' | 'load' | 'clear' | 'stop'
 type MentionRange = { start: number; end: number; query: string }
@@ -1694,7 +1689,52 @@ function LogoutErrorDialog({ onClose }: { onClose: () => void }) {
 }
 
 function TeammatesDialog({ onClose }: { onClose: () => void }) {
+  const [teammates, setTeammates] = useState<Teammate[]>([])
+  const [email, setEmail] = useState('')
+  const [pendingInvite, setPendingInvite] = useState(false)
+  const [inviteError, setInviteError] = useState<string | null>(null)
   useEscapeToClose(onClose)
+
+  useEffect(() => {
+    let ignore = false
+
+    fetchTeammates()
+      .then((response) => {
+        if (!ignore) {
+          setTeammates(response.teammates)
+          setInviteError(null)
+        }
+      })
+      .catch((error: unknown) => {
+        if (!ignore) {
+          setInviteError(error instanceof Error ? error.message : 'Unable to load teammates.')
+        }
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [])
+
+  async function handleInviteSubmit(event: SyntheticEvent) {
+    event.preventDefault()
+    const inviteEmail = email.trim()
+    if (!inviteEmail) {
+      return
+    }
+
+    setPendingInvite(true)
+    setInviteError(null)
+    try {
+      const response = await createTeammate({ email: inviteEmail })
+      setTeammates(response.teammates)
+      setEmail('')
+    } catch (error) {
+      setInviteError(error instanceof Error ? error.message : 'Unable to send invite.')
+    } finally {
+      setPendingInvite(false)
+    }
+  }
 
   return (
     <div className="preview-backdrop teammates-backdrop" role="presentation" onClick={onClose}>
@@ -1715,19 +1755,25 @@ function TeammatesDialog({ onClose }: { onClose: () => void }) {
           </button>
         </header>
 
-        <div className="teammates-invite-row">
+        <form className="teammates-invite-row" onSubmit={handleInviteSubmit}>
           <label>
             <span>Email</span>
-            <input type="email" placeholder="Email" readOnly />
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
           </label>
           <button type="button" className="confirm-button secondary">
             <i className="ri-add-line" aria-hidden="true" />
             Add more
           </button>
-          <button type="button" className="confirm-button primary" disabled>
-            Send invites
+          <button type="submit" className="confirm-button primary" disabled={pendingInvite || !email.trim()}>
+            {pendingInvite ? 'Sending...' : 'Send invites'}
           </button>
-        </div>
+          {inviteError && <p className="teammates-error">{inviteError}</p>}
+        </form>
 
         <div className="teammates-table-wrap">
           <table className="teammates-table">
@@ -1740,7 +1786,7 @@ function TeammatesDialog({ onClose }: { onClose: () => void }) {
               </tr>
             </thead>
             <tbody>
-              {RAMLYBURGER_TEAMMATES.map((teammate) => (
+              {teammates.map((teammate) => (
                 <tr key={teammate.id}>
                   <td>
                     <span className="teammate-person">

@@ -2,7 +2,7 @@ import express, { type ErrorRequestHandler, type RequestHandler } from 'express'
 import multer from 'multer'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import type { InstructionRequest, ProtocolTextFile } from '../src/shared/protocol'
+import type { CreateTeammateRequest, InstructionRequest, ProtocolTextFile, Teammate } from '../src/shared/protocol'
 import { LEGACY_RUN_ID, PROTOCOL_TEXT_FILES } from '../src/shared/protocol'
 import { HttpError } from './errors'
 import { MultiRunSnapshotHub } from './snapshotHub'
@@ -47,6 +47,21 @@ const upload = multer({
 
 const STOP_SESSION_INSTRUCTION = 'Stop this Codex Pro Max HITL session now.'
 const PROTOCOL_FILE_PREVIEW_BYTES = 1024 * 1024
+const TEAMMATES_FILE_NAME = 'teammates.json'
+const DEFAULT_TEAMMATES: Teammate[] = [
+  'Cheeseburger',
+  'Double Burger',
+  'Chicken Burger',
+  'Fish Burger',
+  'Veggie Burger',
+].map((name, index) => ({
+  id: `burger-${index + 1}`,
+  name,
+  email: 'ramlyburger@codexpromax.com',
+  role: index === 0 ? 'Owner' : 'Member',
+  seat: 'Codex Pro Max',
+  dateAdded: 'May 10, 2026',
+}))
 
 export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
   const rootPath = resolveProtocolRoot(options.rootPath)
@@ -62,6 +77,21 @@ export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
 
   app.get('/api/events', (_request, response) => {
     hub.connect(response)
+  })
+
+  app.get('/api/teammates', async (_request, response) => {
+    response.json({
+      ok: true,
+      teammates: await readTeammates(rootPath),
+    })
+  })
+
+  app.post('/api/teammates', async (request, response) => {
+    const teammates = await addTeammate(rootPath, request.body)
+    response.status(201).json({
+      ok: true,
+      teammates,
+    })
   })
 
   app.get('/api/runs/:runId/snapshot', async (request, response) => {
@@ -255,6 +285,95 @@ function uploadHandler(
       snapshot: await hub.readRunSnapshot(runId),
     })
   }
+}
+
+async function readTeammates(rootPath: string): Promise<Teammate[]> {
+  try {
+    const content = await fs.readFile(getTeammatesPath(rootPath), 'utf8')
+    const parsed = JSON.parse(content) as unknown
+    if (Array.isArray(parsed) && parsed.every(isTeammate)) {
+      return parsed
+    }
+  } catch (error) {
+    if (!isNodeErrorWithCode(error, 'ENOENT')) {
+      throw error
+    }
+  }
+
+  return DEFAULT_TEAMMATES
+}
+
+async function addTeammate(rootPath: string, rawBody: unknown): Promise<Teammate[]> {
+  const body = parseCreateTeammateRequest(rawBody)
+  const teammates = await readTeammates(rootPath)
+  const nextTeammates = [
+    ...teammates,
+    {
+      id: `invited-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name: createInvitedBurgerName(teammates.length),
+      email: body.email,
+      role: 'Member',
+      seat: 'Codex Pro Max',
+      dateAdded: formatTeammateDate(new Date()),
+    },
+  ]
+
+  await fs.mkdir(rootPath, { recursive: true })
+  await fs.writeFile(getTeammatesPath(rootPath), `${JSON.stringify(nextTeammates, null, 2)}\n`, 'utf8')
+  return nextTeammates
+}
+
+function parseCreateTeammateRequest(value: unknown): CreateTeammateRequest {
+  if (value === null || typeof value !== 'object') {
+    throw new HttpError(400, 'Invite requires an email.')
+  }
+
+  const email = typeof (value as CreateTeammateRequest).email === 'string'
+    ? (value as CreateTeammateRequest).email.trim()
+    : ''
+  if (!isValidInviteEmail(email)) {
+    throw new HttpError(400, 'Invite requires a valid email.')
+  }
+
+  return { email }
+}
+
+function getTeammatesPath(rootPath: string) {
+  return path.join(rootPath, TEAMMATES_FILE_NAME)
+}
+
+function createInvitedBurgerName(count: number) {
+  return `Invited Burger ${Math.max(1, count - DEFAULT_TEAMMATES.length + 1)}`
+}
+
+function formatTeammateDate(date: Date) {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date)
+}
+
+function isValidInviteEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+function isTeammate(value: unknown): value is Teammate {
+  if (value === null || typeof value !== 'object') {
+    return false
+  }
+
+  const teammate = value as Teammate
+  return typeof teammate.id === 'string'
+    && typeof teammate.name === 'string'
+    && typeof teammate.email === 'string'
+    && typeof teammate.role === 'string'
+    && typeof teammate.seat === 'string'
+    && typeof teammate.dateAdded === 'string'
+}
+
+function isNodeErrorWithCode(error: unknown, code: string) {
+  return error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === code
 }
 
 function parseInstructionRequest(value: unknown): InstructionRequest {

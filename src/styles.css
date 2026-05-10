@@ -2869,6 +2869,14 @@ code,
   white-space: nowrap;
 }
 
+.teammates-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .teammates-table-wrap {
   overflow: auto;
 }

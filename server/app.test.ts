@@ -39,6 +39,39 @@ describe('Codex Pro Max multi-run API', () => {
     expect(response.body.selectedRunId).toBeNull()
   })
 
+  it('stores prank teammates in the backend', async () => {
+    appHandle = createApp({ rootPath, startWatcher: false })
+
+    const initialResponse = await request(appHandle.app).get('/api/teammates').expect(200)
+
+    expect(initialResponse.body.teammates.map((teammate: { name: string }) => teammate.name)).toEqual([
+      'Cheeseburger',
+      'Double Burger',
+      'Chicken Burger',
+      'Fish Burger',
+      'Veggie Burger',
+    ])
+
+    const inviteResponse = await request(appHandle.app)
+      .post('/api/teammates')
+      .send({ email: 'newburger@codexpromax.com' })
+      .expect(201)
+
+    expect(inviteResponse.body.teammates).toHaveLength(6)
+    expect(inviteResponse.body.teammates[5]).toMatchObject({
+      name: 'Invited Burger 1',
+      email: 'newburger@codexpromax.com',
+      role: 'Member',
+      seat: 'Codex Pro Max',
+    })
+    await expect(fs.readFile(path.join(rootPath, 'teammates.json'), 'utf8')).resolves.toContain(
+      'newburger@codexpromax.com',
+    )
+
+    const savedResponse = await request(appHandle.app).get('/api/teammates').expect(200)
+    expect(savedResponse.body.teammates).toHaveLength(6)
+  })
+
   it('exposes root-level protocol files as legacy-root', async () => {
     await fs.writeFile(path.join(rootPath, 'status.txt'), 'WAITING_FOR_REVIEW\n', 'utf8')
     await fs.writeFile(path.join(rootPath, 'output.md'), 'Legacy output', 'utf8')

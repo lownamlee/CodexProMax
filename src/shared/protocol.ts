@@ -146,8 +146,21 @@ export interface ManagerSnapshot {
   }
 }
 
+export interface Teammate {
+  id: string
+  name: string
+  email: string
+  role: string
+  seat: string
+  dateAdded: string
+}
+
 export interface InstructionRequest {
   instruction: string
+}
+
+export interface CreateTeammateRequest {
+  email: string
 }
 
 export interface RunSnapshotResponse {
@@ -170,6 +183,11 @@ export interface ProtocolFileContentResponse {
 export interface ManagerResponse {
   ok: true
   snapshot: ManagerSnapshot
+}
+
+export interface TeammatesResponse {
+  ok: true
+  teammates: Teammate[]
 }
 
 export interface ApiErrorResponse {

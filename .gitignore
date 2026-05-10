@@ -12,5 +12,6 @@ progress.md
 output.md
 instruction.txt
 events.ndjson
+teammates.json
 *.log
 *.tmp
