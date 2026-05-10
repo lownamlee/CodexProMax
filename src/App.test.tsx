@@ -278,8 +278,8 @@ describe('App', () => {
     expect(screen.getByText('Stop this Codex Pro Max HITL session now.')).toBeInTheDocument()
   })
 
-  it('inserts attachment mentions from the composer at-menu', async () => {
-    render(<App />)
+  it('inserts highlighted attachment mentions from the composer at-menu', async () => {
+    const { container } = render(<App />)
     await getEventSource()
 
     const input = await screen.findByLabelText('Instruction')
@@ -295,6 +295,7 @@ describe('App', () => {
 
     expect(input).toHaveValue('Review @existing.png ')
     expect(screen.getByRole('button', { name: /mention attachment existing\.png/i })).toBeInTheDocument()
+    expect(container.querySelector('.composer-mention-highlight')).toHaveTextContent('@existing.png')
   })
 
   it('uploads a pasted image attachment from the instruction field', async () => {
@@ -329,7 +330,7 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /mention attachment uploaded\.png/i })).toBeInTheDocument()
   })
 
-  it('sends the current instruction with Ctrl Enter', async () => {
+  it('does not send the current instruction with Ctrl Enter', async () => {
     const fetchMock = vi.mocked(fetch)
     render(<App />)
     await getEventSource()
@@ -340,17 +341,7 @@ describe('App', () => {
     })
     fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
 
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/runs/run-a/action',
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({
-            instruction: 'Send with shortcut.',
-          }),
-        }),
-      ),
-    )
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/runs/run-a/action', expect.anything())
   })
 
   it('caps the auto-growing instruction field height', async () => {
@@ -427,7 +418,7 @@ describe('App', () => {
       target: { files: [file] },
     })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'uploaded.png' }))
+    fireEvent.click(await screen.findByRole('button', { name: /preview uploaded\.png/i }))
 
     const dialog = screen.getByRole('dialog', { name: 'uploaded.png' })
     expect(dialog).toBeInTheDocument()
@@ -471,6 +462,78 @@ describe('App', () => {
 
     expect(screen.queryByRole('button', { name: /mention attachment existing\.png/i })).not.toBeInTheDocument()
     expect(input).toHaveValue('')
+  })
+
+  it('mentions session attachments from the sidebar list', async () => {
+    render(<App />)
+    await getEventSource()
+
+    const input = await screen.findByLabelText('Instruction')
+    fireEvent.click(await screen.findByRole('button', { name: 'existing.png' }))
+
+    expect(input).toHaveValue('@existing.png ')
+    expect(screen.getByRole('button', { name: /mention attachment existing\.png/i })).toBeInTheDocument()
+  })
+
+  it('previews draft attachments from the composer thumbnail', async () => {
+    render(<App />)
+    await getEventSource()
+
+    const input = await screen.findByLabelText('Instruction')
+    const value = '@ex'
+    fireEvent.change(input, {
+      target: { value },
+    })
+    const textarea = input as HTMLTextAreaElement
+    textarea.setSelectionRange(value.length, value.length)
+    fireEvent.keyUp(input)
+    fireEvent.click(await screen.findByRole('option', { name: /existing\.png/i }))
+    fireEvent.click(screen.getByRole('button', { name: /preview attachment existing\.png/i }))
+
+    expect(screen.getByRole('dialog', { name: 'existing.png' })).toBeInTheDocument()
+  })
+
+  it('copies sent user and assistant messages', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+    render(<App />)
+    await getEventSource()
+    await screen.findByRole('heading', { name: 'Draft A' })
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({
+        ok: true,
+        snapshot: snapshotFactory({
+          messages: [
+            {
+              id: 'user-copy',
+              role: 'user',
+              content: 'User copy text.',
+              createdAtIso: '2026-05-07T00:00:01.000Z',
+            },
+            {
+              id: 'assistant-copy',
+              role: 'assistant',
+              content: 'Assistant copy text.',
+              createdAtIso: '2026-05-07T00:00:02.000Z',
+            },
+          ],
+        }),
+      }),
+    )
+
+    fireEvent.change(await screen.findByLabelText('Instruction'), {
+      target: { value: 'Show copied messages.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /send to codex/i }))
+
+    fireEvent.click(await screen.findByRole('button', { name: /copy user message/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /copy codex message/i }))
+
+    expect(writeText).toHaveBeenCalledWith('User copy text.')
+    expect(writeText).toHaveBeenCalledWith('Assistant copy text.')
   })
 
   it('deletes an attachment from the selected run', async () => {

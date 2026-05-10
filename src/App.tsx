@@ -6,8 +6,10 @@ import {
   useState,
   type ChangeEvent,
   type ClipboardEvent,
+  type CSSProperties,
   type DragEvent,
   type KeyboardEvent,
+  type ReactNode,
   type SyntheticEvent,
   type UIEvent,
 } from 'react'
@@ -50,6 +52,7 @@ const FILE_ICONS: Record<ProtocolTextFile, string> = {
 const CHAT_BOTTOM_THRESHOLD_PX = 12
 const COMPOSER_TEXTAREA_MIN_HEIGHT_PX = 44
 const COMPOSER_TEXTAREA_MAX_HEIGHT_PX = 180
+const DEFAULT_COMPOSER_HEIGHT_PX = 120
 
 type PendingAction = 'send' | 'upload' | 'load' | 'clear' | 'stop'
 type MentionRange = { start: number; end: number; query: string }
@@ -67,6 +70,7 @@ function App() {
   const [leftCollapsed, setLeftCollapsed] = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
   const [attachmentDragDepth, setAttachmentDragDepth] = useState(0)
+  const [composerHeight, setComposerHeight] = useState(DEFAULT_COMPOSER_HEIGHT_PX)
   const [previewAttachment, setPreviewAttachment] = useState<AttachmentMeta | null>(null)
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
   const chatPinnedToBottomRef = useRef(true)
@@ -272,6 +276,11 @@ function App() {
     setInstruction((value) => removeAttachmentMention(value, name))
   }
 
+  function mentionSessionAttachment(name: string) {
+    addDraftAttachment(name)
+    setInstruction((value) => appendAttachmentMention(value, name))
+  }
+
   function handleAttachmentDragEnter(event: DragEvent<HTMLElement>) {
     if (!eventHasFiles(event)) {
       return
@@ -410,6 +419,9 @@ function App() {
   const selectedTitle = selectedRun?.displayName ?? runSnapshot?.displayName ?? 'No run selected'
   const managerRoot = managerSnapshot?.rootPath ?? 'Loading workspace...'
   const draggingAttachment = attachmentDragDepth > 0
+  const chatContainerStyle = {
+    '--composer-bottom-space': `${composerHeight + 16}px`,
+  } as CSSProperties
 
   return (
     <div className={`app ${leftCollapsed ? 'left-collapsed' : ''} ${rightCollapsed ? 'right-collapsed' : ''}`}>
@@ -429,6 +441,7 @@ function App() {
 
       <main
         className={`chat-container ${draggingAttachment ? 'dragging-attachment' : ''}`}
+        style={chatContainerStyle}
         onDragEnter={handleAttachmentDragEnter}
         onDragOver={handleAttachmentDragOver}
         onDragLeave={handleAttachmentDragLeave}
@@ -536,6 +549,8 @@ function App() {
           onPasteAttachment={handleComposerPaste}
           onDraftAttachmentAdd={addDraftAttachment}
           onDraftAttachmentRemove={removeDraftAttachment}
+          onAttachmentPreview={setPreviewAttachment}
+          onHeightChange={setComposerHeight}
           error={actionError ?? streamError ?? null}
         />
       </main>
@@ -548,6 +563,7 @@ function App() {
         snapshot={runSnapshot}
         attachments={attachments}
         onAttachmentPreview={setPreviewAttachment}
+        onAttachmentMention={mentionSessionAttachment}
         onAttachmentDelete={(attachment) => void handleDeleteAttachment(attachment)}
         deletingAttachmentName={deletingAttachmentName}
         filesPresent={filesPresent}
@@ -643,6 +659,18 @@ function RunInbox({
 
 function ChatMessageItem({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user'
+  const [copied, setCopied] = useState(false)
+
+  async function copyMessage() {
+    try {
+      await navigator.clipboard.writeText(message.content)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1200)
+    } catch {
+      setCopied(false)
+    }
+  }
+
   return (
     <article className={`message chat-message ${isUser ? 'user-message' : 'assistant-message'}`}>
       {!isUser && (
@@ -654,7 +682,18 @@ function ChatMessageItem({ message }: { message: ChatMessage }) {
       <div className="message-content">
         <div className="label-row message-label-row">
           <span className="label-super">{isUser ? 'You' : 'Codex'}</span>
-          <span className="section-meta">{formatMessageTime(message.createdAtIso)}</span>
+          <span className="message-actions">
+            <span className="section-meta">{formatMessageTime(message.createdAtIso)}</span>
+            <button
+              type="button"
+              className="message-copy-button"
+              onClick={() => void copyMessage()}
+              aria-label={`Copy ${isUser ? 'user' : 'Codex'} message`}
+              title="Copy message"
+            >
+              <i className={copied ? 'ri-check-line' : 'ri-file-copy-line'} aria-hidden="true" />
+            </button>
+          </span>
         </div>
         <div className={isUser ? 'user-bubble' : undefined}>
           <MarkdownPanel
@@ -737,6 +776,8 @@ function ReviewComposer({
   onPasteAttachment,
   onDraftAttachmentAdd,
   onDraftAttachmentRemove,
+  onAttachmentPreview,
+  onHeightChange,
   error,
 }: {
   instruction: string
@@ -750,9 +791,13 @@ function ReviewComposer({
   onPasteAttachment: (event: ClipboardEvent<HTMLTextAreaElement>) => Promise<AttachmentMeta | null>
   onDraftAttachmentAdd: (name: string) => void
   onDraftAttachmentRemove: (name: string) => void
+  onAttachmentPreview: (attachment: AttachmentMeta) => void
+  onHeightChange: (height: number) => void
   error: string | null
 }) {
+  const wrapperRef = useRef<HTMLElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const highlightRef = useRef<HTMLDivElement | null>(null)
   const [mentionRange, setMentionRange] = useState<MentionRange | null>(null)
   const [activeMentionIndex, setActiveMentionIndex] = useState(0)
   const mentionOptions = useMemo(() => {
@@ -770,6 +815,24 @@ function ReviewComposer({
   useLayoutEffect(() => {
     resizeComposerTextarea(textareaRef.current)
   }, [instruction])
+
+  useLayoutEffect(() => {
+    const wrapper = wrapperRef.current
+    if (!wrapper) {
+      return
+    }
+
+    const reportHeight = () => onHeightChange(Math.ceil(wrapper.getBoundingClientRect().height))
+    reportHeight()
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', reportHeight)
+      return () => window.removeEventListener('resize', reportHeight)
+    }
+
+    const observer = new ResizeObserver(reportHeight)
+    observer.observe(wrapper)
+    return () => observer.disconnect()
+  }, [onHeightChange])
 
   useEffect(() => {
     setActiveMentionIndex(0)
@@ -824,15 +887,6 @@ function ReviewComposer({
   }
 
   function handleTextareaKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === 'Enter' && event.ctrlKey) {
-      event.preventDefault()
-      setMentionRange(null)
-      if (canSend) {
-        onSend()
-      }
-      return
-    }
-
     if (!showMentionMenu) {
       return
     }
@@ -862,7 +916,7 @@ function ReviewComposer({
   }
 
   return (
-    <section className="composer-wrapper" aria-label="Review">
+    <section className="composer-wrapper" aria-label="Review" ref={wrapperRef}>
       <label className="sr-only" htmlFor="instruction">
         Instruction
       </label>
@@ -891,12 +945,20 @@ function ReviewComposer({
             <div className="composer-attachment-chip" key={attachment.name}>
               <button
                 type="button"
-                className="composer-attachment-main"
+                className="composer-attachment-preview"
+                onClick={() => onAttachmentPreview(attachment)}
+                title={`Preview ${attachment.name}`}
+                aria-label={`Preview attachment ${attachment.name}`}
+              >
+                <AttachmentThumbnail attachment={attachment} />
+              </button>
+              <button
+                type="button"
+                className="composer-attachment-name"
                 onClick={() => insertAttachmentMention(attachment.name)}
                 title={`Mention ${attachment.name}`}
                 aria-label={`Mention attachment ${attachment.name}`}
               >
-                <AttachmentThumbnail attachment={attachment} />
                 <span>{attachment.name}</span>
               </button>
               <button
@@ -927,20 +989,26 @@ function ReviewComposer({
           />
         </label>
 
-        <textarea
-          ref={textareaRef}
-          id="instruction"
-          value={instruction}
-          onChange={handleInstructionChange}
-          onClick={handleTextareaCursor}
-          onKeyUp={handleTextareaCursor}
-          onKeyDown={handleTextareaKeyDown}
-          onPaste={(event) => void handleTextareaPaste(event)}
-          onBlur={() => setMentionRange(null)}
-          rows={1}
-          placeholder="Write your instructions to Codex..."
-          spellCheck
-        />
+        <div className="composer-input-shell">
+          <div className="composer-highlight" ref={highlightRef} aria-hidden="true">
+            {renderComposerHighlights(instruction)}
+          </div>
+          <textarea
+            ref={textareaRef}
+            id="instruction"
+            value={instruction}
+            onChange={handleInstructionChange}
+            onClick={handleTextareaCursor}
+            onKeyUp={handleTextareaCursor}
+            onKeyDown={handleTextareaKeyDown}
+            onPaste={(event) => void handleTextareaPaste(event)}
+            onScroll={(event) => syncComposerHighlightScroll(highlightRef.current, event.currentTarget)}
+            onBlur={() => setMentionRange(null)}
+            rows={1}
+            placeholder="Write your instructions to Codex..."
+            spellCheck
+          />
+        </div>
 
         <button
           type="button"
@@ -1031,8 +1099,56 @@ function removeAttachmentMention(value: string, attachmentName: string): string 
   return withoutMention.trimStart()
 }
 
+function appendAttachmentMention(value: string, attachmentName: string): string {
+  const mention = `@${attachmentName}`
+  if (new RegExp(`(^|\\s)${escapeRegExp(mention)}(?=\\s|$)`).test(value)) {
+    return value
+  }
+
+  const separator = value.trim().length > 0 && !/\s$/.test(value) ? ' ' : ''
+  return `${value}${separator}${mention} `
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function renderComposerHighlights(value: string) {
+  if (!value) {
+    return null
+  }
+
+  const segments: ReactNode[] = []
+  const matcher = /@[a-zA-Z0-9._-]+/g
+  let lastIndex = 0
+  for (const match of value.matchAll(matcher)) {
+    const index = match.index ?? 0
+    if (index > lastIndex) {
+      segments.push(value.slice(lastIndex, index))
+    }
+    segments.push(
+      <span className="composer-mention-highlight" key={`${match[0]}-${index}`}>
+        {match[0]}
+      </span>,
+    )
+    lastIndex = index + match[0].length
+  }
+
+  if (lastIndex < value.length) {
+    segments.push(value.slice(lastIndex))
+  }
+
+  if (value.endsWith('\n')) {
+    segments.push('\u200b')
+  }
+
+  return segments
+}
+
+function syncComposerHighlightScroll(highlight: HTMLDivElement | null, textarea: HTMLTextAreaElement) {
+  if (highlight) {
+    highlight.scrollTop = textarea.scrollTop
+  }
 }
 
 function resizeComposerTextarea(textarea: HTMLTextAreaElement | null) {
@@ -1062,6 +1178,7 @@ function ProtocolSidebar({
   snapshot,
   attachments,
   onAttachmentPreview,
+  onAttachmentMention,
   onAttachmentDelete,
   deletingAttachmentName,
   filesPresent,
@@ -1073,6 +1190,7 @@ function ProtocolSidebar({
   snapshot: Snapshot | null
   attachments: AttachmentMeta[]
   onAttachmentPreview: (attachment: AttachmentMeta) => void
+  onAttachmentMention: (name: string) => void
   onAttachmentDelete: (attachment: AttachmentMeta) => void
   deletingAttachmentName: string | null
   filesPresent: number
@@ -1119,6 +1237,7 @@ function ProtocolSidebar({
             attachments={attachments}
             deletingAttachmentName={deletingAttachmentName}
             onPreview={onAttachmentPreview}
+            onMention={onAttachmentMention}
             onDelete={onAttachmentDelete}
           />
         </div>
@@ -1172,11 +1291,13 @@ function AttachmentList({
   attachments,
   deletingAttachmentName,
   onPreview,
+  onMention,
   onDelete,
 }: {
   attachments: AttachmentMeta[]
   deletingAttachmentName: string | null
   onPreview: (attachment: AttachmentMeta) => void
+  onMention: (name: string) => void
   onDelete: (attachment: AttachmentMeta) => void
 }) {
   if (attachments.length === 0) {
@@ -1205,7 +1326,7 @@ function AttachmentList({
             <button
               type="button"
               className="file-name attachment-preview-button"
-              onClick={() => onPreview(attachment)}
+              onClick={() => onMention(attachment.name)}
             >
               {attachment.name}
             </button>
