@@ -885,6 +885,20 @@ function RunStatusIcon({ status }: { status: ProtocolStatus }) {
     )
   }
 
+  if (status === 'INSTRUCTION_RECEIVED') {
+    return (
+      <span
+        className={`run-icon run-status-icon run-status-success-wrapper ${statusClass}`}
+        aria-hidden="true"
+      >
+        <svg className="run-status-success-svg" viewBox="0 0 50 50">
+          <circle className="run-status-success-circle" cx="25" cy="25" r="20" />
+          <path className="run-status-success-check" d="M16 26 L22 32 L34 18" />
+        </svg>
+      </span>
+    )
+  }
+
   return (
     <i
       className={`${RUN_STATUS_ICONS[status]} run-icon run-status-icon ${statusClass}`}

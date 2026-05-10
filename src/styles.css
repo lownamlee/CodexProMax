@@ -304,6 +304,41 @@ button:disabled {
   animation: reviewOrbBreathe 4s ease-in-out infinite;
 }
 
+.run-status-success-wrapper {
+  width: 18px;
+  height: 18px;
+  display: block;
+  animation: runSuccessPop 0.4s 0.8s ease-in-out both;
+}
+
+.run-status-success-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.run-status-success-circle,
+.run-status-success-check {
+  fill: none;
+  stroke: #4caf50;
+}
+
+.run-status-success-circle {
+  stroke-width: 3;
+  stroke-dasharray: 126;
+  stroke-dashoffset: 126;
+  animation: runSuccessDrawCircle 0.6s ease-in-out forwards;
+}
+
+.run-status-success-check {
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 35;
+  stroke-dashoffset: 35;
+  animation: runSuccessDrawCheck 0.4s 0.6s ease-out forwards;
+}
+
 .run-item:hover .run-icon {
   transform: scale(1.1);
 }
@@ -351,6 +386,32 @@ button:disabled {
     box-shadow:
       0 0 28px rgba(217, 119, 6, 0.58),
       0 0 12px rgba(217, 119, 6, 0.45) inset;
+  }
+}
+
+@keyframes runSuccessDrawCircle {
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes runSuccessDrawCheck {
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes runSuccessPop {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.15);
+  }
+
+  100% {
+    transform: scale(1);
   }
 }
 
