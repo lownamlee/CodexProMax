@@ -865,7 +865,7 @@ function ReviewComposer({
     const start = range?.start ?? fallbackStart
     const end = range?.end ?? fallbackEnd
     const leading = start > 0 && !/\s/.test(value[start - 1]) ? ' ' : ''
-    const trailing = end >= value.length || !/\s/.test(value[end]) ? ' ' : ''
+    const trailing = end < value.length && !/\s/.test(value[end]) ? ' ' : ''
     const inserted = `${leading}@${attachmentName}${trailing}`
     const next = `${value.slice(0, start)}${inserted}${value.slice(end)}`
     const cursor = start + inserted.length
@@ -1106,7 +1106,7 @@ function appendAttachmentMention(value: string, attachmentName: string): string 
   }
 
   const separator = value.trim().length > 0 && !/\s$/.test(value) ? ' ' : ''
-  return `${value}${separator}${mention} `
+  return `${value}${separator}${mention}`
 }
 
 function escapeRegExp(value: string): string {

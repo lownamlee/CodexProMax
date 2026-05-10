@@ -941,16 +941,18 @@ code,
 
 .composer-attachment-chip {
   position: relative;
-  min-width: 132px;
-  max-width: 220px;
+  width: 52px;
+  min-width: 52px;
+  max-width: 52px;
   flex: 0 0 auto;
 }
 
 .composer-attachment-preview {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
+  margin: 0 auto;
   padding: 2px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -967,26 +969,24 @@ code,
   width: 100%;
   min-width: 0;
   display: block;
-  margin-top: 4px;
-  padding: 5px 18px 5px 6px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg-surface);
-  box-shadow: var(--shadow-sm);
+  margin-top: 3px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
   color: var(--text-main);
-  text-align: left;
+  text-align: center;
 }
 
 .composer-attachment-name:hover {
-  border-color: #bae6fd;
-  background: var(--primary-soft);
+  color: var(--primary);
 }
 
 .composer-attachment-name span {
   min-width: 0;
   overflow: hidden;
   display: block;
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -995,7 +995,7 @@ code,
 .composer-attachment-remove {
   position: absolute;
   top: -5px;
-  right: -5px;
+  right: 0;
   width: 22px;
   height: 22px;
   min-width: 22px;
