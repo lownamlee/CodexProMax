@@ -32,6 +32,15 @@ export const RUN_METADATA_FILE = 'run.json'
 export const SESSION_FILE = 'session.md'
 export const LEGACY_CHAT_MESSAGES_FILE = 'messages.ndjson'
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+const OUTPUT_PREVIEW_BYTES = 4096
+
+type SessionMessageCacheEntry = {
+  mtimeMs: number
+  size: number
+  messages: ChatMessage[]
+}
+
+const sessionMessageCache = new Map<string, SessionMessageCacheEntry>()
 
 export const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/png',
@@ -240,14 +249,20 @@ export async function listAttachments(
 
 export async function readChatMessages(runPath: string, fallbackOutput = ''): Promise<ChatMessage[]> {
   const sessionPath = path.join(runPath, SESSION_FILE)
-  const hasSessionFile = await pathExists(sessionPath)
-  const sessionMessages = parseSessionMessages(await readTextIfExists(sessionPath))
-  if (sessionMessages.length > 0) {
-    return sessionMessages
-  }
+  const sessionMeta = await getFileMeta(sessionPath)
+  if (sessionMeta.exists && typeof sessionMeta.mtimeMs === 'number' && typeof sessionMeta.size === 'number') {
+    const cached = sessionMessageCache.get(sessionPath)
+    if (cached && cached.mtimeMs === sessionMeta.mtimeMs && cached.size === sessionMeta.size) {
+      return cached.messages
+    }
 
-  if (hasSessionFile) {
-    return []
+    const sessionMessages = parseSessionMessages(await readTextIfExists(sessionPath))
+    sessionMessageCache.set(sessionPath, {
+      mtimeMs: sessionMeta.mtimeMs,
+      size: sessionMeta.size,
+      messages: sessionMessages,
+    })
+    return sessionMessages
   }
 
   const legacyMessages = await readLegacyChatMessages(runPath)
@@ -409,7 +424,9 @@ export async function deleteRun(rootPath: string, runId: string): Promise<void> 
 
 export async function clearConversationHistory(runPath: string): Promise<void> {
   await fs.mkdir(runPath, { recursive: true })
-  await atomicWriteTextFile(path.join(runPath, SESSION_FILE), '')
+  const sessionPath = path.join(runPath, SESSION_FILE)
+  await atomicWriteTextFile(sessionPath, '')
+  sessionMessageCache.delete(sessionPath)
 }
 
 export async function appendAuditEvent(
@@ -448,7 +465,9 @@ export async function appendChatMessage(
     content: trimmed,
     createdAtIso: new Date().toISOString(),
   }
-  await fs.appendFile(path.join(runPath, SESSION_FILE), formatSessionMessage(message), 'utf8')
+  const sessionPath = path.join(runPath, SESSION_FILE)
+  await fs.appendFile(sessionPath, formatSessionMessage(message), 'utf8')
+  sessionMessageCache.delete(sessionPath)
   return message
 }
 
@@ -530,22 +549,32 @@ async function getRunSummary(
   runId: string,
   watcherReady: boolean,
 ): Promise<RunSummary> {
-  const snapshot = await getRunSnapshot(rootPath, runId, watcherReady)
   const metadata = await readRunMetadata(rootPath, runId)
-  const attachments = snapshot.attachments
-  const updatedAtMs = getLatestUpdatedAtMs(snapshot.files, attachments)
+  const runPath = getRunPath(rootPath, runId)
+  const fileEntries = await Promise.all(
+    PROTOCOL_TEXT_FILES.map(async (fileName) => {
+      const filePath = getProtocolPath(runPath, fileName)
+      return [fileName, await getFileMeta(filePath)] as const
+    }),
+  )
+  const files = Object.fromEntries(fileEntries) as Record<ProtocolTextFile, FileMeta>
+  const instruction = await readTextIfExists(getProtocolPath(runPath, 'instruction.txt'))
+  const statusRaw = (await readTextIfExists(getProtocolPath(runPath, 'status.txt'))).trim()
+  const status = normalizeProtocolStatus(statusRaw, instruction)
+  const attachments = await listAttachments(runPath, runId)
+  const updatedAtMs = getLatestUpdatedAtMs(files, attachments)
 
   return {
     runId,
     displayName: metadata.displayName,
-    rootPath: snapshot.rootPath,
-    status: snapshot.status,
-    owner: STATUS_DETAILS[snapshot.status].owner,
+    rootPath: runPath,
+    status,
+    owner: STATUS_DETAILS[status].owner,
     updatedAtIso: updatedAtMs ? new Date(updatedAtMs).toISOString() : metadata.updatedAtIso,
     updatedAtMs: updatedAtMs ?? Date.parse(metadata.updatedAtIso),
-    outputPreview: createPreview(snapshot.outputMd),
+    outputPreview: createPreview(await readTextPreviewIfExists(getProtocolPath(runPath, 'output.md'))),
     attachmentCount: attachments.length,
-    hasInstruction: snapshot.instruction.trim().length > 0,
+    hasInstruction: instruction.trim().length > 0,
     isLegacy: runId === LEGACY_RUN_ID,
   }
 }
@@ -593,6 +622,26 @@ async function readTextIfExists(filePath: string): Promise<string> {
       return ''
     }
     throw error
+  }
+}
+
+async function readTextPreviewIfExists(filePath: string, byteLimit = OUTPUT_PREVIEW_BYTES): Promise<string> {
+  let file: Awaited<ReturnType<typeof fs.open>>
+  try {
+    file = await fs.open(filePath, 'r')
+  } catch (error) {
+    if (isNodeError(error) && error.code === 'ENOENT') {
+      return ''
+    }
+    throw error
+  }
+
+  try {
+    const buffer = Buffer.alloc(byteLimit)
+    const { bytesRead } = await file.read(buffer, 0, byteLimit, 0)
+    return buffer.subarray(0, bytesRead).toString('utf8')
+  } finally {
+    await file.close()
   }
 }
 
