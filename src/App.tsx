@@ -69,6 +69,9 @@ const CODEX_PROFILE_IMAGE = '/codex-color.png'
 const USER_PROFILE_IMAGE = '/burger.png'
 const LEFT_SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-pro-max:left-sidebar-collapsed'
 const RIGHT_SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-collapsed'
+const OUTLINES_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-outlines-collapsed'
+const PROTOCOL_FILES_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-protocol-files-collapsed'
+const ATTACHMENTS_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-attachments-collapsed'
 
 type PendingAction = 'send' | 'upload' | 'load' | 'clear' | 'stop'
 type MentionRange = { start: number; end: number; query: string }
@@ -1550,6 +1553,28 @@ function ProtocolSidebar({
   activeUserMessageId: string | null
   onUserMessageSelect: (messageId: string) => void
 }) {
+  const [outlinesCollapsed, setOutlinesCollapsed] = useState(() =>
+    readStoredBoolean(OUTLINES_COLLAPSED_STORAGE_KEY, false),
+  )
+  const [protocolFilesCollapsed, setProtocolFilesCollapsed] = useState(() =>
+    readStoredBoolean(PROTOCOL_FILES_COLLAPSED_STORAGE_KEY, false),
+  )
+  const [attachmentsCollapsed, setAttachmentsCollapsed] = useState(() =>
+    readStoredBoolean(ATTACHMENTS_COLLAPSED_STORAGE_KEY, false),
+  )
+
+  useEffect(() => {
+    writeStoredBoolean(OUTLINES_COLLAPSED_STORAGE_KEY, outlinesCollapsed)
+  }, [outlinesCollapsed])
+
+  useEffect(() => {
+    writeStoredBoolean(PROTOCOL_FILES_COLLAPSED_STORAGE_KEY, protocolFilesCollapsed)
+  }, [protocolFilesCollapsed])
+
+  useEffect(() => {
+    writeStoredBoolean(ATTACHMENTS_COLLAPSED_STORAGE_KEY, attachmentsCollapsed)
+  }, [attachmentsCollapsed])
+
   return (
     <aside
       id="right-sidebar"
@@ -1557,17 +1582,24 @@ function ProtocolSidebar({
       aria-label="Protocol details"
     >
       <div className="sidebar-inner">
-        <div className="meta-group outline-group">
-          <h4>Outlines</h4>
+        <SidebarMetaGroup
+          title="Outlines"
+          className="outline-group"
+          collapsed={outlinesCollapsed}
+          onToggle={() => setOutlinesCollapsed((value) => !value)}
+        >
           <UserMessageOutlineList
             outlines={userMessageOutlines}
             activeMessageId={activeUserMessageId}
             onSelect={onUserMessageSelect}
           />
-        </div>
+        </SidebarMetaGroup>
 
-        <div className="meta-group">
-          <h4>Protocol Files</h4>
+        <SidebarMetaGroup
+          title="Protocol Files"
+          collapsed={protocolFilesCollapsed}
+          onToggle={() => setProtocolFilesCollapsed((value) => !value)}
+        >
           <div className="file-count">
             {filesPresent}
             <span> / {PROTOCOL_TEXT_FILES.length} present</span>
@@ -1582,10 +1614,13 @@ function ProtocolSidebar({
               />
             ))}
           </div>
-        </div>
+        </SidebarMetaGroup>
 
-        <div className="meta-group">
-          <h4>Attachments</h4>
+        <SidebarMetaGroup
+          title="Attachments"
+          collapsed={attachmentsCollapsed}
+          onToggle={() => setAttachmentsCollapsed((value) => !value)}
+        >
           <AttachmentList
             attachments={attachments}
             deletingAttachmentName={deletingAttachmentName}
@@ -1593,9 +1628,35 @@ function ProtocolSidebar({
             onMention={onAttachmentMention}
             onDelete={onAttachmentDelete}
           />
-        </div>
+        </SidebarMetaGroup>
       </div>
     </aside>
+  )
+}
+
+function SidebarMetaGroup({
+  title,
+  className = '',
+  collapsed,
+  onToggle,
+  children,
+}: {
+  title: string
+  className?: string
+  collapsed: boolean
+  onToggle: () => void
+  children: ReactNode
+}) {
+  return (
+    <div className={`meta-group ${className} ${collapsed ? 'collapsed' : ''}`}>
+      <h4 className="meta-group-heading">
+        <button type="button" className="meta-group-toggle" onClick={onToggle} aria-expanded={!collapsed}>
+          <span>{title}</span>
+          <i className={collapsed ? 'ri-arrow-down-s-line' : 'ri-arrow-up-s-line'} aria-hidden="true" />
+        </button>
+      </h4>
+      {!collapsed && <div className="meta-group-content">{children}</div>}
+    </div>
   )
 }
 

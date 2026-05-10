@@ -1448,14 +1448,43 @@ code,
   text-transform: uppercase;
 }
 
+.meta-group-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  text-transform: inherit;
+}
+
+.meta-group-toggle i {
+  color: var(--text-light);
+  font-size: 14px;
+}
+
+.meta-group-content {
+  min-height: 0;
+}
+
 .outline-group {
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
+.outline-group .meta-group-content {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .outline-list {
-  max-height: clamp(260px, 52vh, 560px);
+  max-height: clamp(220px, 42vh, 440px);
   display: flex;
   flex-direction: column;
   gap: 4px;

@@ -248,6 +248,34 @@ describe('App', () => {
     expect(screen.getByLabelText('Protocol details')).toHaveClass('collapsed')
   })
 
+  it('persists right sidebar section collapse state across remounts', async () => {
+    const { unmount } = render(<App />)
+    await getEventSource()
+
+    const sidebar = screen.getByLabelText('Protocol details')
+    fireEvent.click(await within(sidebar).findByRole('button', { name: 'Outlines' }))
+    fireEvent.click(within(sidebar).getByRole('button', { name: 'Protocol Files' }))
+    fireEvent.click(within(sidebar).getByRole('button', { name: 'Attachments' }))
+
+    expect(within(sidebar).getByRole('button', { name: 'Outlines' })).toHaveAttribute('aria-expanded', 'false')
+    expect(within(sidebar).getByRole('button', { name: 'Protocol Files' })).toHaveAttribute('aria-expanded', 'false')
+    expect(within(sidebar).getByRole('button', { name: 'Attachments' })).toHaveAttribute('aria-expanded', 'false')
+    expect(within(sidebar).queryByText('No user messages yet.')).not.toBeInTheDocument()
+    expect(window.localStorage.getItem('codex-pro-max:right-sidebar-outlines-collapsed')).toBe('true')
+    expect(window.localStorage.getItem('codex-pro-max:right-sidebar-protocol-files-collapsed')).toBe('true')
+    expect(window.localStorage.getItem('codex-pro-max:right-sidebar-attachments-collapsed')).toBe('true')
+
+    unmount()
+    MockEventSource.instances = []
+    render(<App />)
+    await getEventSource()
+
+    const remountedSidebar = screen.getByLabelText('Protocol details')
+    expect(within(remountedSidebar).getByRole('button', { name: 'Outlines' })).toHaveAttribute('aria-expanded', 'false')
+    expect(within(remountedSidebar).getByRole('button', { name: 'Protocol Files' })).toHaveAttribute('aria-expanded', 'false')
+    expect(within(remountedSidebar).getByRole('button', { name: 'Attachments' })).toHaveAttribute('aria-expanded', 'false')
+  })
+
   it('shows user messages as outlines, highlights by chat position, and jumps to a selected message', async () => {
     const messages: Snapshot['messages'] = Array.from({ length: 12 }, (_, index) => ({
       id: `user-${index + 1}`,
