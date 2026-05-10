@@ -159,7 +159,10 @@ function App() {
   const smoothScrollReleaseTimerRef = useRef<number | null>(null)
   const userMessageRefs = useRef(new Map<string, HTMLElement>())
   const queuedInstructionIdRef = useRef(0)
+  const queuedInstructionsByRunRef = useRef<QueuedInstructionsByRun>({})
   const queuedSendInFlightRef = useRef<QueuedInstructionIdsByRun>({})
+  const queuedSendDelayTimersRef = useRef<Record<string, number>>({})
+  const delayedQueuedSendIdsRef = useRef<QueuedInstructionIdsByRun>({})
   const blockedQueuedSendRef = useRef<QueuedInstructionIdsByRun>({})
   const popupReturnFocusRef = useRef<HTMLElement | null>(null)
   const composerFocusTokenRef = useRef(0)
@@ -195,6 +198,7 @@ function App() {
 
   useEffect(() => {
     writeStoredQueuedInstructions(queuedInstructionsByRun)
+    queuedInstructionsByRunRef.current = queuedInstructionsByRun
   }, [queuedInstructionsByRun])
 
   useEffect(() => {
@@ -258,6 +262,7 @@ function App() {
         window.cancelAnimationFrame(activeMessageFrameRef.current)
       }
       clearSmoothScrollReleaseTimer()
+      clearAllQueuedSendDelays()
     }
   }, [])
 
@@ -286,7 +291,12 @@ function App() {
     }
   }
 
-  async function submitQueuedInstruction(runId: string, item: QueuedInstruction) {
+  async function submitQueuedInstruction(
+    runId: string,
+    item: QueuedInstruction,
+    options: { pinSelectedChat: boolean } = { pinSelectedChat: true },
+  ) {
+    clearQueuedSendDelay(runId)
     queuedSendInFlightRef.current = {
       ...queuedSendInFlightRef.current,
       [runId]: item.id,
@@ -300,9 +310,11 @@ function App() {
       const response = await submitInstruction(runId, { instruction: item.content })
       removeQueuedInstruction(runId, item.id)
       if (selectedRunIdRef.current === runId) {
-        chatPinnedToBottomRef.current = true
-        setChatAtBottom(true)
-        setChatBottomSyncVersion((version) => version + 1)
+        if (options.pinSelectedChat) {
+          chatPinnedToBottomRef.current = true
+          setChatAtBottom(true)
+          setChatBottomSyncVersion((version) => version + 1)
+        }
         setRunSnapshot(response.snapshot)
       }
     } catch (error) {
@@ -657,6 +669,10 @@ function App() {
   }
 
   function removeQueuedInstruction(runId: string, instructionId: string) {
+    if (delayedQueuedSendIdsRef.current[runId] === instructionId) {
+      clearQueuedSendDelay(runId)
+    }
+
     setQueuedInstructionsByRun((queues) => {
       const currentQueue = queues[runId] ?? []
       const nextQueue = currentQueue.filter((item) => item.id !== instructionId)
@@ -699,6 +715,74 @@ function App() {
     }
 
     removeQueuedInstruction(selectedRunId, item.id)
+  }
+
+  function clearQueuedSendDelay(runId: string) {
+    const timer = queuedSendDelayTimersRef.current[runId]
+    if (timer !== undefined) {
+      window.clearTimeout(timer)
+      const nextTimers = { ...queuedSendDelayTimersRef.current }
+      delete nextTimers[runId]
+      queuedSendDelayTimersRef.current = nextTimers
+    }
+
+    if (delayedQueuedSendIdsRef.current[runId]) {
+      const nextDelayedItems = { ...delayedQueuedSendIdsRef.current }
+      delete nextDelayedItems[runId]
+      delayedQueuedSendIdsRef.current = nextDelayedItems
+    }
+  }
+
+  function clearAllQueuedSendDelays() {
+    for (const timer of Object.values(queuedSendDelayTimersRef.current)) {
+      window.clearTimeout(timer)
+    }
+    queuedSendDelayTimersRef.current = {}
+    delayedQueuedSendIdsRef.current = {}
+  }
+
+  function scheduleSelectedQueuedInstructionAfterBottom(runId: string, item: QueuedInstruction) {
+    if (delayedQueuedSendIdsRef.current[runId] === item.id) {
+      return
+    }
+
+    clearQueuedSendDelay(runId)
+    delayedQueuedSendIdsRef.current = {
+      ...delayedQueuedSendIdsRef.current,
+      [runId]: item.id,
+    }
+
+    const sendWhenReady = () => {
+      const queuedItem = queuedInstructionsByRunRef.current[runId]?.[0]
+      if (!queuedItem || queuedItem.id !== item.id || queuedSendInFlightRef.current[runId]) {
+        clearQueuedSendDelay(runId)
+        return
+      }
+
+      if (selectedRunIdRef.current !== runId || !chatPinnedToBottomRef.current) {
+        clearQueuedSendDelay(runId)
+        void submitQueuedInstruction(runId, item, { pinSelectedChat: false })
+        return
+      }
+
+      const scrollElement = chatScrollRef.current
+      if (!scrollElement || isScrolledNearBottom(scrollElement)) {
+        clearQueuedSendDelay(runId)
+        void submitQueuedInstruction(runId, item)
+        return
+      }
+
+      scrollChatToBottom()
+      queuedSendDelayTimersRef.current = {
+        ...queuedSendDelayTimersRef.current,
+        [runId]: window.setTimeout(sendWhenReady, 120),
+      }
+    }
+
+    queuedSendDelayTimersRef.current = {
+      ...queuedSendDelayTimersRef.current,
+      [runId]: window.setTimeout(sendWhenReady, 120),
+    }
   }
 
   function removeDraftAttachment(name: string) {
@@ -923,7 +1007,16 @@ function App() {
         continue
       }
 
-      void submitQueuedInstruction(run.runId, nextQueuedInstruction)
+      const selectedQueuedRun = run.runId === selectedRunId
+      if (selectedQueuedRun && chatPinnedToBottomRef.current) {
+        scheduleSelectedQueuedInstructionAfterBottom(run.runId, nextQueuedInstruction)
+        continue
+      }
+
+      clearQueuedSendDelay(run.runId)
+      void submitQueuedInstruction(run.runId, nextQueuedInstruction, {
+        pinSelectedChat: !selectedQueuedRun || chatPinnedToBottomRef.current,
+      })
     }
   }, [managerSnapshot, queuedInstructionsByRun, selectedRunId, status])
 

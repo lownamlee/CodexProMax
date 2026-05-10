@@ -804,7 +804,63 @@ describe('App', () => {
     await waitFor(() => expect(screen.queryByLabelText('Queued messages')).not.toBeInTheDocument())
   })
 
-  it('scrolls to the bottom when a visible queued message is sent', async () => {
+  it('waits for a pinned selected chat to reach bottom before sending a queued message', async () => {
+    const fetchMock = vi.mocked(fetch)
+    const runningManager = managerFactory()
+    runningManager.runs[0] = {
+      ...runningManager.runs[0],
+      status: 'RUNNING',
+      owner: 'agent',
+    }
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(jsonResponse(runningManager))
+      .mockResolvedValueOnce(jsonResponse(snapshotFactory({ status: 'RUNNING' })))
+
+    render(<App />)
+    const events = await getEventSource()
+
+    const scrollPane = screen.getByTestId('chat-scroll')
+    const metrics = setScrollMetrics(scrollPane, {
+      clientHeight: 100,
+      scrollHeight: 240,
+      scrollTop: 140,
+    })
+    fireEvent.scroll(scrollPane)
+
+    fireEvent.change(await screen.findByLabelText('Instruction'), {
+      target: { value: 'Queued message should pin bottom.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /queue for review/i }))
+    metrics.setScrollHeight(520)
+
+    act(() => {
+      events.emitSnapshot(managerFactory({
+        health: {
+          rootExists: true,
+          watcherReady: true,
+          serverTimeIso: '2026-05-07T00:00:07.000Z',
+        },
+      }))
+    })
+
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/action'))).toHaveLength(0)
+    expect(await within(scrollPane).findByText('Queued message should pin bottom.')).toBeInTheDocument()
+    await waitFor(() => expect(scrollPane.scrollTop).toBe(520))
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/runs/run-a/action',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            instruction: 'Queued message should pin bottom.',
+          }),
+        }),
+      ),
+    )
+  })
+
+  it('does not wait for bottom before sending a queued message when the selected chat was not pinned', async () => {
+    const fetchMock = vi.mocked(fetch)
     const runningManager = managerFactory()
     runningManager.runs[0] = {
       ...runningManager.runs[0],
@@ -827,7 +883,7 @@ describe('App', () => {
     fireEvent.scroll(scrollPane)
 
     fireEvent.change(await screen.findByLabelText('Instruction'), {
-      target: { value: 'Queued message should pin bottom.' },
+      target: { value: 'Queued message while reading earlier context.' },
     })
     fireEvent.click(screen.getByRole('button', { name: /queue for review/i }))
     metrics.setScrollHeight(520)
@@ -842,8 +898,18 @@ describe('App', () => {
       }))
     })
 
-    expect(await within(scrollPane).findByText('Queued message should pin bottom.')).toBeInTheDocument()
-    await waitFor(() => expect(scrollPane.scrollTop).toBe(520))
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/runs/run-a/action',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            instruction: 'Queued message while reading earlier context.',
+          }),
+        }),
+      ),
+    )
+    expect(scrollPane.scrollTop).toBe(60)
   })
 
   it('sends queued messages for a non-selected run in the background', async () => {
