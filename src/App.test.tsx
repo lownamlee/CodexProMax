@@ -276,7 +276,7 @@ describe('App', () => {
       'src',
       'https://media.tenor.com/fTH4D95V-oQAAAAi/quby.gif',
     )
-    fireEvent.click(within(logoutError).getByRole('button', { name: 'Close' }))
+    fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('dialog', { name: 'Unable to logout' })).not.toBeInTheDocument()
 
     fireEvent.click(profileButton)
@@ -869,6 +869,21 @@ describe('App', () => {
     expect(screen.queryByRole('heading', { name: 'Draft A' })).not.toBeInTheDocument()
   })
 
+  it('closes confirmation dialogs with Escape', async () => {
+    const fetchMock = vi.mocked(fetch)
+    render(<App />)
+    await getEventSource()
+
+    fireEvent.click(await screen.findByRole('button', { name: /clear conversation history/i }))
+
+    expect(await screen.findByRole('dialog', { name: 'Clear conversation history' })).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    expect(screen.queryByRole('dialog', { name: 'Clear conversation history' })).not.toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/runs/run-a/messages', { method: 'DELETE' })
+  })
+
   it('requests a session stop through the header button', async () => {
     const fetchMock = vi.mocked(fetch)
     render(<App />)
@@ -1097,6 +1112,9 @@ describe('App', () => {
       'src',
       '/api/runs/run-a/attachments/uploaded.png',
     )
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'uploaded.png' })).not.toBeInTheDocument()
   })
 
   it('shows attachment image previews in the right sidebar', async () => {
@@ -1130,6 +1148,9 @@ describe('App', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /disable wrap/i }))
 
     expect(dialog.querySelector('.document-viewer')).not.toHaveClass('is-wrapped')
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'output.md' })).not.toBeInTheDocument()
   })
 
   it('opens right-sidebar attachments in the image preview', async () => {

@@ -1427,6 +1427,8 @@ function RunInbox({
 }
 
 function LogoutErrorDialog({ onClose }: { onClose: () => void }) {
+  useEscapeToClose(onClose)
+
   return (
     <div className="preview-backdrop logout-error-backdrop" role="presentation" onClick={onClose}>
       <section
@@ -2317,6 +2319,22 @@ function isScrolledNearBottom(element: HTMLElement) {
   return element.scrollHeight - element.scrollTop - element.clientHeight <= CHAT_BOTTOM_THRESHOLD_PX
 }
 
+function useEscapeToClose(onClose: () => void) {
+  useEffect(() => {
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key !== 'Escape') {
+        return
+      }
+
+      event.preventDefault()
+      onClose()
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+}
+
 function ProtocolSidebar({
   collapsed,
   snapshot,
@@ -2761,6 +2779,7 @@ function ConfirmDialog({
 }) {
   const tone = dialog.tone ?? 'default'
   const messageParagraphs = dialog.message.split(/\n{2,}/)
+  useEscapeToClose(() => onResolve(false))
 
   return (
     <div className="preview-backdrop confirm-backdrop" role="presentation" onClick={() => onResolve(false)}>
@@ -2811,16 +2830,7 @@ function ProtocolFilePreviewDialog({
   const language = detectViewerLanguage(preview.fileName, content)
   const canCopy = !preview.loading && !preview.error && content.length > 0
 
-  useEffect(() => {
-    function handleKeyDown(event: globalThis.KeyboardEvent) {
-      if (event.key === 'Escape') {
-        onClose()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+  useEscapeToClose(onClose)
 
   async function copyContent() {
     if (!canCopy) {
@@ -2925,6 +2935,8 @@ function AttachmentPreview({
   attachment: AttachmentMeta
   onClose: () => void
 }) {
+  useEscapeToClose(onClose)
+
   return (
     <div className="preview-backdrop" role="presentation" onClick={onClose}>
       <section
