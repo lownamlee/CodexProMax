@@ -248,21 +248,43 @@ describe('App', () => {
     expect(screen.getByLabelText('Protocol details')).toHaveClass('collapsed')
   })
 
+  it('opens the left sidebar profile menu', async () => {
+    render(<App />)
+    await getEventSource()
+
+    const profileButton = await screen.findByRole('button', { name: /open profile menu/i })
+    expect(profileButton).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(profileButton)
+
+    expect(profileButton).toHaveAttribute('aria-expanded', 'true')
+    const profileMenu = screen.getByRole('menu', { name: 'Profile menu' })
+    expect(within(profileMenu).getByText('Ramlyburger')).toBeInTheDocument()
+    expect(within(profileMenu).getByText('Business')).toBeInTheDocument()
+    expect(within(profileMenu).getByRole('menuitem', { name: /Add teammates/i })).toBeInTheDocument()
+    expect(within(profileMenu).getByRole('menuitem', { name: /Workspace settings/i })).toBeInTheDocument()
+
+    fireEvent.click(within(profileMenu).getByRole('menuitem', { name: /^Settings$/i }))
+    expect(screen.queryByRole('menu', { name: 'Profile menu' })).not.toBeInTheDocument()
+  })
+
   it('persists right sidebar section collapse state across remounts', async () => {
     const { unmount } = render(<App />)
     await getEventSource()
 
     const sidebar = screen.getByLabelText('Protocol details')
+    expect(await within(sidebar).findByRole('button', { name: 'Protocol Files' })).toHaveAttribute('aria-expanded', 'false')
+
     fireEvent.click(await within(sidebar).findByRole('button', { name: 'Outlines' }))
     fireEvent.click(within(sidebar).getByRole('button', { name: 'Protocol Files' }))
     fireEvent.click(within(sidebar).getByRole('button', { name: 'Attachments' }))
 
     expect(within(sidebar).getByRole('button', { name: 'Outlines' })).toHaveAttribute('aria-expanded', 'false')
-    expect(within(sidebar).getByRole('button', { name: 'Protocol Files' })).toHaveAttribute('aria-expanded', 'false')
+    expect(within(sidebar).getByRole('button', { name: 'Protocol Files' })).toHaveAttribute('aria-expanded', 'true')
     expect(within(sidebar).getByRole('button', { name: 'Attachments' })).toHaveAttribute('aria-expanded', 'false')
     expect(within(sidebar).queryByText('No user messages yet.')).not.toBeInTheDocument()
     expect(window.localStorage.getItem('codex-pro-max:right-sidebar-outlines-collapsed')).toBe('true')
-    expect(window.localStorage.getItem('codex-pro-max:right-sidebar-protocol-files-collapsed')).toBe('true')
+    expect(window.localStorage.getItem('codex-pro-max:right-sidebar-protocol-files-collapsed:v2')).toBe('false')
     expect(window.localStorage.getItem('codex-pro-max:right-sidebar-attachments-collapsed')).toBe('true')
 
     unmount()
@@ -272,7 +294,7 @@ describe('App', () => {
 
     const remountedSidebar = screen.getByLabelText('Protocol details')
     expect(within(remountedSidebar).getByRole('button', { name: 'Outlines' })).toHaveAttribute('aria-expanded', 'false')
-    expect(within(remountedSidebar).getByRole('button', { name: 'Protocol Files' })).toHaveAttribute('aria-expanded', 'false')
+    expect(within(remountedSidebar).getByRole('button', { name: 'Protocol Files' })).toHaveAttribute('aria-expanded', 'true')
     expect(within(remountedSidebar).getByRole('button', { name: 'Attachments' })).toHaveAttribute('aria-expanded', 'false')
   })
 
@@ -793,6 +815,7 @@ describe('App', () => {
     await getEventSource()
 
     const sidebar = screen.getByLabelText('Protocol details')
+    fireEvent.click(await within(sidebar).findByRole('button', { name: 'Protocol Files' }))
     fireEvent.click(await within(sidebar).findByRole('button', { name: /preview output\.md/i }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/runs/run-a/files/output.md'))

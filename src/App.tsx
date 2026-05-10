@@ -52,6 +52,16 @@ const FILE_ICONS: Record<ProtocolTextFile, string> = {
   'events.ndjson': 'ri-stack-line',
 }
 
+const PROFILE_MENU_ITEMS = [
+  { label: 'Add teammates', icon: 'ri-group-line' },
+  { label: 'Workspace settings', icon: 'ri-building-2-line' },
+  { label: 'Skills', icon: 'ri-box-3-line' },
+  { label: 'Personalization', icon: 'ri-sparkling-2-line' },
+  { label: 'Settings', icon: 'ri-settings-3-line' },
+  { label: 'Help', icon: 'ri-question-line', separated: true, chevron: true },
+  { label: 'Log out', icon: 'ri-logout-box-r-line', chevron: true },
+]
+
 const RUN_STATUS_ICONS: Record<ProtocolStatus, string> = {
   RUNNING: 'ri-loader-4-line',
   WAITING_FOR_REVIEW: 'ri-question-answer-line',
@@ -71,7 +81,7 @@ const RESPONSE_SHUFFLE_CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopq
 const LEFT_SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-pro-max:left-sidebar-collapsed'
 const RIGHT_SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-collapsed'
 const OUTLINES_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-outlines-collapsed'
-const PROTOCOL_FILES_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-protocol-files-collapsed'
+const PROTOCOL_FILES_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-protocol-files-collapsed:v2'
 const ATTACHMENTS_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-attachments-collapsed'
 
 type PendingAction = 'send' | 'upload' | 'load' | 'clear' | 'stop'
@@ -952,6 +962,8 @@ function RunInbox({
   onSelect: (runId: string) => void
   onDelete: (run: RunSummary) => void
 }) {
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+
   return (
     <aside id="left-sidebar" className={`sidebar left-sidebar ${collapsed ? 'collapsed' : ''}`} aria-label="Run inbox">
       <div className="sidebar-inner">
@@ -1010,6 +1022,58 @@ function RunInbox({
             ))}
           </div>
         )}
+
+        <div className="sidebar-profile-area">
+          {profileMenuOpen && (
+            <div className="profile-menu" role="menu" aria-label="Profile menu">
+              <button type="button" className="profile-menu-account" role="menuitem">
+                <span className="profile-menu-avatar">
+                  <img src={USER_PROFILE_IMAGE} alt="" />
+                </span>
+                <span className="profile-menu-account-copy">
+                  <span>Ramlyburger</span>
+                  <span>Business</span>
+                </span>
+                <i className="ri-arrow-right-s-line" aria-hidden="true" />
+              </button>
+
+              <div className="profile-menu-list">
+                {PROFILE_MENU_ITEMS.map((item) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    className={`profile-menu-item ${item.separated ? 'separated' : ''}`}
+                    role="menuitem"
+                    onClick={() => setProfileMenuOpen(false)}
+                  >
+                    <i className={item.icon} aria-hidden="true" />
+                    <span>{item.label}</span>
+                    {item.chevron && <i className="ri-arrow-right-s-line profile-menu-chevron" aria-hidden="true" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button
+            type="button"
+            className="sidebar-profile-button"
+            onClick={() => setProfileMenuOpen((value) => !value)}
+            aria-haspopup="menu"
+            aria-expanded={profileMenuOpen}
+            aria-label="Open profile menu"
+            title="Profile"
+          >
+            <span className="sidebar-profile-avatar">
+              <img src={USER_PROFILE_IMAGE} alt="" />
+            </span>
+            <span className="sidebar-profile-copy">
+              <span>Ramlyburger</span>
+              <span>Business</span>
+            </span>
+            <i className="ri-more-2-fill sidebar-profile-more" aria-hidden="true" />
+          </button>
+        </div>
       </div>
     </aside>
   )
@@ -1782,7 +1846,7 @@ function ProtocolSidebar({
     readStoredBoolean(OUTLINES_COLLAPSED_STORAGE_KEY, false),
   )
   const [protocolFilesCollapsed, setProtocolFilesCollapsed] = useState(() =>
-    readStoredBoolean(PROTOCOL_FILES_COLLAPSED_STORAGE_KEY, false),
+    readStoredBoolean(PROTOCOL_FILES_COLLAPSED_STORAGE_KEY, true),
   )
   const [attachmentsCollapsed, setAttachmentsCollapsed] = useState(() =>
     readStoredBoolean(ATTACHMENTS_COLLAPSED_STORAGE_KEY, false),
@@ -1822,6 +1886,7 @@ function ProtocolSidebar({
 
         <SidebarMetaGroup
           title="Protocol Files"
+          className="protocol-files-group"
           collapsed={protocolFilesCollapsed}
           onToggle={() => setProtocolFilesCollapsed((value) => !value)}
         >
@@ -1843,6 +1908,7 @@ function ProtocolSidebar({
 
         <SidebarMetaGroup
           title="Attachments"
+          className="attachments-group"
           collapsed={attachmentsCollapsed}
           onToggle={() => setAttachmentsCollapsed((value) => !value)}
         >

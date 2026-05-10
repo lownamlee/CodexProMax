@@ -156,7 +156,7 @@ button:disabled {
   align-items: center;
   flex: 0 0 auto;
   gap: 12px;
-  padding: 0 16px;
+  padding: 0 16px 0 24px;
 }
 
 .brand-icon {
@@ -195,7 +195,9 @@ button:disabled {
 .left-sidebar.collapsed .run-title,
 .left-sidebar.collapsed .run-meta,
 .left-sidebar.collapsed .run-preview,
-.left-sidebar.collapsed .run-delete-button {
+.left-sidebar.collapsed .run-delete-button,
+.left-sidebar.collapsed .sidebar-profile-copy,
+.left-sidebar.collapsed .sidebar-profile-more {
   opacity: 0;
   transform: translateX(-10px);
   pointer-events: none;
@@ -209,6 +211,10 @@ button:disabled {
   gap: 4px;
   overflow-y: auto;
   padding: 8px 12px;
+}
+
+.left-sidebar .run-empty {
+  flex: 1 1 auto;
 }
 
 .run-item {
@@ -308,6 +314,161 @@ button:disabled {
   stroke-dasharray: 1, 200;
   stroke-dashoffset: 0;
   animation: runSpinnerStretch 1.5s ease-in-out infinite;
+}
+
+.sidebar-profile-area {
+  position: relative;
+  flex: 0 0 auto;
+  padding: 10px 12px 12px;
+  border-top: 1px solid rgba(224, 239, 248, 0.72);
+}
+
+.sidebar-profile-button,
+.profile-menu-account,
+.profile-menu-item {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  align-items: center;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.sidebar-profile-button {
+  grid-template-columns: 32px minmax(0, 1fr) 20px;
+  gap: 10px;
+  padding: 8px;
+  color: var(--text-main);
+}
+
+.sidebar-profile-button:hover,
+.profile-menu-account:hover,
+.profile-menu-item:hover {
+  background: var(--bg-surface);
+}
+
+.sidebar-profile-avatar,
+.profile-menu-avatar {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  box-shadow: var(--shadow-sm);
+}
+
+.sidebar-profile-avatar img,
+.profile-menu-avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.sidebar-profile-copy,
+.profile-menu-account-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sidebar-profile-copy span:first-child,
+.profile-menu-account-copy span:first-child {
+  overflow: hidden;
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-profile-copy span:last-child,
+.profile-menu-account-copy span:last-child {
+  overflow: hidden;
+  color: var(--text-light);
+  font-size: 10px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-profile-more {
+  justify-self: end;
+  color: var(--text-light);
+  font-size: 18px;
+}
+
+.profile-menu {
+  position: absolute;
+  right: 8px;
+  bottom: calc(100% + 8px);
+  left: 8px;
+  z-index: 35;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.profile-menu-account {
+  grid-template-columns: 28px minmax(0, 1fr) 20px;
+  gap: 10px;
+  padding: 8px;
+  color: var(--text-main);
+}
+
+.profile-menu-account > i,
+.profile-menu-chevron {
+  justify-self: end;
+  color: var(--text-main);
+  font-size: 18px;
+}
+
+.profile-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.profile-menu-item {
+  grid-template-columns: 22px minmax(0, 1fr) 18px;
+  gap: 8px;
+  padding: 8px;
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.profile-menu-item > i:first-child {
+  color: var(--text-main);
+  font-size: 17px;
+}
+
+.profile-menu-item.separated {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.left-sidebar.collapsed .sidebar-profile-area {
+  padding: 10px 8px 12px;
+}
+
+.left-sidebar.collapsed .sidebar-profile-button {
+  grid-template-columns: 32px;
+  justify-content: center;
+  padding: 8px 4px;
+}
+
+.left-sidebar.collapsed .profile-menu {
+  display: none;
 }
 
 .run-status-review-orb {
@@ -1496,9 +1657,9 @@ code,
 
 .right-sidebar .sidebar-inner {
   width: 240px;
-  gap: 32px;
+  gap: 24px;
   padding: 24px 16px;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .meta-group h4 {
@@ -1514,6 +1675,8 @@ code,
 .meta-group {
   flex: 0 0 auto;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .meta-group.collapsed .meta-group-heading {
@@ -1544,6 +1707,7 @@ code,
 }
 
 .outline-group {
+  flex: 0 0 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -1646,14 +1810,46 @@ code,
 
 .file-card-list,
 .attachment-list {
-  max-height: 240px;
   display: flex;
   flex-direction: column;
   gap: 2px;
   margin: 0;
   padding: 0;
-  overflow-y: auto;
   list-style: none;
+}
+
+.protocol-files-group {
+  flex: 0 0 auto;
+}
+
+.file-card-list {
+  overflow: visible;
+}
+
+.attachments-group {
+  flex: 1 1 0;
+  min-height: 112px;
+}
+
+.attachments-group.collapsed {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.attachments-group .meta-group-content {
+  min-height: 0;
+  display: flex;
+  flex: 1 1 auto;
+}
+
+.attachments-group .attachment-list,
+.attachments-group .empty-state.compact {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.attachment-list {
+  overflow-y: auto;
 }
 
 .file-card {
@@ -2087,10 +2283,22 @@ button:focus-visible,
   .left-sidebar.collapsed .run-title,
   .left-sidebar.collapsed .run-meta,
   .left-sidebar.collapsed .run-preview,
-  .left-sidebar.collapsed .run-delete-button {
+  .left-sidebar.collapsed .run-delete-button,
+  .left-sidebar.collapsed .sidebar-profile-copy,
+  .left-sidebar.collapsed .sidebar-profile-more {
     opacity: 1;
     transform: none;
     pointer-events: auto;
+  }
+
+  .left-sidebar.collapsed .sidebar-profile-button {
+    grid-template-columns: 32px minmax(0, 1fr) 20px;
+    justify-content: stretch;
+    padding: 8px;
+  }
+
+  .left-sidebar.collapsed .profile-menu {
+    display: block;
   }
 
   .brand-area {
