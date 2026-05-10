@@ -80,6 +80,26 @@ beforeEach(() => {
         })
       }
 
+      if (requestUrl === '/api/runs/run-a/stop' && init?.method === 'POST') {
+        return jsonResponse({
+          ok: true,
+          snapshot: snapshotFactory({
+            runId: 'run-a',
+            displayName: 'Run A',
+            status: 'INSTRUCTION_RECEIVED',
+            instruction: 'Stop this Codex Pro Max HITL session now.\n',
+            messages: [
+              {
+                id: 'stop-1',
+                role: 'user',
+                content: 'Stop this Codex Pro Max HITL session now.',
+                createdAtIso: '2026-05-07T00:00:03.000Z',
+              },
+            ],
+          }),
+        })
+      }
+
       if (requestUrl === '/api/runs/run-a' && init?.method === 'DELETE') {
         return jsonResponse({
           ok: true,
@@ -232,6 +252,53 @@ describe('App', () => {
     )
     expect(await screen.findByRole('heading', { name: 'No conversation history' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Draft A' })).not.toBeInTheDocument()
+  })
+
+  it('requests a session stop through the header button', async () => {
+    const fetchMock = vi.mocked(fetch)
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    render(<App />)
+    await getEventSource()
+
+    fireEvent.click(await screen.findByRole('button', { name: /stop session/i }))
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/runs/run-a/stop', {
+        method: 'POST',
+      }),
+    )
+    expect(await screen.findByTestId('current-status')).toHaveTextContent('INSTRUCTION_RECEIVED')
+    expect(screen.getByText('Stop this Codex Pro Max HITL session now.')).toBeInTheDocument()
+  })
+
+  it('uploads a pasted image attachment from the instruction field', async () => {
+    const fetchMock = vi.mocked(fetch)
+    render(<App />)
+    await getEventSource()
+
+    const pastedImage = new File(['image'], '', { type: 'image/png' })
+    fireEvent.paste(await screen.findByLabelText('Instruction'), {
+      clipboardData: {
+        items: [
+          {
+            kind: 'file',
+            type: 'image/png',
+            getAsFile: () => pastedImage,
+          },
+        ],
+      },
+    })
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/runs/run-a/upload',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.any(FormData),
+        }),
+      ),
+    )
+    expect(await screen.findByRole('button', { name: 'uploaded.png' })).toBeInTheDocument()
   })
 
   it('renders status ownership and help text', async () => {

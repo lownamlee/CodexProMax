@@ -134,6 +134,38 @@ describe('Codex Pro Max wait script', () => {
     await expect(readFile(path.join(runDir, 'instruction.txt'), 'utf8')).resolves.toBe('')
     await expect(readFile(path.join(runDir, 'session.md'), 'utf8')).resolves.toContain('Continue now.')
   })
+
+  it('consume instruction only finishes for direct stop commands', async () => {
+    const root = await createTempRoot()
+    const runDir = path.join(root, 'runs', 'target-run')
+    await mkdir(runDir, { recursive: true })
+    await writeFile(path.join(runDir, 'status.txt'), 'INSTRUCTION_RECEIVED')
+    await writeFile(path.join(runDir, 'instruction.txt'), 'Add a stop button to the session.')
+
+    const result = await runPowerShellScript(CONSUME_SCRIPT, ['-RunDir', runDir])
+    const payload = JSON.parse(result.stdout) as {
+      shouldFinish: boolean
+    }
+
+    expect(result.code).toBe(0)
+    expect(payload.shouldFinish).toBe(false)
+  })
+
+  it('consume instruction finishes for the canonical stop-session instruction', async () => {
+    const root = await createTempRoot()
+    const runDir = path.join(root, 'runs', 'target-run')
+    await mkdir(runDir, { recursive: true })
+    await writeFile(path.join(runDir, 'status.txt'), 'INSTRUCTION_RECEIVED')
+    await writeFile(path.join(runDir, 'instruction.txt'), 'Stop this Codex Pro Max HITL session now.')
+
+    const result = await runPowerShellScript(CONSUME_SCRIPT, ['-RunDir', runDir])
+    const payload = JSON.parse(result.stdout) as {
+      shouldFinish: boolean
+    }
+
+    expect(result.code).toBe(0)
+    expect(payload.shouldFinish).toBe(true)
+  })
 })
 
 async function createTempRoot() {

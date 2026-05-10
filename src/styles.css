@@ -427,6 +427,12 @@ code,
   color: var(--primary);
 }
 
+.icon-btn.danger:hover:not(:disabled) {
+  border-color: #fecdd3;
+  background: #fff1f2;
+  color: var(--danger);
+}
+
 .chat-title-wrapper {
   min-width: 0;
   display: flex;

@@ -119,6 +119,26 @@ describe('Codex Pro Max multi-run API', () => {
     await expect(pathExists(runA)).resolves.toBe(true)
   })
 
+  it('requests a session stop through the selected run instruction channel', async () => {
+    const runA = getRunPath(rootPath, 'run-a')
+    await fs.mkdir(runA, { recursive: true })
+    await fs.writeFile(path.join(runA, 'status.txt'), 'WAITING_FOR_REVIEW\n', 'utf8')
+    await fs.writeFile(path.join(runA, 'output.md'), 'Current output.', 'utf8')
+    appHandle = createApp({ rootPath, startWatcher: false })
+
+    const response = await request(appHandle.app).post('/api/runs/run-a/stop').expect(200)
+
+    expect(response.body.snapshot.runId).toBe('run-a')
+    expect(response.body.snapshot.status).toBe('INSTRUCTION_RECEIVED')
+    await expect(fs.readFile(path.join(runA, 'instruction.txt'), 'utf8')).resolves.toBe(
+      'Stop this Codex Pro Max HITL session now.\n',
+    )
+    await expect(fs.readFile(path.join(runA, 'output.md'), 'utf8')).resolves.toBe('Current output.')
+    await expect(fs.readFile(path.join(runA, 'session.md'), 'utf8')).resolves.toContain(
+      'Stop this Codex Pro Max HITL session now.',
+    )
+  })
+
   it('rejects deleting legacy-root', async () => {
     await fs.writeFile(path.join(rootPath, 'status.txt'), 'WAITING_FOR_REVIEW\n', 'utf8')
     appHandle = createApp({ rootPath, startWatcher: false })

@@ -52,6 +52,14 @@ export async function clearConversationHistory(runId: string): Promise<RunSnapsh
   return parseJsonResponse<RunSnapshotResponse>(response)
 }
 
+export async function requestSessionStop(runId: string): Promise<RunSnapshotResponse> {
+  const response = await fetch(`/api/runs/${encodeURIComponent(runId)}/stop`, {
+    method: 'POST',
+  })
+
+  return parseJsonResponse<RunSnapshotResponse>(response)
+}
+
 export async function deleteRun(runId: string): Promise<ManagerResponse> {
   const response = await fetch(`/api/runs/${encodeURIComponent(runId)}`, {
     method: 'DELETE',

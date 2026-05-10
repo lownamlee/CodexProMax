@@ -1,9 +1,19 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type UIEvent } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type DragEvent,
+  type UIEvent,
+} from 'react'
 import ReactMarkdown from 'react-markdown'
 import {
   clearConversationHistory as clearConversationHistoryRequest,
   deleteRun as deleteRunRequest,
   fetchRunSnapshot,
+  requestSessionStop,
   submitInstruction,
   uploadAttachment,
 } from './api'
@@ -35,7 +45,7 @@ const FILE_ICONS: Record<ProtocolTextFile, string> = {
 
 const CHAT_BOTTOM_THRESHOLD_PX = 12
 
-type PendingAction = 'send' | 'upload' | 'load' | 'clear'
+type PendingAction = 'send' | 'upload' | 'load' | 'clear' | 'stop'
 
 function App() {
   const { snapshot: managerSnapshot, connectionState, error: streamError } = useSnapshotStream()
@@ -146,8 +156,45 @@ function App() {
     }
   }
 
+  async function handleStopSession() {
+    if (!selectedRunId) {
+      setActionError('Select a run before stopping the session.')
+      return
+    }
+
+    const runLabel = selectedRun?.displayName ?? runSnapshot?.displayName ?? selectedRunId
+    const confirmed = window.confirm(
+      `Stop Codex for "${runLabel}"?\n\nThis sends a stop instruction through the current session.`,
+    )
+    if (!confirmed) {
+      return
+    }
+
+    setPending('stop')
+    setActionError(null)
+
+    try {
+      const response = await requestSessionStop(selectedRunId)
+      setRunSnapshot(response.snapshot)
+      setInstruction('')
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Stop session failed')
+    } finally {
+      setPending(null)
+    }
+  }
+
   async function handleUpload(file: File | undefined) {
-    if (!file || !selectedRunId) {
+    if (!file) {
+      return
+    }
+
+    if (!selectedRunId) {
+      setActionError('Select a run before adding attachments.')
+      return
+    }
+
+    if (pending) {
       return
     }
 
@@ -162,6 +209,16 @@ function App() {
     } finally {
       setPending(null)
     }
+  }
+
+  function handleComposerPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const file = getPastedImageFile(event.clipboardData)
+    if (!file) {
+      return
+    }
+
+    event.preventDefault()
+    void handleUpload(file)
   }
 
   function handleAttachmentDragEnter(event: DragEvent<HTMLElement>) {
@@ -342,6 +399,16 @@ function App() {
             </span>
             <button
               type="button"
+              className="icon-btn danger"
+              onClick={() => void handleStopSession()}
+              disabled={!selectedRunId || busy}
+              aria-label="Stop session"
+              title="Stop session"
+            >
+              <i className={pending === 'stop' ? 'ri-loader-4-line' : 'ri-stop-circle-line'} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
               className="icon-btn"
               onClick={() => void handleClearConversationHistory()}
               disabled={!selectedRunId || busy}
@@ -402,6 +469,7 @@ function App() {
           canSend={Boolean(selectedRunId) && instruction.trim().length > 0 && !busy}
           onSend={() => void sendInstruction()}
           onUpload={(file) => void handleUpload(file)}
+          onPasteAttachment={handleComposerPaste}
           error={actionError ?? streamError ?? null}
         />
       </main>
@@ -596,6 +664,7 @@ function ReviewComposer({
   canSend,
   onSend,
   onUpload,
+  onPasteAttachment,
   error,
 }: {
   instruction: string
@@ -604,6 +673,7 @@ function ReviewComposer({
   canSend: boolean
   onSend: () => void
   onUpload: (file: File | undefined) => void
+  onPasteAttachment: (event: ClipboardEvent<HTMLTextAreaElement>) => void
   error: string | null
 }) {
   return (
@@ -630,6 +700,7 @@ function ReviewComposer({
           id="instruction"
           value={instruction}
           onChange={(event) => onInstructionChange(event.target.value)}
+          onPaste={onPasteAttachment}
           rows={1}
           placeholder="Write your instructions to Codex..."
           spellCheck
@@ -655,6 +726,51 @@ function ReviewComposer({
       )}
     </section>
   )
+}
+
+function getPastedImageFile(data: DataTransfer): File | null {
+  for (const item of Array.from(data.items)) {
+    if (item.kind !== 'file' || !item.type.startsWith('image/')) {
+      continue
+    }
+
+    const file = item.getAsFile()
+    if (file) {
+      return nameClipboardImage(file)
+    }
+  }
+
+  return null
+}
+
+function nameClipboardImage(file: File): File {
+  if (file.name) {
+    return file
+  }
+
+  const extension = imageFileExtension(file.type)
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  return new File([file], `pasted-image-${stamp}.${extension}`, {
+    type: file.type,
+    lastModified: file.lastModified || Date.now(),
+  })
+}
+
+function imageFileExtension(mimeType: string): string {
+  switch (mimeType) {
+    case 'image/jpeg':
+      return 'jpg'
+    case 'image/gif':
+      return 'gif'
+    case 'image/webp':
+      return 'webp'
+    case 'image/bmp':
+      return 'bmp'
+    case 'image/avif':
+      return 'avif'
+    default:
+      return 'png'
+  }
 }
 
 function eventHasFiles(event: DragEvent<HTMLElement>) {

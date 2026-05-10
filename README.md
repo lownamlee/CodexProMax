@@ -176,6 +176,7 @@ Legacy chat logs are read only for compatibility. When the backend or scripts ne
 | `POST /api/runs/:runId/upload` | Uploads one raster image attachment. |
 | `GET /api/runs/:runId/attachments/:fileName` | Serves an uploaded attachment. |
 | `DELETE /api/runs/:runId/messages` | Clears `session.md` for the selected run while keeping the run open. |
+| `POST /api/runs/:runId/stop` | Sends the canonical stop instruction through the selected run. |
 | `DELETE /api/runs/:runId` | Deletes a real run folder. `legacy-root` is protected. |
 
 The `/action` route name is kept for API compatibility, but the payload is now only:
@@ -230,9 +231,9 @@ Main surfaces:
 
 - Left sidebar: run inbox, active run selection, delete controls for real runs.
 - Center: chat-style conversation from `session.md`, with assistant and user messages in chronological order.
-- Header actions: sidebar toggles, connection state, run count, and conversation-history clearing.
+- Header actions: sidebar toggles, connection state, run count, stop session, and conversation-history clearing.
 - Bottom composer: one text box and one send button for all human input.
-- Attachment control: image upload from file picker or drag/drop.
+- Attachment control: image upload from file picker, drag/drop, or pasted clipboard image.
 - Right sidebar: workspace path, current status, protocol file presence, and attachment list.
 
 Important UI behavior:
@@ -282,6 +283,8 @@ Common event types:
 
 - `user.message`: full submitted instruction and target status.
 - `instruction.sent`: instruction preview and byte count.
+- `session.stop.requested`: stop instruction preview and byte count.
+- `conversation.cleared`: selected run history was cleared.
 - `upload.image`: accepted image upload metadata.
 - `protocol.file.changed`: watched protocol file add/change/unlink with preview when available.
 - `run.metadata.changed`: `run.json` changes.

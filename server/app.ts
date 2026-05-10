@@ -42,6 +42,8 @@ const upload = multer({
   },
 })
 
+const STOP_SESSION_INSTRUCTION = 'Stop this Codex Pro Max HITL session now.'
+
 export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
   const rootPath = resolveProtocolRoot(options.rootPath)
   const hub = new MultiRunSnapshotHub(rootPath)
@@ -97,6 +99,11 @@ export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
     })
   })
 
+  app.post('/api/runs/:runId/stop', async (request, response) => {
+    const runId = parseRunId(request.params.runId)
+    response.json(await writeRunInstruction(rootPath, hub, runId, STOP_SESSION_INSTRUCTION, 'session.stop.requested'))
+  })
+
   app.post('/api/runs/:runId/upload', upload.single('file'), uploadHandler(rootPath, hub))
 
   app.get('/api/runs/:runId/attachments/:fileName', async (request, response) => {
@@ -139,9 +146,20 @@ async function handleInstruction(
   runId: string,
   rawBody: unknown,
 ) {
-  const runPath = getRunPath(rootPath, runId)
   const body = parseInstructionRequest(rawBody)
   const instruction = body.instruction
+
+  return writeRunInstruction(rootPath, hub, runId, instruction, 'instruction.sent')
+}
+
+async function writeRunInstruction(
+  rootPath: string,
+  hub: MultiRunSnapshotHub,
+  runId: string,
+  instruction: string,
+  auditEventType: 'instruction.sent' | 'session.stop.requested',
+) {
+  const runPath = getRunPath(rootPath, runId)
 
   validateInstruction(instruction)
   await ensureRunMetadata(rootPath, runId)
@@ -152,7 +170,7 @@ async function handleInstruction(
     instruction,
     instructionBytes: Buffer.byteLength(instruction, 'utf8'),
   })
-  await appendAuditEvent(runPath, 'instruction.sent', {
+  await appendAuditEvent(runPath, auditEventType, {
     status: 'INSTRUCTION_RECEIVED',
     instructionPreview: createPreview(instruction),
     instructionBytes: Buffer.byteLength(instruction, 'utf8'),
