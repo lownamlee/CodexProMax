@@ -501,11 +501,13 @@ function App() {
           instruction={instruction}
           onInstructionChange={setInstruction}
           attachments={attachments}
+          deletingAttachmentName={deletingAttachmentName}
           pending={pending}
           canSend={Boolean(selectedRunId) && instruction.trim().length > 0 && !busy}
           onSend={() => void sendInstruction()}
           onUpload={(file) => void handleUpload(file)}
           onPasteAttachment={handleComposerPaste}
+          onAttachmentDelete={(attachment) => void handleDeleteAttachment(attachment)}
           error={actionError ?? streamError ?? null}
         />
       </main>
@@ -699,21 +701,25 @@ function ReviewComposer({
   instruction,
   onInstructionChange,
   attachments,
+  deletingAttachmentName,
   pending,
   canSend,
   onSend,
   onUpload,
   onPasteAttachment,
+  onAttachmentDelete,
   error,
 }: {
   instruction: string
   onInstructionChange: (value: string) => void
   attachments: AttachmentMeta[]
+  deletingAttachmentName: string | null
   pending: PendingAction | null
   canSend: boolean
   onSend: () => void
   onUpload: (file: File | undefined) => void
   onPasteAttachment: (event: ClipboardEvent<HTMLTextAreaElement>) => Promise<AttachmentMeta | null>
+  onAttachmentDelete: (attachment: AttachmentMeta) => void
   error: string | null
 }) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -832,6 +838,34 @@ function ReviewComposer({
               <span className="mention-name">{attachment.name}</span>
               <span className="mention-size">{formatBytes(attachment.size)}</span>
             </button>
+          ))}
+        </div>
+      )}
+      {attachments.length > 0 && (
+        <div className="composer-attachment-tray" aria-label="Current attachments">
+          {attachments.map((attachment) => (
+            <div className="composer-attachment-chip" key={attachment.name}>
+              <button
+                type="button"
+                className="composer-attachment-main"
+                onClick={() => insertAttachmentMention(attachment.name)}
+                title={`Mention ${attachment.name}`}
+                aria-label={`Mention attachment ${attachment.name}`}
+              >
+                <AttachmentThumbnail attachment={attachment} />
+                <span>{attachment.name}</span>
+              </button>
+              <button
+                type="button"
+                className="composer-attachment-remove"
+                onClick={() => onAttachmentDelete(attachment)}
+                disabled={deletingAttachmentName === attachment.name}
+                aria-label={`Remove attachment ${attachment.name}`}
+                title={`Remove ${attachment.name}`}
+              >
+                <i className={deletingAttachmentName === attachment.name ? 'ri-loader-4-line' : 'ri-close-line'} aria-hidden="true" />
+              </button>
+            </div>
           ))}
         </div>
       )}
@@ -1050,6 +1084,24 @@ function FileCard({
   )
 }
 
+function AttachmentThumbnail({ attachment }: { attachment: AttachmentMeta }) {
+  const [failed, setFailed] = useState(false)
+
+  if (failed) {
+    return (
+      <span className="attachment-thumb fallback" aria-hidden="true">
+        <i className="ri-image-2-line" />
+      </span>
+    )
+  }
+
+  return (
+    <span className="attachment-thumb">
+      <img src={attachment.url} alt={attachment.name} loading="lazy" onError={() => setFailed(true)} />
+    </span>
+  )
+}
+
 function AttachmentList({
   attachments,
   deletingAttachmentName,
@@ -1073,10 +1125,16 @@ function AttachmentList({
   return (
     <ul className="attachment-list">
       {attachments.map((attachment) => (
-        <li key={attachment.name} className="file-card exists">
-          <div className="file-icon" aria-hidden="true">
-            <i className="ri-image-2-line" />
-          </div>
+        <li key={attachment.name} className="file-card attachment-card exists">
+          <button
+            type="button"
+            className="attachment-thumb-button"
+            onClick={() => onPreview(attachment)}
+            aria-label={`Preview ${attachment.name}`}
+            title={`Preview ${attachment.name}`}
+          >
+            <AttachmentThumbnail attachment={attachment} />
+          </button>
           <div className="file-copy">
             <button
               type="button"

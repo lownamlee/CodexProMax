@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import type { ManagerSnapshot, Snapshot } from './shared/protocol'
@@ -387,10 +387,42 @@ describe('App', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'uploaded.png' }))
 
-    expect(screen.getByRole('dialog', { name: 'uploaded.png' })).toBeInTheDocument()
-    expect(screen.getByRole('img', { name: 'uploaded.png' })).toHaveAttribute(
+    const dialog = screen.getByRole('dialog', { name: 'uploaded.png' })
+    expect(dialog).toBeInTheDocument()
+    expect(within(dialog).getByRole('img', { name: 'uploaded.png' })).toHaveAttribute(
       'src',
       '/api/runs/run-a/attachments/uploaded.png',
+    )
+  })
+
+  it('shows attachment image previews in the right sidebar', async () => {
+    render(<App />)
+    await getEventSource()
+
+    const sidebar = screen.getByLabelText('Protocol details')
+    expect(await within(sidebar).findByRole('img', { name: 'existing.png' })).toHaveAttribute(
+      'src',
+      '/api/runs/run-a/attachments/existing.png',
+    )
+  })
+
+  it('shows current attachments in the composer tray with remove controls', async () => {
+    const fetchMock = vi.mocked(fetch)
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    render(<App />)
+    await getEventSource()
+
+    const input = await screen.findByLabelText('Instruction')
+    fireEvent.click(await screen.findByRole('button', { name: /mention attachment existing\.png/i }))
+
+    expect(input).toHaveValue('@existing.png ')
+
+    fireEvent.click(screen.getByRole('button', { name: /remove attachment existing\.png/i }))
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/runs/run-a/attachments/existing.png', {
+        method: 'DELETE',
+      }),
     )
   })
 
