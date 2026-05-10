@@ -68,6 +68,7 @@ const COMPOSER_TEXTAREA_MAX_HEIGHT_PX = 180
 const DEFAULT_COMPOSER_HEIGHT_PX = 120
 const CODEX_PROFILE_IMAGE = '/codex-color.png'
 const USER_PROFILE_IMAGE = '/burger.png'
+const RESPONSE_SHUFFLE_CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#%&*+-=<>?'
 const LEFT_SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-pro-max:left-sidebar-collapsed'
 const RIGHT_SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-collapsed'
 const OUTLINES_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-outlines-collapsed'
@@ -115,6 +116,7 @@ function App() {
   const activeMessageFrameRef = useRef<number | null>(null)
   const activeMessageScrollElementRef = useRef<HTMLDivElement | null>(null)
   const userMessageRefs = useRef(new Map<string, HTMLElement>())
+  const revealedAssistantMessageIdsRef = useRef(new Set<string>())
 
   const runs = managerSnapshot?.runs ?? []
   const selectedRun = runs.find((run) => run.runId === selectedRunId) ?? null
@@ -513,6 +515,7 @@ function App() {
   useLayoutEffect(() => {
     chatPinnedToBottomRef.current = true
     lastChatScrollTopRef.current = 0
+    revealedAssistantMessageIdsRef.current.clear()
     setChatAtBottom(true)
     setActiveUserMessageId(null)
   }, [selectedRunId])
@@ -562,6 +565,10 @@ function App() {
     }
 
     userMessageRefs.current.delete(messageId)
+  }
+
+  function markAssistantRevealStarted(messageId: string) {
+    revealedAssistantMessageIdsRef.current.add(messageId)
   }
 
   function jumpToUserMessage(messageId: string) {
@@ -787,6 +794,13 @@ function App() {
                 <Fragment key={message.id}>
                   <ChatMessageItem
                     message={message}
+                    animateReveal={
+                      message.role === 'assistant'
+                      && message.id === lastChatMessage?.id
+                      && !revealedAssistantMessageIdsRef.current.has(message.id)
+                      && pending !== 'load'
+                    }
+                    onAssistantRevealStart={markAssistantRevealStarted}
                     messageRef={
                       message.role === 'user'
                         ? (element) => setUserMessageElement(message.id, element)
@@ -1001,9 +1015,13 @@ function RunStatusIcon({ status }: { status: ProtocolStatus }) {
 
 const ChatMessageItem = memo(function ChatMessageItem({
   message,
+  animateReveal = false,
+  onAssistantRevealStart,
   messageRef,
 }: {
   message: ChatMessage
+  animateReveal?: boolean
+  onAssistantRevealStart?: (messageId: string) => void
   messageRef?: (element: HTMLElement | null) => void
 }) {
   const isUser = message.role === 'user'
@@ -1045,12 +1063,19 @@ const ChatMessageItem = memo(function ChatMessageItem({
           </span>
         </div>
         <div className={isUser ? 'user-bubble' : undefined}>
-          <MarkdownPanel
-            markdown={message.content}
-            safety={null}
-            emptyIcon={isUser ? 'ri-user-3-line' : 'ri-file-paper-2-line'}
-            emptyText={isUser ? 'Empty message.' : 'No output draft yet.'}
-          />
+          {!isUser && animateReveal ? (
+            <ShuffledMarkdownReveal
+              markdown={message.content}
+              onRevealStart={() => onAssistantRevealStart?.(message.id)}
+            />
+          ) : (
+            <MarkdownPanel
+              markdown={message.content}
+              safety={null}
+              emptyIcon={isUser ? 'ri-user-3-line' : 'ri-file-paper-2-line'}
+              emptyText={isUser ? 'Empty message.' : 'No output draft yet.'}
+            />
+          )}
         </div>
       </div>
 
@@ -1129,6 +1154,83 @@ const MarkdownPanel = memo(function MarkdownPanel({
     </>
   )
 })
+
+function ShuffledMarkdownReveal({
+  markdown,
+  onRevealStart,
+}: {
+  markdown: string
+  onRevealStart: () => void
+}) {
+  const [displayText, setDisplayText] = useState(() => createShuffledResponse(markdown, 0))
+  const [complete, setComplete] = useState(false)
+
+  useEffect(() => {
+    if (!markdown.trim() || prefersReducedMotion()) {
+      setDisplayText(markdown)
+      setComplete(true)
+      return
+    }
+
+    onRevealStart()
+    setComplete(false)
+    setDisplayText(createShuffledResponse(markdown, 0))
+
+    let frame = 0
+    const totalFrames = Math.min(32, Math.max(12, Math.ceil(markdown.length / 100)))
+    const timer = window.setInterval(() => {
+      frame += 1
+      const revealedCharacters = Math.floor((markdown.length * frame) / totalFrames)
+
+      if (frame >= totalFrames) {
+        window.clearInterval(timer)
+        setDisplayText(markdown)
+        setComplete(true)
+        return
+      }
+
+      setDisplayText(createShuffledResponse(markdown, revealedCharacters))
+    }, 24)
+
+    return () => window.clearInterval(timer)
+  }, [markdown, onRevealStart])
+
+  if (complete) {
+    return (
+      <MarkdownPanel
+        markdown={markdown}
+        safety={null}
+        emptyIcon="ri-file-paper-2-line"
+        emptyText="No output draft yet."
+      />
+    )
+  }
+
+  return (
+    <div className="prose markdown-body response-shuffle" aria-label="Codex response is resolving">
+      {displayText}
+    </div>
+  )
+}
+
+function createShuffledResponse(value: string, revealedCharacters: number): string {
+  let output = ''
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index]
+    if (index < revealedCharacters || /\s/.test(character)) {
+      output += character
+      continue
+    }
+
+    const shuffleIndex = Math.floor(Math.random() * RESPONSE_SHUFFLE_CHARACTERS.length)
+    output += RESPONSE_SHUFFLE_CHARACTERS[shuffleIndex]
+  }
+  return output
+}
+
+function prefersReducedMotion(): boolean {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+}
 
 function MarkdownWarning({ safety }: { safety: MarkdownSafety }) {
   return (

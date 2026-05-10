@@ -977,6 +977,13 @@ code,
   overflow-wrap: anywhere;
 }
 
+.response-shuffle {
+  min-height: 1.6em;
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: pre-wrap;
+}
+
 .markdown-body :first-child {
   margin-top: 0;
 }
