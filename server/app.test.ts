@@ -85,7 +85,7 @@ describe('Codex Pro Max multi-run API', () => {
     await fs.mkdir(runA, { recursive: true })
     await fs.mkdir(runB, { recursive: true })
     await fs.writeFile(path.join(runA, 'status.txt'), 'WAITING_FOR_REVIEW\n', 'utf8')
-    await fs.writeFile(path.join(runB, 'status.txt'), 'IDLE\n', 'utf8')
+    await fs.writeFile(path.join(runB, 'status.txt'), 'RUNNING\n', 'utf8')
     appHandle = createApp({ rootPath, startWatcher: false })
 
     const response = await request(appHandle.app).delete('/api/runs/run-a').expect(200)
@@ -207,7 +207,18 @@ describe('Codex Pro Max multi-run API', () => {
     const runBResponse = await request(appHandle.app).get('/api/runs/run-b/snapshot').expect(200)
 
     expect(runAResponse.body.status).toBe('INSTRUCTION_RECEIVED')
-    expect(runBResponse.body.status).toBe('IDLE')
+    expect(runBResponse.body.status).toBe('RUNNING')
+  })
+
+  it('maps unknown statuses to running', async () => {
+    const runA = getRunPath(rootPath, 'run-a')
+    await fs.mkdir(runA, { recursive: true })
+    await fs.writeFile(path.join(runA, 'status.txt'), 'UNKNOWN_STATUS\n', 'utf8')
+    appHandle = createApp({ rootPath, startWatcher: false })
+
+    const response = await request(appHandle.app).get('/api/runs/run-a/snapshot').expect(200)
+
+    expect(response.body.status).toBe('RUNNING')
   })
 
   it('rejects unsafe run ids', async () => {

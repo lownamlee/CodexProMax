@@ -12,6 +12,6 @@ When HITL is active:
 - Continue unless `consume_instruction.ps1` returns `shouldFinish=true`.
 - Read `session.md` if prior conclusions or user instructions matter.
 
-Normal statuses are `IDLE`, `RUNNING`, `WAITING_FOR_REVIEW`, and `INSTRUCTION_RECEIVED`.
+Normal statuses are `RUNNING`, `WAITING_FOR_REVIEW`, and `INSTRUCTION_RECEIVED`.
 
 If HITL is not active, answer normally in chat.

@@ -1,5 +1,4 @@
 export const VALID_STATUSES = [
-  'IDLE',
   'RUNNING',
   'WAITING_FOR_REVIEW',
   'INSTRUCTION_RECEIVED',
@@ -18,10 +17,6 @@ export const STATUS_DETAILS: Record<
     help: string
   }
 > = {
-  IDLE: {
-    owner: 'agent',
-    help: 'Agent-owned idle state. No Codex work is currently in progress for this run.',
-  },
   RUNNING: {
     owner: 'agent',
     help: 'Agent-owned running state. Codex has consumed the instruction and is working.',

@@ -357,10 +357,10 @@ function normalizeProtocolStatus(statusRaw: string, instruction: string): Protoc
   }
 
   if (statusRaw === 'APPROVED' || statusRaw === 'REVISION_REQUESTED') {
-    return instruction.trim() ? 'INSTRUCTION_RECEIVED' : 'IDLE'
+    return instruction.trim() ? 'INSTRUCTION_RECEIVED' : 'RUNNING'
   }
 
-  return 'IDLE'
+  return 'RUNNING'
 }
 
 export async function saveAttachment(

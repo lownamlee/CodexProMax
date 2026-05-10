@@ -52,7 +52,6 @@ const FILE_ICONS: Record<ProtocolTextFile, string> = {
 }
 
 const RUN_STATUS_ICONS: Record<ProtocolStatus, string> = {
-  IDLE: 'ri-pause-circle-line',
   RUNNING: 'ri-loader-4-line',
   WAITING_FOR_REVIEW: 'ri-question-answer-line',
   INSTRUCTION_RECEIVED: 'ri-inbox-archive-line',
@@ -463,7 +462,7 @@ function App() {
     }
   }
 
-  const status: ProtocolStatus = runSnapshot?.status ?? selectedRun?.status ?? 'IDLE'
+  const status: ProtocolStatus = runSnapshot?.status ?? selectedRun?.status ?? 'RUNNING'
   const aiWorking = isCodexWorking(status)
   const attachments = useMemo(() => runSnapshot?.attachments ?? [], [runSnapshot?.attachments])
   const draftAttachments = useMemo(
@@ -1922,7 +1921,7 @@ function highlightMarkdownLine(line: string) {
 
 function highlightTextLine(line: string) {
   const nodes: ReactNode[] = []
-  const pattern = /(https?:\/\/[^\s)]+)|\b(error|failed|failure|success|completed|running|warning|true|false|null|idle|waiting_for_review|instruction_received|blocked)\b/gi
+  const pattern = /(https?:\/\/[^\s)]+)|\b(error|failed|failure|success|completed|running|warning|true|false|null|waiting_for_review|instruction_received|blocked)\b/gi
   let lastIndex = 0
   let match: RegExpExecArray | null
 

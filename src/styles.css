@@ -261,10 +261,6 @@ button:disabled {
   color: var(--text-muted);
 }
 
-.run-status-icon.run-status-idle {
-  color: #64748b;
-}
-
 .run-status-icon.run-status-running,
 .run-status-icon.run-status-instruction-received {
   color: var(--primary);
@@ -546,11 +542,6 @@ code,
 .connection-connecting {
   background: #fff1f2;
   color: var(--danger);
-}
-
-.status-idle {
-  background: #f1f5f9;
-  color: #475569;
 }
 
 .status-waiting-for-review {
