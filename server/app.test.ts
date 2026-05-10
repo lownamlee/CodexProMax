@@ -51,6 +51,8 @@ describe('Codex Pro Max multi-run API', () => {
       'Fish Burger',
       'Veggie Burger',
     ])
+    expect(new Set(initialResponse.body.teammates.map((teammate: { avatarUrl: string }) => teammate.avatarUrl)).size)
+      .toBe(5)
 
     const inviteResponse = await request(appHandle.app)
       .post('/api/teammates')
@@ -64,12 +66,27 @@ describe('Codex Pro Max multi-run API', () => {
       role: 'Member',
       seat: 'Codex Pro Max',
     })
+    expect(new Set(inviteResponse.body.teammates.map((teammate: { avatarUrl: string }) => teammate.avatarUrl)).size)
+      .toBe(6)
     await expect(fs.readFile(path.join(rootPath, 'teammates.json'), 'utf8')).resolves.toContain(
       'newburger@codexpromax.com',
     )
 
+    const secondInviteResponse = await request(appHandle.app)
+      .post('/api/teammates')
+      .send({ email: 'anotherburger@codexpromax.com' })
+      .expect(201)
+    expect(secondInviteResponse.body.teammates).toHaveLength(7)
+    expect(new Set(secondInviteResponse.body.teammates.map((teammate: { avatarUrl: string }) => teammate.avatarUrl)).size)
+      .toBe(7)
+
+    await request(appHandle.app)
+      .post('/api/teammates')
+      .send({ email: 'fullburger@codexpromax.com' })
+      .expect(400)
+
     const savedResponse = await request(appHandle.app).get('/api/teammates').expect(200)
-    expect(savedResponse.body.teammates).toHaveLength(6)
+    expect(savedResponse.body.teammates).toHaveLength(7)
   })
 
   it('exposes root-level protocol files as legacy-root', async () => {

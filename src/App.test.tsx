@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import type { ManagerSnapshot, Snapshot, Teammate } from './shared/protocol'
+import { DEFAULT_TEAMMATES, TEAMMATE_AVATAR_URLS } from './shared/protocol'
 
 class MockEventSource {
   static instances: MockEventSource[] = []
@@ -49,12 +50,15 @@ beforeEach(() => {
       const requestUrl = String(url)
       if (requestUrl === '/api/teammates' && init?.method === 'POST') {
         const body = JSON.parse(String(init.body)) as { email: string }
+        const usedAvatars = new Set(prankTeammates.map((teammate) => teammate.avatarUrl))
+        const avatarUrl = TEAMMATE_AVATAR_URLS.find((item) => !usedAvatars.has(item)) ?? TEAMMATE_AVATAR_URLS[0]
         prankTeammates = [
           ...prankTeammates,
           {
             id: `invited-${prankTeammates.length + 1}`,
             name: `Invited Burger ${prankTeammates.length - 4}`,
             email: body.email,
+            avatarUrl,
             role: 'Member',
             seat: 'Codex Pro Max',
             dateAdded: 'May 10, 2026',
@@ -290,14 +294,22 @@ describe('App', () => {
     expect(await within(teammatesDialog).findByText('Cheeseburger')).toBeInTheDocument()
     expect(within(teammatesDialog).getByText('Double Burger')).toBeInTheDocument()
     expect(within(teammatesDialog).getAllByText('ramlyburger@codexpromax.com')).toHaveLength(5)
-    expect(within(teammatesDialog).getAllByRole('img', { name: /ramlyburger logo/i })).toHaveLength(5)
+    const initialAvatarSources = within(teammatesDialog)
+      .getAllByRole('img', { name: /avatar/i })
+      .map((image) => image.getAttribute('src'))
+    expect(initialAvatarSources).toHaveLength(5)
+    expect(new Set(initialAvatarSources).size).toBe(5)
 
     fireEvent.change(within(teammatesDialog).getByLabelText('Email'), {
       target: { value: 'newburger@codexpromax.com' },
     })
     fireEvent.click(within(teammatesDialog).getByRole('button', { name: /send invites/i }))
     expect(await within(teammatesDialog).findByText('newburger@codexpromax.com')).toBeInTheDocument()
-    expect(within(teammatesDialog).getAllByRole('img', { name: /ramlyburger logo/i })).toHaveLength(6)
+    const updatedAvatarSources = within(teammatesDialog)
+      .getAllByRole('img', { name: /avatar/i })
+      .map((image) => image.getAttribute('src'))
+    expect(updatedAvatarSources).toHaveLength(6)
+    expect(new Set(updatedAvatarSources).size).toBe(6)
 
     fireEvent.click(within(teammatesDialog).getByRole('button', { name: /close teammates dialog/i }))
     expect(screen.queryByRole('dialog', { name: /invite members to the ramlyburger workspace/i })).not.toBeInTheDocument()
@@ -1986,14 +1998,7 @@ function snapshotFactory(overrides: Partial<Snapshot> = {}): Snapshot {
 }
 
 function teammateFactory(): Teammate[] {
-  return ['Cheeseburger', 'Double Burger', 'Chicken Burger', 'Fish Burger', 'Veggie Burger'].map((name, index) => ({
-    id: `burger-${index + 1}`,
-    name,
-    email: 'ramlyburger@codexpromax.com',
-    role: index === 0 ? 'Owner' : 'Member',
-    seat: 'Codex Pro Max',
-    dateAdded: 'May 10, 2026',
-  }))
+  return DEFAULT_TEAMMATES.map((teammate) => ({ ...teammate }))
 }
 
 function attachmentFactory(name: string) {

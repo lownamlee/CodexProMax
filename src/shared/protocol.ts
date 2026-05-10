@@ -150,10 +150,38 @@ export interface Teammate {
   id: string
   name: string
   email: string
+  avatarUrl: string
   role: string
   seat: string
   dateAdded: string
 }
+
+export const MAX_TEAMMATES = 7
+export const TEAMMATE_AVATAR_URLS = [
+  'https://media.tenor.com/zj5uslovBGsAAAAi/quby-pentol.gif',
+  'https://media.tenor.com/RsEw4m8_9m0AAAAi/rexx.gif',
+  'https://media.tenor.com/RwFun47b8usAAAAi/quby-judge-quby.gif',
+  'https://media.tenor.com/1qQsH1Hs31MAAAAj/tkthao219-quby-sticker.gif',
+  'https://media.tenor.com/ZA2fRCPlnIYAAAAi/tkthao219-quby.gif',
+  'https://media.tenor.com/i4XqnAqNA3sAAAAi/quby-cute.gif',
+  'https://media.tenor.com/iysHH4JLrg0AAAAi/quby-pentol.gif',
+] as const
+
+export const DEFAULT_TEAMMATES: Teammate[] = [
+  'Cheeseburger',
+  'Double Burger',
+  'Chicken Burger',
+  'Fish Burger',
+  'Veggie Burger',
+].map((name, index) => ({
+  id: `burger-${index + 1}`,
+  name,
+  email: 'ramlyburger@codexpromax.com',
+  avatarUrl: TEAMMATE_AVATAR_URLS[index],
+  role: index === 0 ? 'Owner' : 'Member',
+  seat: 'Codex Pro Max',
+  dateAdded: 'May 10, 2026',
+}))
 
 export interface InstructionRequest {
   instruction: string

@@ -3,7 +3,13 @@ import multer from 'multer'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { CreateTeammateRequest, InstructionRequest, ProtocolTextFile, Teammate } from '../src/shared/protocol'
-import { LEGACY_RUN_ID, PROTOCOL_TEXT_FILES } from '../src/shared/protocol'
+import {
+  DEFAULT_TEAMMATES,
+  LEGACY_RUN_ID,
+  MAX_TEAMMATES,
+  PROTOCOL_TEXT_FILES,
+  TEAMMATE_AVATAR_URLS,
+} from '../src/shared/protocol'
 import { HttpError } from './errors'
 import { MultiRunSnapshotHub } from './snapshotHub'
 import {
@@ -48,20 +54,6 @@ const upload = multer({
 const STOP_SESSION_INSTRUCTION = 'Stop this Codex Pro Max HITL session now.'
 const PROTOCOL_FILE_PREVIEW_BYTES = 1024 * 1024
 const TEAMMATES_FILE_NAME = 'teammates.json'
-const DEFAULT_TEAMMATES: Teammate[] = [
-  'Cheeseburger',
-  'Double Burger',
-  'Chicken Burger',
-  'Fish Burger',
-  'Veggie Burger',
-].map((name, index) => ({
-  id: `burger-${index + 1}`,
-  name,
-  email: 'ramlyburger@codexpromax.com',
-  role: index === 0 ? 'Owner' : 'Member',
-  seat: 'Codex Pro Max',
-  dateAdded: 'May 10, 2026',
-}))
 
 export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
   const rootPath = resolveProtocolRoot(options.rootPath)
@@ -291,8 +283,9 @@ async function readTeammates(rootPath: string): Promise<Teammate[]> {
   try {
     const content = await fs.readFile(getTeammatesPath(rootPath), 'utf8')
     const parsed = JSON.parse(content) as unknown
-    if (Array.isArray(parsed) && parsed.every(isTeammate)) {
-      return parsed
+    const teammates = normalizeTeammates(parsed)
+    if (teammates) {
+      return teammates
     }
   } catch (error) {
     if (!isNodeErrorWithCode(error, 'ENOENT')) {
@@ -306,12 +299,17 @@ async function readTeammates(rootPath: string): Promise<Teammate[]> {
 async function addTeammate(rootPath: string, rawBody: unknown): Promise<Teammate[]> {
   const body = parseCreateTeammateRequest(rawBody)
   const teammates = await readTeammates(rootPath)
+  if (teammates.length >= MAX_TEAMMATES) {
+    throw new HttpError(400, 'Maximum prank teammates reached.')
+  }
+
   const nextTeammates = [
     ...teammates,
     {
       id: `invited-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       name: createInvitedBurgerName(teammates.length),
       email: body.email,
+      avatarUrl: pickUnusedTeammateAvatar(teammates),
       role: 'Member',
       seat: 'Codex Pro Max',
       dateAdded: formatTeammateDate(new Date()),
@@ -358,7 +356,40 @@ function isValidInviteEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-function isTeammate(value: unknown): value is Teammate {
+function normalizeTeammates(value: unknown): Teammate[] | null {
+  if (!Array.isArray(value)) {
+    return null
+  }
+
+  const usedAvatars = new Set<string>()
+  const teammates: Teammate[] = []
+  for (const item of value.slice(0, MAX_TEAMMATES)) {
+    if (!isTeammateLike(item)) {
+      return null
+    }
+
+    const avatarUrl = typeof item.avatarUrl === 'string'
+      && isAllowedTeammateAvatar(item.avatarUrl)
+      && !usedAvatars.has(item.avatarUrl)
+      ? item.avatarUrl
+      : pickUnusedTeammateAvatar(teammates)
+    usedAvatars.add(avatarUrl)
+
+    teammates.push({
+      id: item.id,
+      name: item.name,
+      email: item.email,
+      avatarUrl,
+      role: item.role,
+      seat: item.seat,
+      dateAdded: item.dateAdded,
+    })
+  }
+
+  return teammates
+}
+
+function isTeammateLike(value: unknown): value is Omit<Teammate, 'avatarUrl'> & { avatarUrl?: unknown } {
   if (value === null || typeof value !== 'object') {
     return false
   }
@@ -370,6 +401,21 @@ function isTeammate(value: unknown): value is Teammate {
     && typeof teammate.role === 'string'
     && typeof teammate.seat === 'string'
     && typeof teammate.dateAdded === 'string'
+}
+
+function pickUnusedTeammateAvatar(teammates: Teammate[]) {
+  const usedAvatars = new Set(teammates.map((teammate) => teammate.avatarUrl))
+  const availableAvatars = TEAMMATE_AVATAR_URLS.filter((avatarUrl) => !usedAvatars.has(avatarUrl))
+  if (availableAvatars.length === 0) {
+    throw new HttpError(400, 'No teammate avatars are available.')
+  }
+
+  const avatarIndex = Math.floor(Math.random() * availableAvatars.length)
+  return availableAvatars[avatarIndex]
+}
+
+function isAllowedTeammateAvatar(avatarUrl: string) {
+  return (TEAMMATE_AVATAR_URLS as readonly string[]).includes(avatarUrl)
 }
 
 function isNodeErrorWithCode(error: unknown, code: string) {

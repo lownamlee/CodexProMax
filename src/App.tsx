@@ -41,7 +41,7 @@ import type {
   Snapshot,
   Teammate,
 } from './shared/protocol'
-import { PROTOCOL_TEXT_FILES } from './shared/protocol'
+import { DEFAULT_TEAMMATES, MAX_TEAMMATES, PROTOCOL_TEXT_FILES, TEAMMATE_AVATAR_URLS } from './shared/protocol'
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
@@ -91,20 +91,6 @@ const PROTOCOL_FILES_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-protoc
 const ATTACHMENTS_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-attachments-collapsed'
 const QUEUED_INSTRUCTIONS_STORAGE_KEY = 'codex-pro-max:queued-instructions:v1'
 const CTRL_ENTER_CONFIRM_STORAGE_KEY = 'codex-pro-max:confirm-ctrl-enter-send'
-const FALLBACK_TEAMMATES: Teammate[] = [
-  'Cheeseburger',
-  'Double Burger',
-  'Chicken Burger',
-  'Fish Burger',
-  'Veggie Burger',
-].map((name, index) => ({
-  id: `burger-${index + 1}`,
-  name,
-  email: 'ramlyburger@codexpromax.com',
-  role: index === 0 ? 'Owner' : 'Member',
-  seat: 'Codex Pro Max',
-  dateAdded: 'May 10, 2026',
-}))
 
 type PendingAction = 'send' | 'upload' | 'load' | 'clear' | 'stop'
 type MentionRange = { start: number; end: number; query: string }
@@ -1702,11 +1688,12 @@ function LogoutErrorDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
-function createFallbackInvitedTeammate(email: string, count: number): Teammate {
+function createFallbackInvitedTeammate(email: string, count: number, teammates: Teammate[]): Teammate {
   return {
     id: `local-invited-${Date.now()}-${count}`,
-    name: `Invited Burger ${Math.max(1, count - FALLBACK_TEAMMATES.length + 1)}`,
+    name: `Invited Burger ${Math.max(1, count - DEFAULT_TEAMMATES.length + 1)}`,
     email,
+    avatarUrl: pickUnusedLocalTeammateAvatar(teammates),
     role: 'Member',
     seat: 'Codex Pro Max',
     dateAdded: new Intl.DateTimeFormat('en-US', {
@@ -1717,11 +1704,18 @@ function createFallbackInvitedTeammate(email: string, count: number): Teammate {
   }
 }
 
+function pickUnusedLocalTeammateAvatar(teammates: Teammate[]) {
+  const usedAvatars = new Set(teammates.map((teammate) => teammate.avatarUrl))
+  const availableAvatars = TEAMMATE_AVATAR_URLS.filter((avatarUrl) => !usedAvatars.has(avatarUrl))
+  return availableAvatars[Math.floor(Math.random() * availableAvatars.length)] ?? TEAMMATE_AVATAR_URLS[0]
+}
+
 function TeammatesDialog({ onClose }: { onClose: () => void }) {
-  const [teammates, setTeammates] = useState<Teammate[]>(FALLBACK_TEAMMATES)
+  const [teammates, setTeammates] = useState<Teammate[]>(DEFAULT_TEAMMATES)
   const [email, setEmail] = useState('')
   const [pendingInvite, setPendingInvite] = useState(false)
   const [inviteError, setInviteError] = useState<string | null>(null)
+  const maxTeammatesReached = teammates.length >= MAX_TEAMMATES
   useEscapeToClose(onClose)
 
   useEffect(() => {
@@ -1748,7 +1742,7 @@ function TeammatesDialog({ onClose }: { onClose: () => void }) {
   async function handleInviteSubmit(event: SyntheticEvent) {
     event.preventDefault()
     const inviteEmail = email.trim()
-    if (!inviteEmail) {
+    if (!inviteEmail || maxTeammatesReached) {
       return
     }
 
@@ -1761,7 +1755,7 @@ function TeammatesDialog({ onClose }: { onClose: () => void }) {
     } catch {
       setTeammates((currentTeammates) => [
         ...currentTeammates,
-        createFallbackInvitedTeammate(inviteEmail, currentTeammates.length),
+        createFallbackInvitedTeammate(inviteEmail, currentTeammates.length, currentTeammates),
       ])
       setEmail('')
       setInviteError(null)
@@ -1796,6 +1790,7 @@ function TeammatesDialog({ onClose }: { onClose: () => void }) {
               type="email"
               placeholder="Email"
               value={email}
+              disabled={pendingInvite || maxTeammatesReached}
               onChange={(event) => setEmail(event.target.value)}
             />
           </label>
@@ -1803,8 +1798,12 @@ function TeammatesDialog({ onClose }: { onClose: () => void }) {
             <i className="ri-add-line" aria-hidden="true" />
             Add more
           </button>
-          <button type="submit" className="confirm-button primary" disabled={pendingInvite || !email.trim()}>
-            {pendingInvite ? 'Sending...' : 'Send invites'}
+          <button
+            type="submit"
+            className="confirm-button primary"
+            disabled={pendingInvite || !email.trim() || maxTeammatesReached}
+          >
+            {maxTeammatesReached ? 'Team full' : pendingInvite ? 'Sending...' : 'Send invites'}
           </button>
           {inviteError && <p className="teammates-error">{inviteError}</p>}
         </form>
@@ -1825,7 +1824,7 @@ function TeammatesDialog({ onClose }: { onClose: () => void }) {
                   <td>
                     <span className="teammate-person">
                       <span className="teammate-avatar">
-                        <img src={USER_PROFILE_IMAGE} alt="Ramlyburger logo" />
+                        <img src={teammate.avatarUrl} alt={`${teammate.name} avatar`} />
                       </span>
                       <span>
                         <strong>{teammate.name}</strong>
