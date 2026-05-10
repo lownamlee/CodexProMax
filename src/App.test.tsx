@@ -330,7 +330,18 @@ describe('App', () => {
 
     fireEvent.click(profileButton)
     const profileMenuAfterWorkspace = screen.getByRole('menu', { name: 'Profile menu' })
-    const logoutButton = within(profileMenuAfterWorkspace).getByRole('menuitem', { name: /Log out/i })
+    fireEvent.click(within(profileMenuAfterWorkspace).getByRole('menuitem', { name: /^Skills$/i }))
+    expect(screen.queryByRole('menu', { name: 'Profile menu' })).not.toBeInTheDocument()
+    const skillsDialog = screen.getByRole('dialog', { name: /skills under construction/i })
+    expect(within(skillsDialog).getByText(/skill oven is preheating/i)).toBeInTheDocument()
+    expect(within(skillsDialog).getByRole('img', { name: /skills under construction sticker/i }))
+      .toHaveAttribute('src', 'https://media1.tenor.com/m/XFwbgqtJB98AAAAC/quby-quby-sticker.gif')
+    fireEvent.click(within(skillsDialog).getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog', { name: /skills under construction/i })).not.toBeInTheDocument()
+
+    fireEvent.click(profileButton)
+    const profileMenuAfterSkills = screen.getByRole('menu', { name: 'Profile menu' })
+    const logoutButton = within(profileMenuAfterSkills).getByRole('menuitem', { name: /Log out/i })
     expect(logoutButton.querySelector('.profile-menu-chevron')).not.toBeInTheDocument()
 
     fireEvent.click(logoutButton)

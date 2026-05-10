@@ -59,7 +59,7 @@ const FILE_ICONS: Record<ProtocolTextFile, string> = {
 const PROFILE_MENU_ITEMS = [
   { label: 'Add teammates', icon: 'ri-group-line', action: 'teammates' },
   { label: 'Workspace settings', icon: 'ri-building-2-line', action: 'workspace-settings' },
-  { label: 'Skills', icon: 'ri-box-3-line' },
+  { label: 'Skills', icon: 'ri-box-3-line', action: 'skills' },
   { label: 'Personalization', icon: 'ri-sparkling-2-line' },
   { label: 'Settings', icon: 'ri-settings-3-line', action: 'settings' },
   { label: 'Help', icon: 'ri-question-line', separated: true, chevron: true },
@@ -67,6 +67,7 @@ const PROFILE_MENU_ITEMS = [
 ]
 const LOGOUT_ERROR_STICKER = 'https://media.tenor.com/fTH4D95V-oQAAAAi/quby.gif'
 const WORKSPACE_SETTINGS_STICKER = 'https://media.tenor.com/OY6bIk0asR4AAAAi/quby.gif'
+const SKILLS_STICKER = 'https://media1.tenor.com/m/XFwbgqtJB98AAAAC/quby-quby-sticker.gif'
 
 const RUN_STATUS_ICONS: Record<ProtocolStatus, string> = {
   RUNNING: 'ri-loader-4-line',
@@ -1489,6 +1490,7 @@ function RunInbox({
   const [profileLogoutError, setProfileLogoutError] = useState(false)
   const [teammatesDialogOpen, setTeammatesDialogOpen] = useState(false)
   const [workspaceSettingsDialogOpen, setWorkspaceSettingsDialogOpen] = useState(false)
+  const [skillsDialogOpen, setSkillsDialogOpen] = useState(false)
   const profileAreaRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -1618,6 +1620,13 @@ function RunInbox({
                         return
                       }
 
+                      if (item.action === 'skills') {
+                        setProfileLogoutError(false)
+                        setProfileMenuOpen(false)
+                        setSkillsDialogOpen(true)
+                        return
+                      }
+
                       setProfileLogoutError(false)
                       setProfileMenuOpen(false)
                     }}
@@ -1672,6 +1681,10 @@ function RunInbox({
         <WorkspaceSettingsDialog onClose={() => setWorkspaceSettingsDialogOpen(false)} />,
         document.body,
       )}
+      {skillsDialogOpen && createPortal(
+        <SkillsDialog onClose={() => setSkillsDialogOpen(false)} />,
+        document.body,
+      )}
     </aside>
   )
 }
@@ -1717,6 +1730,31 @@ function WorkspaceSettingsDialog({ onClose }: { onClose: () => void }) {
         <div className="logout-error-copy">
           <h2>Workspace settings</h2>
           <p>This workspace settings panel is still under construction.</p>
+        </div>
+        <button type="button" className="confirm-button primary" onClick={onClose} autoFocus>
+          Close
+        </button>
+      </section>
+    </div>
+  )
+}
+
+function SkillsDialog({ onClose }: { onClose: () => void }) {
+  useEscapeToClose(onClose)
+
+  return (
+    <div className="preview-backdrop logout-error-backdrop" role="presentation" onClick={onClose}>
+      <section
+        className="logout-error-dialog construction-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Skills under construction"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <img src={SKILLS_STICKER} alt="Skills under construction sticker" />
+        <div className="logout-error-copy">
+          <h2>Skills are marinating</h2>
+          <p>The skill oven is preheating. Please do not tap the glass.</p>
         </div>
         <button type="button" className="confirm-button primary" onClick={onClose} autoFocus>
           Close
