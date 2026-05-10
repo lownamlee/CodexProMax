@@ -1073,16 +1073,17 @@ code,
   position: absolute;
   inset: 0;
   overflow: hidden;
-  color: var(--text-main);
+  color: transparent;
   pointer-events: none;
 }
 
 .composer-mention-highlight {
-  padding: 1px 5px;
-  border: 1px solid var(--border);
+  margin: -1px -3px;
+  padding: 1px 3px;
   border-radius: 5px;
   background: var(--bg-app);
-  color: var(--primary-hover);
+  box-shadow: 0 0 0 1px var(--border);
+  color: transparent;
   font-family: var(--font-mono);
   font-size: 0.9em;
 }
@@ -1096,7 +1097,7 @@ code,
   border: 0;
   outline: 0;
   background: transparent;
-  color: transparent;
+  color: var(--text-main);
   caret-color: var(--text-main);
 }
 
