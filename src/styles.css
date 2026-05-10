@@ -156,7 +156,7 @@ button:disabled {
   align-items: center;
   flex: 0 0 auto;
   gap: 12px;
-  padding: 0 16px 0 24px;
+  padding: 0 20px 0 20px;
 }
 
 .brand-icon {
@@ -588,6 +588,20 @@ button:disabled {
 
   100% {
     transform: scale(1);
+  }
+}
+
+@keyframes attachmentDeleteProgress {
+  0% {
+    transform: translateX(-120%);
+  }
+
+  50% {
+    transform: translateX(70%);
+  }
+
+  100% {
+    transform: translateX(240%);
   }
 }
 
@@ -1683,11 +1697,19 @@ code,
   margin-bottom: 0;
 }
 
+.meta-group-heading-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+}
+
 .meta-group-toggle {
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
   padding: 0;
   color: inherit;
@@ -1697,7 +1719,35 @@ code,
   text-transform: inherit;
 }
 
-.meta-group-toggle i {
+.meta-group-collapse-button,
+.meta-group-icon-action {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--text-light);
+  font-size: 14px;
+}
+
+.meta-group-collapse-button:hover,
+.meta-group-icon-action:hover:not(:disabled) {
+  background: var(--bg-surface);
+  color: var(--primary);
+}
+
+.meta-group-icon-action.danger:hover:not(:disabled) {
+  background: #fff1f2;
+  color: var(--danger);
+}
+
+.meta-group-icon-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.meta-group-toggle i,
+.meta-group-collapse-button i {
   color: var(--text-light);
   font-size: 14px;
 }
@@ -1931,8 +1981,10 @@ code,
 }
 
 .attachment-card {
+  position: relative;
   align-items: flex-start;
   gap: 8px;
+  overflow: hidden;
 }
 
 .attachment-thumb-button {
@@ -1989,6 +2041,30 @@ code,
 .attachment-delete-button:hover:not(:disabled) {
   background: #fff1f2;
   color: var(--danger);
+}
+
+.attachment-card.deleting {
+  opacity: 0.78;
+}
+
+.attachment-delete-progress {
+  position: absolute;
+  right: 8px;
+  bottom: 2px;
+  left: 8px;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dbeafe;
+}
+
+.attachment-delete-progress span {
+  width: 42%;
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: var(--primary);
+  animation: attachmentDeleteProgress 1.1s ease-in-out infinite;
 }
 
 .preview-backdrop {

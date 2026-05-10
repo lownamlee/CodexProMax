@@ -264,7 +264,12 @@ describe('App', () => {
     expect(within(profileMenu).getByRole('menuitem', { name: /Add teammates/i })).toBeInTheDocument()
     expect(within(profileMenu).getByRole('menuitem', { name: /Workspace settings/i })).toBeInTheDocument()
 
-    fireEvent.click(within(profileMenu).getByRole('menuitem', { name: /^Settings$/i }))
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole('menu', { name: 'Profile menu' })).not.toBeInTheDocument()
+
+    fireEvent.click(profileButton)
+    const reopenedProfileMenu = screen.getByRole('menu', { name: 'Profile menu' })
+    fireEvent.click(within(reopenedProfileMenu).getByRole('menuitem', { name: /^Settings$/i }))
     expect(screen.queryByRole('menu', { name: 'Profile menu' })).not.toBeInTheDocument()
   })
 
@@ -994,6 +999,50 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: /preview existing\.png/i })).not.toBeInTheDocument()
   })
 
+  it('deletes all attachments with per-card progress', async () => {
+    const attachments = [attachmentFactory('first.png'), attachmentFactory('second.png')]
+    const firstDelete = deferredResponse()
+    const secondDelete = deferredResponse()
+    const fetchMock = vi.mocked(fetch)
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(managerFactory()))
+      .mockResolvedValueOnce(jsonResponse(snapshotFactory({ attachments })))
+      .mockReturnValueOnce(firstDelete.promise)
+      .mockReturnValueOnce(secondDelete.promise)
+
+    render(<App />)
+    await getEventSource()
+
+    const sidebar = screen.getByLabelText('Protocol details')
+    fireEvent.click(await within(sidebar).findByRole('button', { name: /delete all attachments/i }))
+
+    expect(window.confirm).toHaveBeenCalledWith('Delete all 2 attachments?')
+    expect(await within(sidebar).findByRole('progressbar', { name: /deleting first\.png/i })).toBeInTheDocument()
+    expect(within(sidebar).getByRole('progressbar', { name: /deleting second\.png/i })).toBeInTheDocument()
+
+    firstDelete.resolve(jsonResponse({
+      ok: true,
+      snapshot: snapshotFactory({ attachments: [attachments[1]] }),
+    }))
+
+    await waitFor(() =>
+      expect(within(sidebar).queryByRole('progressbar', { name: /deleting first\.png/i })).not.toBeInTheDocument(),
+    )
+    expect(within(sidebar).getByRole('progressbar', { name: /deleting second\.png/i })).toBeInTheDocument()
+
+    secondDelete.resolve(jsonResponse({
+      ok: true,
+      snapshot: snapshotFactory({ attachments: [] }),
+    }))
+
+    await waitFor(() =>
+      expect(within(sidebar).queryByRole('button', { name: /preview second\.png/i })).not.toBeInTheDocument(),
+    )
+    expect(fetchMock).toHaveBeenCalledWith('/api/runs/run-a/attachments/first.png', { method: 'DELETE' })
+    expect(fetchMock).toHaveBeenCalledWith('/api/runs/run-a/attachments/second.png', { method: 'DELETE' })
+  })
+
   it('keeps the chat pinned to the bottom when a new message arrives while already at bottom', async () => {
     render(<App />)
     await getEventSource()
@@ -1188,6 +1237,15 @@ function jsonResponse(payload: unknown, status = 200): Response {
       'Content-Type': 'application/json',
     },
   })
+}
+
+function deferredResponse() {
+  let resolve!: (response: Response) => void
+  const promise = new Promise<Response>((nextResolve) => {
+    resolve = nextResolve
+  })
+
+  return { promise, resolve }
 }
 
 function managerFactory(overrides: Partial<ManagerSnapshot> = {}): ManagerSnapshot {

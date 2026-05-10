@@ -105,7 +105,7 @@ function App() {
   const [draftAttachmentNames, setDraftAttachmentNames] = useState<string[]>([])
   const [pending, setPending] = useState<PendingAction | null>(null)
   const [deletingRunId, setDeletingRunId] = useState<string | null>(null)
-  const [deletingAttachmentName, setDeletingAttachmentName] = useState<string | null>(null)
+  const [deletingAttachmentNames, setDeletingAttachmentNames] = useState<string[]>([])
   const [actionError, setActionError] = useState<string | null>(null)
   const [leftCollapsed, setLeftCollapsed] = useState(() =>
     readStoredBoolean(LEFT_SIDEBAR_COLLAPSED_STORAGE_KEY, false),
@@ -339,7 +339,7 @@ function App() {
       return
     }
 
-    setDeletingAttachmentName(attachment.name)
+    setDeletingAttachmentNames((names) => addUniqueNames(names, [attachment.name]))
     setActionError(null)
 
     try {
@@ -352,7 +352,43 @@ function App() {
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Delete attachment failed')
     } finally {
-      setDeletingAttachmentName(null)
+      setDeletingAttachmentNames((names) => names.filter((name) => name !== attachment.name))
+    }
+  }
+
+  async function handleDeleteAllAttachments() {
+    if (!selectedRunId) {
+      setActionError('Select a run before deleting attachments.')
+      return
+    }
+
+    if (attachments.length === 0) {
+      return
+    }
+
+    const confirmed = window.confirm(`Delete all ${attachments.length} attachments?`)
+    if (!confirmed) {
+      return
+    }
+
+    const attachmentNames = attachments.map((attachment) => attachment.name)
+    setDeletingAttachmentNames((names) => addUniqueNames(names, attachmentNames))
+    setActionError(null)
+
+    try {
+      for (const attachment of attachments) {
+        const response = await deleteAttachmentRequest(selectedRunId, attachment.name)
+        setRunSnapshot(response.snapshot)
+        setDraftAttachmentNames((names) => names.filter((name) => name !== attachment.name))
+        if (previewAttachment?.name === attachment.name) {
+          setPreviewAttachment(null)
+        }
+        setDeletingAttachmentNames((names) => names.filter((name) => name !== attachment.name))
+      }
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Delete attachments failed')
+    } finally {
+      setDeletingAttachmentNames((names) => names.filter((name) => !attachmentNames.includes(name)))
     }
   }
 
@@ -926,7 +962,8 @@ function App() {
         onAttachmentPreview={setPreviewAttachment}
         onAttachmentMention={mentionSessionAttachment}
         onAttachmentDelete={(attachment) => void handleDeleteAttachment(attachment)}
-        deletingAttachmentName={deletingAttachmentName}
+        onAttachmentsDeleteAll={() => void handleDeleteAllAttachments()}
+        deletingAttachmentNames={deletingAttachmentNames}
         filesPresent={filesPresent}
         userMessageOutlines={userMessageOutlines}
         activeUserMessageId={activeUserMessageId}
@@ -963,6 +1000,25 @@ function RunInbox({
   onDelete: (run: RunSummary) => void
 }) {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const profileAreaRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!profileMenuOpen) {
+      return
+    }
+
+    function handlePointerDown(event: globalThis.PointerEvent) {
+      const target = event.target
+      if (target instanceof Node && profileAreaRef.current?.contains(target)) {
+        return
+      }
+
+      setProfileMenuOpen(false)
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [profileMenuOpen])
 
   return (
     <aside id="left-sidebar" className={`sidebar left-sidebar ${collapsed ? 'collapsed' : ''}`} aria-label="Run inbox">
@@ -1023,7 +1079,7 @@ function RunInbox({
           </div>
         )}
 
-        <div className="sidebar-profile-area">
+        <div className="sidebar-profile-area" ref={profileAreaRef}>
           {profileMenuOpen && (
             <div className="profile-menu" role="menu" aria-label="Profile menu">
               <button type="button" className="profile-menu-account" role="menuitem">
@@ -1319,7 +1375,7 @@ function ShuffledMarkdownReveal({
     setDisplayText(createShuffledResponse(markdown, 0))
 
     let frame = 0
-    const totalFrames = Math.min(30, Math.max(18, Math.ceil(markdown.length / 90)))
+    const totalFrames = Math.min(34, Math.max(20, Math.ceil(markdown.length / 80)))
     const timer = window.setInterval(() => {
       frame += 1
       const revealedCharacters = Math.floor((markdown.length * frame) / totalFrames)
@@ -1333,7 +1389,7 @@ function ShuffledMarkdownReveal({
       }
 
       setDisplayText(createShuffledResponse(markdown, revealedCharacters))
-    }, 32)
+    }, 40)
 
     return () => window.clearInterval(timer)
   }, [markdown, messageId, onRevealComplete])
@@ -1758,6 +1814,10 @@ function writeStoredBoolean(key: string, value: boolean) {
   }
 }
 
+function addUniqueNames(currentNames: string[], nextNames: string[]): string[] {
+  return Array.from(new Set([...currentNames, ...nextNames]))
+}
+
 function renderComposerHighlights(value: string) {
   if (!value) {
     return null
@@ -1823,7 +1883,8 @@ function ProtocolSidebar({
   onAttachmentPreview,
   onAttachmentMention,
   onAttachmentDelete,
-  deletingAttachmentName,
+  onAttachmentsDeleteAll,
+  deletingAttachmentNames,
   filesPresent,
   userMessageOutlines,
   activeUserMessageId,
@@ -1836,7 +1897,8 @@ function ProtocolSidebar({
   onAttachmentPreview: (attachment: AttachmentMeta) => void
   onAttachmentMention: (name: string) => void
   onAttachmentDelete: (attachment: AttachmentMeta) => void
-  deletingAttachmentName: string | null
+  onAttachmentsDeleteAll: () => void
+  deletingAttachmentNames: string[]
   filesPresent: number
   userMessageOutlines: UserMessageOutline[]
   activeUserMessageId: string | null
@@ -1911,10 +1973,22 @@ function ProtocolSidebar({
           className="attachments-group"
           collapsed={attachmentsCollapsed}
           onToggle={() => setAttachmentsCollapsed((value) => !value)}
+          action={(
+            <button
+              type="button"
+              className="meta-group-icon-action danger"
+              onClick={onAttachmentsDeleteAll}
+              disabled={attachments.length === 0 || deletingAttachmentNames.length > 0}
+              aria-label="Delete all attachments"
+              title="Delete all attachments"
+            >
+              <i className={deletingAttachmentNames.length > 0 ? 'ri-loader-4-line' : 'ri-delete-bin-6-line'} aria-hidden="true" />
+            </button>
+          )}
         >
           <AttachmentList
             attachments={attachments}
-            deletingAttachmentName={deletingAttachmentName}
+            deletingAttachmentNames={deletingAttachmentNames}
             onPreview={onAttachmentPreview}
             onMention={onAttachmentMention}
             onDelete={onAttachmentDelete}
@@ -1930,21 +2004,35 @@ function SidebarMetaGroup({
   className = '',
   collapsed,
   onToggle,
+  action,
   children,
 }: {
   title: string
   className?: string
   collapsed: boolean
   onToggle: () => void
+  action?: ReactNode
   children: ReactNode
 }) {
   return (
     <div className={`meta-group ${className} ${collapsed ? 'collapsed' : ''}`}>
       <h4 className="meta-group-heading">
-        <button type="button" className="meta-group-toggle" onClick={onToggle} aria-expanded={!collapsed}>
-          <span>{title}</span>
-          <i className={collapsed ? 'ri-arrow-down-s-line' : 'ri-arrow-up-s-line'} aria-hidden="true" />
-        </button>
+        <span className="meta-group-heading-row">
+          <button type="button" className="meta-group-toggle" onClick={onToggle} aria-expanded={!collapsed}>
+            <span>{title}</span>
+          </button>
+          {action}
+          <button
+            type="button"
+            className="meta-group-collapse-button"
+            onClick={onToggle}
+            aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${title}`}
+            aria-expanded={!collapsed}
+            title={`${collapsed ? 'Expand' : 'Collapse'} ${title}`}
+          >
+            <i className={collapsed ? 'ri-arrow-down-s-line' : 'ri-arrow-up-s-line'} aria-hidden="true" />
+          </button>
+        </span>
       </h4>
       {!collapsed && <div className="meta-group-content">{children}</div>}
     </div>
@@ -2118,13 +2206,13 @@ function AttachmentThumbnail({ attachment }: { attachment: AttachmentMeta }) {
 
 function AttachmentList({
   attachments,
-  deletingAttachmentName,
+  deletingAttachmentNames,
   onPreview,
   onMention,
   onDelete,
 }: {
   attachments: AttachmentMeta[]
-  deletingAttachmentName: string | null
+  deletingAttachmentNames: string[]
   onPreview: (attachment: AttachmentMeta) => void
   onMention: (name: string) => void
   onDelete: (attachment: AttachmentMeta) => void
@@ -2140,50 +2228,69 @@ function AttachmentList({
 
   return (
     <ul className="attachment-list">
-      {attachments.map((attachment) => (
-        <li key={attachment.name} className="file-card attachment-card exists">
-          <button
-            type="button"
-            className="attachment-thumb-button"
-            onClick={() => onPreview(attachment)}
-            aria-label={`Preview thumbnail ${attachment.name}`}
-            title={`Preview thumbnail ${attachment.name}`}
+      {attachments.map((attachment) => {
+        const deleting = deletingAttachmentNames.includes(attachment.name)
+        return (
+          <li
+            key={attachment.name}
+            className={`file-card attachment-card exists ${deleting ? 'deleting' : ''}`}
+            aria-busy={deleting || undefined}
           >
-            <AttachmentThumbnail attachment={attachment} />
-          </button>
-          <div className="file-copy">
             <button
               type="button"
-              className="file-name attachment-preview-button"
+              className="attachment-thumb-button"
               onClick={() => onPreview(attachment)}
-              aria-label={`Preview ${attachment.name}`}
-              title={`Preview ${attachment.name}`}
+              aria-label={`Preview thumbnail ${attachment.name}`}
+              title={`Preview thumbnail ${attachment.name}`}
+              disabled={deleting}
             >
-              {attachment.name}
+              <AttachmentThumbnail attachment={attachment} />
             </button>
-            <div className="file-meta">{formatBytes(attachment.size)}</div>
-          </div>
-          <button
-            type="button"
-            className="attachment-mention-button"
-            onClick={() => onMention(attachment.name)}
-            aria-label={`Add attachment mention ${attachment.name}`}
-            title={`Add mention ${attachment.name}`}
-          >
-            <i className="ri-at-line" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className="attachment-delete-button"
-            onClick={() => onDelete(attachment)}
-            disabled={deletingAttachmentName === attachment.name}
-            aria-label={`Delete attachment ${attachment.name}`}
-            title={`Delete ${attachment.name}`}
-          >
-            <i className={deletingAttachmentName === attachment.name ? 'ri-loader-4-line' : 'ri-delete-bin-6-line'} aria-hidden="true" />
-          </button>
-        </li>
-      ))}
+            <div className="file-copy">
+              <button
+                type="button"
+                className="file-name attachment-preview-button"
+                onClick={() => onPreview(attachment)}
+                aria-label={`Preview ${attachment.name}`}
+                title={`Preview ${attachment.name}`}
+                disabled={deleting}
+              >
+                {attachment.name}
+              </button>
+              <div className="file-meta">{deleting ? 'deleting...' : formatBytes(attachment.size)}</div>
+            </div>
+            <button
+              type="button"
+              className="attachment-mention-button"
+              onClick={() => onMention(attachment.name)}
+              disabled={deleting}
+              aria-label={`Add attachment mention ${attachment.name}`}
+              title={`Add mention ${attachment.name}`}
+            >
+              <i className="ri-at-line" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="attachment-delete-button"
+              onClick={() => onDelete(attachment)}
+              disabled={deleting}
+              aria-label={`Delete attachment ${attachment.name}`}
+              title={`Delete ${attachment.name}`}
+            >
+              <i className={deleting ? 'ri-loader-4-line' : 'ri-delete-bin-6-line'} aria-hidden="true" />
+            </button>
+            {deleting && (
+              <span
+                className="attachment-delete-progress"
+                role="progressbar"
+                aria-label={`Deleting ${attachment.name}`}
+              >
+                <span />
+              </span>
+            )}
+          </li>
+        )
+      })}
     </ul>
   )
 }
