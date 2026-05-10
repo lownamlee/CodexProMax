@@ -239,15 +239,21 @@ export async function listAttachments(
 }
 
 export async function readChatMessages(runPath: string, fallbackOutput = ''): Promise<ChatMessage[]> {
-  const sessionMessages = parseSessionMessages(await readTextIfExists(path.join(runPath, SESSION_FILE)))
+  const sessionPath = path.join(runPath, SESSION_FILE)
+  const hasSessionFile = await pathExists(sessionPath)
+  const sessionMessages = parseSessionMessages(await readTextIfExists(sessionPath))
   if (sessionMessages.length > 0) {
     return sessionMessages
+  }
+
+  if (hasSessionFile) {
+    return []
   }
 
   const legacyMessages = await readLegacyChatMessages(runPath)
   if (legacyMessages.length > 0) {
     await atomicWriteTextFile(
-      path.join(runPath, SESSION_FILE),
+      sessionPath,
       legacyMessages.map(formatSessionMessage).join(''),
     )
     return legacyMessages
@@ -387,6 +393,11 @@ export async function deleteRun(rootPath: string, runId: string): Promise<void> 
 
   const runPath = getRunPath(rootPath, runId)
   await fs.rm(runPath, { recursive: true, force: true })
+}
+
+export async function clearConversationHistory(runPath: string): Promise<void> {
+  await fs.mkdir(runPath, { recursive: true })
+  await atomicWriteTextFile(path.join(runPath, SESSION_FILE), '')
 }
 
 export async function appendAuditEvent(

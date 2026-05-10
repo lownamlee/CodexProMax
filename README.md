@@ -175,6 +175,7 @@ Legacy chat logs are read only for compatibility. When the backend or scripts ne
 | `POST /api/runs/:runId/action` | Writes one non-empty instruction and sets `INSTRUCTION_RECEIVED`. |
 | `POST /api/runs/:runId/upload` | Uploads one raster image attachment. |
 | `GET /api/runs/:runId/attachments/:fileName` | Serves an uploaded attachment. |
+| `DELETE /api/runs/:runId/messages` | Clears `session.md` for the selected run while keeping the run open. |
 | `DELETE /api/runs/:runId` | Deletes a real run folder. `legacy-root` is protected. |
 
 The `/action` route name is kept for API compatibility, but the payload is now only:
@@ -215,6 +216,7 @@ The watcher ignores recursive changes to `events.ndjson` so audit writes do not 
 - Markdown size warnings and render truncation.
 - Attachment validation and atomic writes.
 - `session.md` parsing, writing, and legacy chat-log migration.
+- Conversation-history clearing by truncating only `session.md`.
 - Legacy root discovery.
 - Legacy status normalization.
 
@@ -228,6 +230,7 @@ Main surfaces:
 
 - Left sidebar: run inbox, active run selection, delete controls for real runs.
 - Center: chat-style conversation from `session.md`, with assistant and user messages in chronological order.
+- Header actions: sidebar toggles, connection state, run count, and conversation-history clearing.
 - Bottom composer: one text box and one send button for all human input.
 - Attachment control: image upload from file picker or drag/drop.
 - Right sidebar: workspace path, current status, protocol file presence, and attachment list.

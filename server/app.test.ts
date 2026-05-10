@@ -95,6 +95,30 @@ describe('Codex Pro Max multi-run API', () => {
     await expect(pathExists(runB)).resolves.toBe(true)
   })
 
+  it('clears conversation history without closing the selected run', async () => {
+    const runA = getRunPath(rootPath, 'run-a')
+    await fs.mkdir(runA, { recursive: true })
+    await fs.writeFile(path.join(runA, 'status.txt'), 'WAITING_FOR_REVIEW\n', 'utf8')
+    await fs.writeFile(path.join(runA, 'output.md'), 'Current output.', 'utf8')
+    await fs.writeFile(path.join(runA, 'instruction.txt'), 'Pending instruction.\n', 'utf8')
+    await fs.writeFile(
+      path.join(runA, 'session.md'),
+      '<!-- codex-pro-max:message {"id":"assistant-1","role":"assistant","createdAtIso":"2026-05-07T00:00:00.000Z"} -->\n## Codex - 2026-05-07T00:00:00.000Z\n\nPrevious answer.\n\n',
+      'utf8',
+    )
+    appHandle = createApp({ rootPath, startWatcher: false })
+
+    const response = await request(appHandle.app).delete('/api/runs/run-a/messages').expect(200)
+
+    expect(response.body.snapshot.runId).toBe('run-a')
+    expect(response.body.snapshot.status).toBe('WAITING_FOR_REVIEW')
+    expect(response.body.snapshot.outputMd).toBe('Current output.')
+    expect(response.body.snapshot.instruction).toBe('Pending instruction.\n')
+    expect(response.body.snapshot.messages).toEqual([])
+    await expect(fs.readFile(path.join(runA, 'session.md'), 'utf8')).resolves.toBe('')
+    await expect(pathExists(runA)).resolves.toBe(true)
+  })
+
   it('rejects deleting legacy-root', async () => {
     await fs.writeFile(path.join(rootPath, 'status.txt'), 'WAITING_FOR_REVIEW\n', 'utf8')
     appHandle = createApp({ rootPath, startWatcher: false })

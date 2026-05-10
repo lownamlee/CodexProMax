@@ -11,6 +11,7 @@ import {
   MAX_UPLOAD_BYTES,
   appendAuditEvent,
   appendChatMessage,
+  clearConversationHistory,
   deleteRun,
   ensureRunMetadata,
   getAttachmentsPath,
@@ -78,6 +79,21 @@ export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
     response.json({
       ok: true,
       snapshot: await hub.readSnapshot(),
+    })
+  })
+
+  app.delete('/api/runs/:runId/messages', async (request, response) => {
+    const runId = parseRunId(request.params.runId)
+    const runPath = getRunPath(rootPath, runId)
+
+    await ensureRunMetadata(rootPath, runId)
+    await clearConversationHistory(runPath)
+    await appendAuditEvent(runPath, 'conversation.cleared')
+    await hub.broadcastSnapshot()
+
+    response.json({
+      ok: true,
+      snapshot: await hub.readRunSnapshot(runId),
     })
   })
 

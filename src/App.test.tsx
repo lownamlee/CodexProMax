@@ -66,6 +66,20 @@ beforeEach(() => {
         }))
       }
 
+      if (requestUrl === '/api/runs/run-a/messages' && init?.method === 'DELETE') {
+        const snapshot = snapshotFactory({
+          runId: 'run-a',
+          displayName: 'Run A',
+          outputMd: '## Draft A\n\nReady for review.',
+          messages: [],
+        })
+        snapshot.files['session.md'] = fileMeta(true)
+        return jsonResponse({
+          ok: true,
+          snapshot,
+        })
+      }
+
       if (requestUrl === '/api/runs/run-a' && init?.method === 'DELETE') {
         return jsonResponse({
           ok: true,
@@ -199,6 +213,25 @@ describe('App', () => {
         }),
       }),
     )
+  })
+
+  it('clears conversation history without deleting the selected run', async () => {
+    const fetchMock = vi.mocked(fetch)
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    render(<App />)
+    await getEventSource()
+
+    expect(await screen.findByRole('heading', { name: 'Draft A' })).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: /clear conversation history/i }))
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/runs/run-a/messages', {
+        method: 'DELETE',
+      }),
+    )
+    expect(await screen.findByRole('heading', { name: 'No conversation history' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Draft A' })).not.toBeInTheDocument()
   })
 
   it('renders status ownership and help text', async () => {

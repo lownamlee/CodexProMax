@@ -44,6 +44,14 @@ export async function uploadAttachment(runId: string, file: File): Promise<RunSn
   return parseJsonResponse<RunSnapshotResponse>(response)
 }
 
+export async function clearConversationHistory(runId: string): Promise<RunSnapshotResponse> {
+  const response = await fetch(`/api/runs/${encodeURIComponent(runId)}/messages`, {
+    method: 'DELETE',
+  })
+
+  return parseJsonResponse<RunSnapshotResponse>(response)
+}
+
 export async function deleteRun(runId: string): Promise<ManagerResponse> {
   const response = await fetch(`/api/runs/${encodeURIComponent(runId)}`, {
     method: 'DELETE',

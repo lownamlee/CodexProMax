@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type UIEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import {
+  clearConversationHistory as clearConversationHistoryRequest,
   deleteRun as deleteRunRequest,
   fetchRunSnapshot,
   submitInstruction,
@@ -34,12 +35,14 @@ const FILE_ICONS: Record<ProtocolTextFile, string> = {
 
 const CHAT_BOTTOM_THRESHOLD_PX = 12
 
+type PendingAction = 'send' | 'upload' | 'load' | 'clear'
+
 function App() {
   const { snapshot: managerSnapshot, connectionState, error: streamError } = useSnapshotStream()
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [runSnapshot, setRunSnapshot] = useState<Snapshot | null>(null)
   const [instruction, setInstruction] = useState('')
-  const [pending, setPending] = useState<'send' | 'upload' | 'load' | null>(null)
+  const [pending, setPending] = useState<PendingAction | null>(null)
   const [deletingRunId, setDeletingRunId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [leftCollapsed, setLeftCollapsed] = useState(false)
@@ -110,6 +113,34 @@ function App() {
       setInstruction('')
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Action failed')
+    } finally {
+      setPending(null)
+    }
+  }
+
+  async function handleClearConversationHistory() {
+    if (!selectedRunId) {
+      setActionError('Select a run before clearing conversation history.')
+      return
+    }
+
+    const runLabel = selectedRun?.displayName ?? runSnapshot?.displayName ?? selectedRunId
+    const confirmed = window.confirm(
+      `Clear conversation history for "${runLabel}"?\n\nThis keeps the session open and leaves the run files intact.`,
+    )
+    if (!confirmed) {
+      return
+    }
+
+    setPending('clear')
+    setActionError(null)
+
+    try {
+      const response = await clearConversationHistoryRequest(selectedRunId)
+      chatPinnedToBottomRef.current = true
+      setRunSnapshot(response.snapshot)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Clear history failed')
     } finally {
       setPending(null)
     }
@@ -223,6 +254,7 @@ function App() {
   const statusDetails = STATUS_DETAILS[status]
   const attachments = runSnapshot?.attachments ?? []
   const chatMessages = runSnapshot?.messages ?? []
+  const hasSessionHistoryFile = Boolean(runSnapshot?.files['session.md']?.exists)
   const lastChatMessage = chatMessages.length > 0 ? chatMessages[chatMessages.length - 1] : null
   const chatScrollAnchor = [
     runSnapshot?.runId ?? selectedRunId ?? 'none',
@@ -311,6 +343,16 @@ function App() {
             <button
               type="button"
               className="icon-btn"
+              onClick={() => void handleClearConversationHistory()}
+              disabled={!selectedRunId || busy}
+              aria-label="Clear conversation history"
+              title="Clear conversation history"
+            >
+              <i className={pending === 'clear' ? 'ri-loader-4-line' : 'ri-chat-delete-line'} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="icon-btn"
               onClick={() => setRightCollapsed((value) => !value)}
               aria-label="Toggle protocol details"
               title="Toggle protocol details"
@@ -333,6 +375,8 @@ function App() {
           ) : (
             chatMessages.length > 0 ? (
               chatMessages.map((message) => <ChatMessageItem key={message.id} message={message} />)
+            ) : hasSessionHistoryFile ? (
+              <EmptyConversationHistory />
             ) : (
               <article className="message">
                 <div className="avatar" aria-hidden="true">
@@ -556,7 +600,7 @@ function ReviewComposer({
 }: {
   instruction: string
   onInstructionChange: (value: string) => void
-  pending: 'send' | 'upload' | 'load' | null
+  pending: PendingAction | null
   canSend: boolean
   onSend: () => void
   onUpload: (file: File | undefined) => void
@@ -799,6 +843,23 @@ function EmptyInbox({ managerSnapshot }: { managerSnapshot: ManagerSnapshot | nu
             Start a Codex session with the HITL skill, or create a run folder under{' '}
             <code>{managerSnapshot?.runsPath ?? 'runs/<runId>/'}</code>.
           </p>
+        </div>
+      </div>
+    </article>
+  )
+}
+
+function EmptyConversationHistory() {
+  return (
+    <article className="message empty-message" aria-label="Empty conversation history">
+      <div className="avatar" aria-hidden="true">
+        <i className="ri-chat-history-line" />
+      </div>
+      <div className="message-content">
+        <span className="label-super">Conversation</span>
+        <div className="empty-state large">
+          <h2>No conversation history</h2>
+          <p>This session is still open.</p>
         </div>
       </div>
     </article>
