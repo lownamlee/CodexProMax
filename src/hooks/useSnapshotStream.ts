@@ -56,7 +56,6 @@ export function useSnapshotStream() {
 
   return {
     snapshot,
-    setSnapshot,
     connectionState,
     error,
   }

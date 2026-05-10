@@ -355,8 +355,6 @@ export class MultiRunSnapshotHub {
   }
 }
 
-export const LEGACY_ATTACHMENT_RUN_ID = LEGACY_RUN_ID
-
 async function readTextPreview(filePath: string): Promise<{ preview: string; truncated: boolean }> {
   const file = await fs.open(filePath, 'r')
   try {
