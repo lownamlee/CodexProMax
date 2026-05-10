@@ -1120,6 +1120,26 @@ describe('App', () => {
     expect(window.localStorage.getItem('codex-pro-max:confirm-ctrl-enter-send')).toBe('false')
   })
 
+  it('returns focus to the instruction field after canceling the Ctrl Enter confirmation', async () => {
+    const fetchMock = vi.mocked(fetch)
+    render(<App />)
+    await getEventSource()
+
+    const input = await screen.findByLabelText('Instruction')
+    input.focus()
+    fireEvent.change(input, {
+      target: { value: 'Keep focus after cancel.' },
+    })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+
+    const confirmDialog = screen.getByRole('dialog', { name: /send with ctrl enter/i })
+    fireEvent.click(within(confirmDialog).getByRole('button', { name: 'Cancel' }))
+
+    await waitFor(() => expect(input).toHaveFocus())
+    expect(screen.queryByRole('dialog', { name: /send with ctrl enter/i })).not.toBeInTheDocument()
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/action'))).toHaveLength(0)
+  })
+
   it('sends immediately with Ctrl Enter when shortcut confirmation is disabled', async () => {
     window.localStorage.setItem('codex-pro-max:confirm-ctrl-enter-send', 'false')
     const fetchMock = vi.mocked(fetch)

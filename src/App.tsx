@@ -161,11 +161,13 @@ function App() {
   const queuedInstructionIdRef = useRef(0)
   const queuedSendInFlightRef = useRef<QueuedInstructionIdsByRun>({})
   const blockedQueuedSendRef = useRef<QueuedInstructionIdsByRun>({})
+  const popupReturnFocusRef = useRef<HTMLElement | null>(null)
   const composerFocusTokenRef = useRef(0)
   const [composerFocusToken, setComposerFocusToken] = useState(0)
 
   const requestConfirmation = useCallback((options: ConfirmDialogOptions) =>
     new Promise<boolean>((resolve) => {
+      rememberPopupReturnFocus()
       setConfirmDialog({
         cancelLabel: 'Cancel',
         tone: 'default',
@@ -179,6 +181,9 @@ function App() {
       currentDialog?.resolve(confirmed)
       return null
     })
+    if (!confirmed) {
+      restorePopupReturnFocus()
+    }
   }, [])
 
   const runs = managerSnapshot?.runs ?? []
@@ -360,7 +365,13 @@ function App() {
       return
     }
 
+    rememberPopupReturnFocus()
     setCtrlEnterConfirmOpen(true)
+  }
+
+  function cancelCtrlEnterSendConfirm() {
+    setCtrlEnterConfirmOpen(false)
+    restorePopupReturnFocus()
   }
 
   function handleCtrlEnterSendConfirm(dontShowAgain: boolean) {
@@ -369,6 +380,25 @@ function App() {
       setConfirmCtrlEnterSend(false)
     }
     void sendInstruction()
+  }
+
+  function rememberPopupReturnFocus() {
+    const activeElement = document.activeElement
+    popupReturnFocusRef.current = isTextEntryElement(activeElement) ? activeElement : null
+  }
+
+  function restorePopupReturnFocus() {
+    const target = popupReturnFocusRef.current
+    popupReturnFocusRef.current = null
+    if (!target?.isConnected) {
+      return
+    }
+
+    requestAnimationFrame(() => {
+      if (target.isConnected) {
+        target.focus()
+      }
+    })
   }
 
   async function handleClearConversationHistory() {
@@ -1279,7 +1309,7 @@ function App() {
 
       {ctrlEnterConfirmOpen && (
         <CtrlEnterSendDialog
-          onCancel={() => setCtrlEnterConfirmOpen(false)}
+          onCancel={cancelCtrlEnterSendConfirm}
           onConfirm={handleCtrlEnterSendConfirm}
         />
       )}
@@ -2269,6 +2299,24 @@ function getMentionedAttachments(content: string, attachments: AttachmentMeta[])
 function hasAttachmentMention(value: string, attachmentName: string): boolean {
   const mention = `@${attachmentName}`
   return new RegExp(`(^|\\s)${escapeRegExp(mention)}(?=\\s|$)`).test(value)
+}
+
+function isTextEntryElement(element: Element | null): element is HTMLElement {
+  if (!(element instanceof HTMLElement)) {
+    return false
+  }
+
+  if (element instanceof HTMLTextAreaElement) {
+    return true
+  }
+
+  if (element instanceof HTMLInputElement) {
+    return !['button', 'checkbox', 'color', 'file', 'hidden', 'image', 'radio', 'range', 'reset', 'submit'].includes(
+      element.type,
+    )
+  }
+
+  return element.isContentEditable
 }
 
 function appendAttachmentMention(value: string, attachmentName: string): string {
