@@ -13,6 +13,12 @@
   --warning: #d97706;
   --danger: #be123c;
   --purple: #7c3aed;
+  --status-running: #0078d4;
+  --status-success: #4caf50;
+  --status-review: #d97706;
+  --scrollbar-track: rgba(224, 242, 254, 0.55);
+  --scrollbar-thumb: rgba(2, 132, 199, 0.32);
+  --scrollbar-thumb-hover: rgba(3, 105, 161, 0.58);
   --radius-sm: 8px;
   --radius-md: 14px;
   --radius-lg: 24px;
@@ -34,6 +40,8 @@
 
 * {
   box-sizing: border-box;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+  scrollbar-width: thin;
 }
 
 html,
@@ -76,21 +84,25 @@ button:disabled {
 }
 
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  border-radius: 999px;
+  background: var(--scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  border-radius: 10px;
-  background: rgba(148, 163, 184, 0.3);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.5);
+  background: var(--scrollbar-thumb-hover);
+  background-clip: padding-box;
 }
 
 .sr-only {
@@ -261,13 +273,16 @@ button:disabled {
   color: var(--text-muted);
 }
 
-.run-status-icon.run-status-running,
+.run-status-icon.run-status-running {
+  color: var(--status-running);
+}
+
 .run-status-icon.run-status-instruction-received {
-  color: var(--primary);
+  color: var(--status-success);
 }
 
 .run-status-icon.run-status-waiting-for-review {
-  color: var(--warning);
+  color: var(--status-review);
 }
 
 .run-status-icon.run-status-blocked {
@@ -287,7 +302,7 @@ button:disabled {
 
 .run-status-spinner circle {
   fill: none;
-  stroke: #0078d4;
+  stroke: var(--status-running);
   stroke-width: 5;
   stroke-linecap: round;
   stroke-dasharray: 1, 200;
@@ -320,7 +335,7 @@ button:disabled {
 .run-status-success-circle,
 .run-status-success-check {
   fill: none;
-  stroke: #4caf50;
+  stroke: var(--status-success);
 }
 
 .run-status-success-circle {
@@ -423,16 +438,22 @@ button:disabled {
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: opacity 0.3s var(--ease-out), transform 0.3s var(--ease-out);
+  transition:
+    color 0.3s var(--ease-out),
+    opacity 0.3s var(--ease-out),
+    transform 0.3s var(--ease-out);
 }
 
-.run-title.run-status-running,
+.run-title.run-status-running {
+  color: var(--status-running);
+}
+
 .run-title.run-status-instruction-received {
-  color: var(--primary);
+  color: var(--status-success);
 }
 
 .run-title.run-status-waiting-for-review {
-  color: var(--warning);
+  color: var(--status-review);
 }
 
 .run-title.run-status-blocked {

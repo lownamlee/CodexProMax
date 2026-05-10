@@ -567,6 +567,10 @@ describe('App', () => {
       }),
     )
     expect(await screen.findByRole('heading', { name: 'No conversation history' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Empty conversation history').querySelector('.bot-avatar img')).toHaveAttribute(
+      'src',
+      '/codex-color.png',
+    )
     expect(screen.queryByRole('heading', { name: 'Draft A' })).not.toBeInTheDocument()
   })
 

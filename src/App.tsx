@@ -2059,9 +2059,7 @@ function AttachmentPreview({
 function EmptyInbox({ managerSnapshot }: { managerSnapshot: ManagerSnapshot | null }) {
   return (
     <article className="message empty-message" aria-label="Empty inbox">
-      <div className="avatar" aria-hidden="true">
-        <i className="ri-inbox-2-line" />
-      </div>
+      <ProfileAvatar type="bot" />
       <div className="message-content">
         <span className="label-super">Inbox</span>
         <div className="empty-state large">
@@ -2079,9 +2077,7 @@ function EmptyInbox({ managerSnapshot }: { managerSnapshot: ManagerSnapshot | nu
 function EmptyConversationHistory() {
   return (
     <article className="message empty-message" aria-label="Empty conversation history">
-      <div className="avatar" aria-hidden="true">
-        <i className="ri-chat-history-line" />
-      </div>
+      <ProfileAvatar type="bot" />
       <div className="message-content">
         <span className="label-super">Conversation</span>
         <div className="empty-state large">
