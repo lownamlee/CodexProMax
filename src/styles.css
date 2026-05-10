@@ -373,7 +373,8 @@ button:disabled {
   box-shadow: var(--shadow-sm);
 }
 
-.sidebar-profile-avatar {
+.sidebar-profile-avatar,
+.profile-menu-avatar {
   background: #ffffff;
 }
 
