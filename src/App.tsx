@@ -60,6 +60,8 @@ const RUN_STATUS_ICONS: Record<ProtocolStatus, string> = {
 }
 
 const CHAT_BOTTOM_THRESHOLD_PX = 12
+const USER_BUBBLE_TOP_ZONE_PX = 160
+const USER_BUBBLE_TOP_TOLERANCE_PX = 24
 const COMPOSER_TEXTAREA_MIN_HEIGHT_PX = 44
 const COMPOSER_TEXTAREA_MAX_HEIGHT_PX = 180
 const DEFAULT_COMPOSER_HEIGHT_PX = 120
@@ -586,10 +588,14 @@ function App() {
     }
 
     if (scrollDirection === 'up') {
-      const topActivationY = scrollRect.top + 8
-      const firstBubbleAtTop = bubblePositions.find((message) => message.top >= topActivationY)
+      const topZoneStartY = scrollRect.top - USER_BUBBLE_TOP_TOLERANCE_PX
+      const topZoneEndY = scrollRect.top + USER_BUBBLE_TOP_ZONE_PX
+      const topZoneMessages = bubblePositions.filter(
+        (message) => message.top >= topZoneStartY && message.top <= topZoneEndY,
+      )
+      const topZoneMessage = topZoneMessages[topZoneMessages.length - 1]
       setActiveUserMessageId((currentId) => {
-        const nextActiveId = firstBubbleAtTop?.id ?? bubblePositions[bubblePositions.length - 1].id
+        const nextActiveId = topZoneMessage?.id ?? currentId ?? bubblePositions[0].id
         return currentId === nextActiveId ? currentId : nextActiveId
       })
       return
