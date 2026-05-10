@@ -294,6 +294,7 @@ describe('App', () => {
     fireEvent.click(await screen.findByRole('option', { name: /existing\.png/i }))
 
     expect(input).toHaveValue('Review @existing.png ')
+    expect(screen.getByRole('button', { name: /mention attachment existing\.png/i })).toBeInTheDocument()
   })
 
   it('uploads a pasted image attachment from the instruction field', async () => {
@@ -325,6 +326,47 @@ describe('App', () => {
     )
     expect(await screen.findByRole('button', { name: 'uploaded.png' })).toBeInTheDocument()
     expect(screen.getByLabelText('Instruction')).toHaveValue('@uploaded.png ')
+    expect(screen.getByRole('button', { name: /mention attachment uploaded\.png/i })).toBeInTheDocument()
+  })
+
+  it('sends the current instruction with Ctrl Enter', async () => {
+    const fetchMock = vi.mocked(fetch)
+    render(<App />)
+    await getEventSource()
+
+    const input = await screen.findByLabelText('Instruction')
+    fireEvent.change(input, {
+      target: { value: 'Send with shortcut.' },
+    })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/runs/run-a/action',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            instruction: 'Send with shortcut.',
+          }),
+        }),
+      ),
+    )
+  })
+
+  it('caps the auto-growing instruction field height', async () => {
+    render(<App />)
+    await getEventSource()
+
+    const input = await screen.findByLabelText('Instruction')
+    Object.defineProperty(input, 'scrollHeight', {
+      configurable: true,
+      value: 260,
+    })
+    fireEvent.change(input, {
+      target: { value: Array.from({ length: 12 }, (_, index) => `Line ${index}`).join('\n') },
+    })
+
+    await waitFor(() => expect(input).toHaveStyle({ height: '180px', overflowY: 'auto' }))
   })
 
   it('renders status ownership and help text', async () => {
@@ -406,24 +448,29 @@ describe('App', () => {
     )
   })
 
-  it('shows current attachments in the composer tray with remove controls', async () => {
-    const fetchMock = vi.mocked(fetch)
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+  it('shows only draft attachments in the composer tray with remove controls', async () => {
     render(<App />)
     await getEventSource()
 
     const input = await screen.findByLabelText('Instruction')
-    fireEvent.click(await screen.findByRole('button', { name: /mention attachment existing\.png/i }))
+    expect(screen.queryByRole('button', { name: /mention attachment existing\.png/i })).not.toBeInTheDocument()
+
+    const value = '@ex'
+    fireEvent.change(input, {
+      target: { value },
+    })
+    const textarea = input as HTMLTextAreaElement
+    textarea.setSelectionRange(value.length, value.length)
+    fireEvent.keyUp(input)
+    fireEvent.click(await screen.findByRole('option', { name: /existing\.png/i }))
 
     expect(input).toHaveValue('@existing.png ')
+    expect(screen.getByRole('button', { name: /mention attachment existing\.png/i })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /remove attachment existing\.png/i }))
 
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith('/api/runs/run-a/attachments/existing.png', {
-        method: 'DELETE',
-      }),
-    )
+    expect(screen.queryByRole('button', { name: /mention attachment existing\.png/i })).not.toBeInTheDocument()
+    expect(input).toHaveValue('')
   })
 
   it('deletes an attachment from the selected run', async () => {

@@ -233,7 +233,7 @@ Main surfaces:
 - Left sidebar: run inbox, active run selection, delete controls for real runs.
 - Center: chat-style conversation from `session.md`, with assistant and user messages in chronological order.
 - Header actions: sidebar toggles, connection state, run count, stop session, and conversation-history clearing.
-- Bottom composer: one text box, one send button, current attachment chips, and `@` attachment mentions.
+- Bottom composer: one text box, one send button, current-message attachment chips, and `@` attachment mentions.
 - Attachment control: image upload from file picker, drag/drop, or pasted clipboard image; pasted images are inserted into the composer as `@file-name` references.
 - Right sidebar: workspace path, current status, protocol file presence, and the current session attachment list with thumbnails when images can render.
 

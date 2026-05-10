@@ -48,6 +48,8 @@ const FILE_ICONS: Record<ProtocolTextFile, string> = {
 }
 
 const CHAT_BOTTOM_THRESHOLD_PX = 12
+const COMPOSER_TEXTAREA_MIN_HEIGHT_PX = 44
+const COMPOSER_TEXTAREA_MAX_HEIGHT_PX = 180
 
 type PendingAction = 'send' | 'upload' | 'load' | 'clear' | 'stop'
 type MentionRange = { start: number; end: number; query: string }
@@ -57,6 +59,7 @@ function App() {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [runSnapshot, setRunSnapshot] = useState<Snapshot | null>(null)
   const [instruction, setInstruction] = useState('')
+  const [draftAttachmentNames, setDraftAttachmentNames] = useState<string[]>([])
   const [pending, setPending] = useState<PendingAction | null>(null)
   const [deletingRunId, setDeletingRunId] = useState<string | null>(null)
   const [deletingAttachmentName, setDeletingAttachmentName] = useState<string | null>(null)
@@ -127,6 +130,7 @@ function App() {
       const response = await submitInstruction(selectedRunId, { instruction })
       setRunSnapshot(response.snapshot)
       setInstruction('')
+      setDraftAttachmentNames([])
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Action failed')
     } finally {
@@ -183,6 +187,7 @@ function App() {
       const response = await requestSessionStop(selectedRunId)
       setRunSnapshot(response.snapshot)
       setInstruction('')
+      setDraftAttachmentNames([])
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Stop session failed')
     } finally {
@@ -210,6 +215,7 @@ function App() {
     try {
       const response = await uploadAttachment(selectedRunId, file)
       setRunSnapshot(response.snapshot)
+      addDraftAttachment(response.attachment.name)
       return response.attachment
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Upload failed')
@@ -236,6 +242,7 @@ function App() {
     try {
       const response = await deleteAttachmentRequest(selectedRunId, attachment.name)
       setRunSnapshot(response.snapshot)
+      setDraftAttachmentNames((names) => names.filter((name) => name !== attachment.name))
       if (previewAttachment?.name === attachment.name) {
         setPreviewAttachment(null)
       }
@@ -254,6 +261,15 @@ function App() {
 
     event.preventDefault()
     return handleUpload(file)
+  }
+
+  function addDraftAttachment(name: string) {
+    setDraftAttachmentNames((names) => (names.includes(name) ? names : [...names, name]))
+  }
+
+  function removeDraftAttachment(name: string) {
+    setDraftAttachmentNames((names) => names.filter((item) => item !== name))
+    setInstruction((value) => removeAttachmentMention(value, name))
   }
 
   function handleAttachmentDragEnter(event: DragEvent<HTMLElement>) {
@@ -334,6 +350,7 @@ function App() {
         setSelectedRunId(null)
         setRunSnapshot(null)
         setInstruction('')
+        setDraftAttachmentNames([])
       }
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Delete failed')
@@ -344,7 +361,11 @@ function App() {
 
   const status: ProtocolStatus = runSnapshot?.status ?? selectedRun?.status ?? 'IDLE'
   const statusDetails = STATUS_DETAILS[status]
-  const attachments = runSnapshot?.attachments ?? []
+  const attachments = useMemo(() => runSnapshot?.attachments ?? [], [runSnapshot?.attachments])
+  const draftAttachments = useMemo(
+    () => attachments.filter((attachment) => draftAttachmentNames.includes(attachment.name)),
+    [attachments, draftAttachmentNames],
+  )
   const chatMessages = runSnapshot?.messages ?? []
   const hasSessionHistoryFile = Boolean(runSnapshot?.files['session.md']?.exists)
   const lastChatMessage = chatMessages.length > 0 ? chatMessages[chatMessages.length - 1] : null
@@ -380,6 +401,11 @@ function App() {
     if (!stillExists) setPreviewAttachment(null)
   }, [attachments, previewAttachment])
 
+  useEffect(() => {
+    const attachmentNames = new Set(attachments.map((attachment) => attachment.name))
+    setDraftAttachmentNames((names) => names.filter((name) => attachmentNames.has(name)))
+  }, [attachments])
+
   const busy = Boolean(pending)
   const selectedTitle = selectedRun?.displayName ?? runSnapshot?.displayName ?? 'No run selected'
   const managerRoot = managerSnapshot?.rootPath ?? 'Loading workspace...'
@@ -394,6 +420,7 @@ function App() {
         collapsed={leftCollapsed}
         onSelect={(runId) => {
           setInstruction('')
+          setDraftAttachmentNames([])
           setRunSnapshot(null)
           setSelectedRunId(runId)
         }}
@@ -501,13 +528,14 @@ function App() {
           instruction={instruction}
           onInstructionChange={setInstruction}
           attachments={attachments}
-          deletingAttachmentName={deletingAttachmentName}
+          draftAttachments={draftAttachments}
           pending={pending}
           canSend={Boolean(selectedRunId) && instruction.trim().length > 0 && !busy}
           onSend={() => void sendInstruction()}
           onUpload={(file) => void handleUpload(file)}
           onPasteAttachment={handleComposerPaste}
-          onAttachmentDelete={(attachment) => void handleDeleteAttachment(attachment)}
+          onDraftAttachmentAdd={addDraftAttachment}
+          onDraftAttachmentRemove={removeDraftAttachment}
           error={actionError ?? streamError ?? null}
         />
       </main>
@@ -701,25 +729,27 @@ function ReviewComposer({
   instruction,
   onInstructionChange,
   attachments,
-  deletingAttachmentName,
+  draftAttachments,
   pending,
   canSend,
   onSend,
   onUpload,
   onPasteAttachment,
-  onAttachmentDelete,
+  onDraftAttachmentAdd,
+  onDraftAttachmentRemove,
   error,
 }: {
   instruction: string
   onInstructionChange: (value: string) => void
   attachments: AttachmentMeta[]
-  deletingAttachmentName: string | null
+  draftAttachments: AttachmentMeta[]
   pending: PendingAction | null
   canSend: boolean
   onSend: () => void
   onUpload: (file: File | undefined) => void
   onPasteAttachment: (event: ClipboardEvent<HTMLTextAreaElement>) => Promise<AttachmentMeta | null>
-  onAttachmentDelete: (attachment: AttachmentMeta) => void
+  onDraftAttachmentAdd: (name: string) => void
+  onDraftAttachmentRemove: (name: string) => void
   error: string | null
 }) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -736,6 +766,10 @@ function ReviewComposer({
       .slice(0, 6)
   }, [attachments, mentionRange])
   const showMentionMenu = mentionOptions.length > 0
+
+  useLayoutEffect(() => {
+    resizeComposerTextarea(textareaRef.current)
+  }, [instruction])
 
   useEffect(() => {
     setActiveMentionIndex(0)
@@ -774,6 +808,7 @@ function ReviewComposer({
     const cursor = start + inserted.length
 
     onInstructionChange(next)
+    onDraftAttachmentAdd(attachmentName)
     setMentionRange(null)
     requestAnimationFrame(() => {
       textarea?.focus()
@@ -789,6 +824,15 @@ function ReviewComposer({
   }
 
   function handleTextareaKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === 'Enter' && event.ctrlKey) {
+      event.preventDefault()
+      setMentionRange(null)
+      if (canSend) {
+        onSend()
+      }
+      return
+    }
+
     if (!showMentionMenu) {
       return
     }
@@ -841,9 +885,9 @@ function ReviewComposer({
           ))}
         </div>
       )}
-      {attachments.length > 0 && (
-        <div className="composer-attachment-tray" aria-label="Current attachments">
-          {attachments.map((attachment) => (
+      {draftAttachments.length > 0 && (
+        <div className="composer-attachment-tray" aria-label="Message attachments">
+          {draftAttachments.map((attachment) => (
             <div className="composer-attachment-chip" key={attachment.name}>
               <button
                 type="button"
@@ -858,12 +902,11 @@ function ReviewComposer({
               <button
                 type="button"
                 className="composer-attachment-remove"
-                onClick={() => onAttachmentDelete(attachment)}
-                disabled={deletingAttachmentName === attachment.name}
+                onClick={() => onDraftAttachmentRemove(attachment.name)}
                 aria-label={`Remove attachment ${attachment.name}`}
                 title={`Remove ${attachment.name}`}
               >
-                <i className={deletingAttachmentName === attachment.name ? 'ri-loader-4-line' : 'ri-close-line'} aria-hidden="true" />
+                <i className="ri-close-line" aria-hidden="true" />
               </button>
             </div>
           ))}
@@ -978,6 +1021,29 @@ function findMentionRange(value: string, caret: number): MentionRange | null {
     end: caret,
     query: match[2],
   }
+}
+
+function removeAttachmentMention(value: string, attachmentName: string): string {
+  const escapedName = escapeRegExp(attachmentName)
+  const withoutMention = value
+    .replace(new RegExp(`(^|\\s)@${escapedName}(?=\\s|$)`, 'g'), '$1')
+    .replace(/[ \t]{2,}/g, ' ')
+  return withoutMention.trimStart()
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function resizeComposerTextarea(textarea: HTMLTextAreaElement | null) {
+  if (!textarea) {
+    return
+  }
+
+  textarea.style.height = `${COMPOSER_TEXTAREA_MIN_HEIGHT_PX}px`
+  const nextHeight = Math.min(textarea.scrollHeight, COMPOSER_TEXTAREA_MAX_HEIGHT_PX)
+  textarea.style.height = `${Math.max(nextHeight, COMPOSER_TEXTAREA_MIN_HEIGHT_PX)}px`
+  textarea.style.overflowY = textarea.scrollHeight > COMPOSER_TEXTAREA_MAX_HEIGHT_PX ? 'auto' : 'hidden'
 }
 
 function eventHasFiles(event: DragEvent<HTMLElement>) {
