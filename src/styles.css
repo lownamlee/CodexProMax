@@ -2254,17 +2254,17 @@ code,
 
 .attachment-preview {
   position: relative;
-  width: min(1120px, 100%);
-  height: min(820px, calc(100vh - 48px));
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 18px;
   overflow: hidden;
-  padding: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 24px;
-  background: #0f172a;
-  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.24);
+  padding: 40px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   opacity: 0;
   transform: scale(0.9) translateY(10px);
   animation: modalScaleUp 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
