@@ -2995,68 +2995,66 @@ function AttachmentPreview({
         <div className="attachment-preview-bg" aria-hidden="true">
           <img src={attachment.url} alt="" />
         </div>
-        <div className="attachment-preview-content">
-          <div className="preview-header">
-            <div className="preview-title">
-              <span>{attachment.name}</span>
-              <small>{formatBytes(attachment.size)}</small>
-            </div>
-            <div className="preview-actions">
-              <a href={attachment.url} target="_blank" rel="noreferrer" className="icon-btn" aria-label="Open image">
-                <i className="ri-external-link-line" aria-hidden="true" />
-              </a>
-              <button type="button" className="icon-btn" onClick={onClose} aria-label="Close preview" autoFocus>
-                <i className="ri-close-line" aria-hidden="true" />
-              </button>
-            </div>
+        <div className="preview-header">
+          <div className="preview-title">
+            <span>{attachment.name}</span>
+            <small>{formatBytes(attachment.size)}</small>
           </div>
-          <div className="preview-stage">
-            {showGalleryControls && (
-              <button
-                type="button"
-                className="attachment-preview-nav previous"
-                onClick={() => selectRelativeAttachment(-1)}
-                aria-label="Previous image"
-                title="Previous image"
-              >
-                <i className="ri-arrow-left-s-line" aria-hidden="true" />
-              </button>
-            )}
-            <img src={attachment.url} alt={attachment.name} />
-            {showGalleryControls && (
-              <button
-                type="button"
-                className="attachment-preview-nav next"
-                onClick={() => selectRelativeAttachment(1)}
-                aria-label="Next image"
-                title="Next image"
-              >
-                <i className="ri-arrow-right-s-line" aria-hidden="true" />
-              </button>
-            )}
+          <div className="preview-actions">
+            <a href={attachment.url} target="_blank" rel="noreferrer" className="icon-btn" aria-label="Open image">
+              <i className="ri-external-link-line" aria-hidden="true" />
+            </a>
+            <button type="button" className="icon-btn" onClick={onClose} aria-label="Close preview" autoFocus>
+              <i className="ri-close-line" aria-hidden="true" />
+            </button>
           </div>
+        </div>
+        <div className="preview-stage">
           {showGalleryControls && (
-            <div className="attachment-preview-strip" aria-label="Image list">
-              {attachments.map((item, index) => {
-                const active = item.url === attachment.url
-                return (
-                  <button
-                    type="button"
-                    className={`attachment-preview-strip-item ${active ? 'active' : ''}`}
-                    onClick={() => onSelect(item)}
-                    aria-label={`Preview image ${index + 1}: ${item.name}`}
-                    aria-current={active ? 'true' : undefined}
-                    title={item.name}
-                    key={item.url}
-                  >
-                    <AttachmentThumbnail attachment={item} />
-                    <span>{item.name}</span>
-                  </button>
-                )
-              })}
-            </div>
+            <button
+              type="button"
+              className="attachment-preview-nav previous"
+              onClick={() => selectRelativeAttachment(-1)}
+              aria-label="Previous image"
+              title="Previous image"
+            >
+              <i className="ri-arrow-left-s-line" aria-hidden="true" />
+            </button>
+          )}
+          <img src={attachment.url} alt={attachment.name} />
+          {showGalleryControls && (
+            <button
+              type="button"
+              className="attachment-preview-nav next"
+              onClick={() => selectRelativeAttachment(1)}
+              aria-label="Next image"
+              title="Next image"
+            >
+              <i className="ri-arrow-right-s-line" aria-hidden="true" />
+            </button>
           )}
         </div>
+        {showGalleryControls && (
+          <div className="attachment-preview-strip" aria-label="Image list">
+            {attachments.map((item, index) => {
+              const active = item.url === attachment.url
+              return (
+                <button
+                  type="button"
+                  className={`attachment-preview-strip-item ${active ? 'active' : ''}`}
+                  onClick={() => onSelect(item)}
+                  aria-label={`Preview image ${index + 1}: ${item.name}`}
+                  aria-current={active ? 'true' : undefined}
+                  title={item.name}
+                  key={item.url}
+                >
+                  <AttachmentThumbnail attachment={item} />
+                  <span>{item.name}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </section>
     </div>
   )
