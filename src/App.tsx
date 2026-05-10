@@ -88,6 +88,10 @@ type PendingAction = 'send' | 'upload' | 'load' | 'clear' | 'stop'
 type MentionRange = { start: number; end: number; query: string }
 type ScrollDirection = 'up' | 'down' | 'none'
 type UserMessageOutline = Pick<ChatMessage, 'id' | 'content' | 'createdAtIso'>
+type QueuedInstruction = {
+  id: string
+  content: string
+}
 type ConfirmDialogTone = 'default' | 'danger'
 type ConfirmDialogOptions = {
   title: string
@@ -113,8 +117,10 @@ function App() {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [runSnapshot, setRunSnapshot] = useState<Snapshot | null>(null)
   const [instruction, setInstruction] = useState('')
+  const [queuedInstructionsByRun, setQueuedInstructionsByRun] = useState<Record<string, QueuedInstruction[]>>({})
   const [draftAttachmentNames, setDraftAttachmentNames] = useState<string[]>([])
   const [pending, setPending] = useState<PendingAction | null>(null)
+  const [autoSendingQueuedInstructionId, setAutoSendingQueuedInstructionId] = useState<string | null>(null)
   const [deletingRunId, setDeletingRunId] = useState<string | null>(null)
   const [deletingAttachmentNames, setDeletingAttachmentNames] = useState<string[]>([])
   const [actionError, setActionError] = useState<string | null>(null)
@@ -137,6 +143,11 @@ function App() {
   const activeMessageScrollElementRef = useRef<HTMLDivElement | null>(null)
   const smoothScrollReleaseTimerRef = useRef<number | null>(null)
   const userMessageRefs = useRef(new Map<string, HTMLElement>())
+  const queuedInstructionIdRef = useRef(0)
+  const queuedSendInFlightRef = useRef<{ runId: string; itemId: string } | null>(null)
+  const blockedQueuedSendRef = useRef<{ runId: string; itemId: string } | null>(null)
+  const composerFocusTokenRef = useRef(0)
+  const [composerFocusToken, setComposerFocusToken] = useState(0)
 
   const requestConfirmation = useCallback((options: ConfirmDialogOptions) =>
     new Promise<boolean>((resolve) => {
@@ -218,24 +229,55 @@ function App() {
     }
   }, [])
 
+  async function submitInstructionText(
+    runId: string,
+    content: string,
+    options: { clearComposer: boolean; queuedInstructionId?: string },
+  ) {
+    setPending('send')
+    setActionError(null)
+
+    try {
+      const response = await submitInstruction(runId, { instruction: content })
+      setRunSnapshot(response.snapshot)
+      if (options.clearComposer) {
+        setInstruction('')
+        setDraftAttachmentNames([])
+      }
+      if (options.queuedInstructionId) {
+        removeQueuedInstruction(runId, options.queuedInstructionId)
+      }
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Action failed')
+      throw error
+    } finally {
+      setPending(null)
+    }
+  }
+
   async function sendInstruction() {
     if (!selectedRunId) {
       setActionError('Select a run before sending an instruction.')
       return
     }
 
-    setPending('send')
-    setActionError(null)
+    const content = instruction
+    if (!content.trim()) {
+      return
+    }
 
-    try {
-      const response = await submitInstruction(selectedRunId, { instruction })
-      setRunSnapshot(response.snapshot)
+    if (shouldQueueInstruction()) {
+      enqueueInstruction(selectedRunId, content)
       setInstruction('')
       setDraftAttachmentNames([])
+      setActionError(null)
+      return
+    }
+
+    try {
+      await submitInstructionText(selectedRunId, content, { clearComposer: true })
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Action failed')
-    } finally {
-      setPending(null)
+      // submitInstructionText owns the user-facing error state.
     }
   }
 
@@ -477,6 +519,66 @@ function App() {
     setDraftAttachmentNames((names) => (names.includes(name) ? names : [...names, name]))
   }
 
+  function createQueuedInstruction(content: string): QueuedInstruction {
+    queuedInstructionIdRef.current += 1
+    return {
+      id: `queued-${Date.now()}-${queuedInstructionIdRef.current}`,
+      content,
+    }
+  }
+
+  function enqueueInstruction(runId: string, content: string) {
+    setQueuedInstructionsByRun((queues) => ({
+      ...queues,
+      [runId]: [...(queues[runId] ?? []), createQueuedInstruction(content)],
+    }))
+  }
+
+  function removeQueuedInstruction(runId: string, instructionId: string) {
+    setQueuedInstructionsByRun((queues) => {
+      const currentQueue = queues[runId] ?? []
+      const nextQueue = currentQueue.filter((item) => item.id !== instructionId)
+      if (nextQueue.length === currentQueue.length) {
+        return queues
+      }
+
+      const nextQueues = { ...queues }
+      if (nextQueue.length === 0) {
+        delete nextQueues[runId]
+      } else {
+        nextQueues[runId] = nextQueue
+      }
+      return nextQueues
+    })
+  }
+
+  function shouldQueueInstruction() {
+    return status !== 'WAITING_FOR_REVIEW'
+      || selectedQueuedInstructions.length > 0
+      || queuedSendInFlightRef.current !== null
+  }
+
+  function handleQueuedInstructionEdit(item: QueuedInstruction) {
+    if (!selectedRunId || item.id === autoSendingQueuedInstructionId) {
+      return
+    }
+
+    removeQueuedInstruction(selectedRunId, item.id)
+    setInstruction(item.content)
+    setDraftAttachmentNames(getMentionedAttachments(item.content, attachments).map((attachment) => attachment.name))
+    setActionError(null)
+    composerFocusTokenRef.current += 1
+    setComposerFocusToken(composerFocusTokenRef.current)
+  }
+
+  function handleQueuedInstructionDelete(item: QueuedInstruction) {
+    if (!selectedRunId || item.id === autoSendingQueuedInstructionId) {
+      return
+    }
+
+    removeQueuedInstruction(selectedRunId, item.id)
+  }
+
   function removeDraftAttachment(name: string) {
     setDraftAttachmentNames((names) => names.filter((item) => item !== name))
     setInstruction((value) => removeAttachmentMention(value, name))
@@ -584,6 +686,15 @@ function App() {
         setInstruction('')
         setDraftAttachmentNames([])
       }
+      setQueuedInstructionsByRun((queues) => {
+        if (!queues[run.runId]) {
+          return queues
+        }
+
+        const nextQueues = { ...queues }
+        delete nextQueues[run.runId]
+        return nextQueues
+      })
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Delete failed')
     } finally {
@@ -593,6 +704,10 @@ function App() {
 
   const status: ProtocolStatus = runSnapshot?.status ?? selectedRun?.status ?? 'RUNNING'
   const aiWorking = isCodexWorking(status)
+  const selectedQueuedInstructions = useMemo(
+    () => (selectedRunId ? queuedInstructionsByRun[selectedRunId] ?? [] : []),
+    [queuedInstructionsByRun, selectedRunId],
+  )
   const attachments = useMemo(() => runSnapshot?.attachments ?? [], [runSnapshot?.attachments])
   const draftAttachments = useMemo(
     () => attachments.filter((attachment) => draftAttachmentNames.includes(attachment.name)),
@@ -655,9 +770,69 @@ function App() {
     setDraftAttachmentNames((names) => names.filter((name) => attachmentNames.has(name)))
   }, [attachments])
 
+  useEffect(() => {
+    if (status !== 'WAITING_FOR_REVIEW') {
+      blockedQueuedSendRef.current = null
+    }
+  }, [selectedRunId, status])
+
+  useEffect(() => {
+    if (!selectedRunId || status !== 'WAITING_FOR_REVIEW' || pending) {
+      return
+    }
+
+    const nextQueuedInstruction = selectedQueuedInstructions[0]
+    if (!nextQueuedInstruction) {
+      return
+    }
+
+    const inFlight = queuedSendInFlightRef.current
+    if (
+      (inFlight?.runId === selectedRunId && inFlight.itemId === nextQueuedInstruction.id)
+      || (blockedQueuedSendRef.current?.runId === selectedRunId
+        && blockedQueuedSendRef.current.itemId === nextQueuedInstruction.id)
+    ) {
+      return
+    }
+
+    queuedSendInFlightRef.current = {
+      runId: selectedRunId,
+      itemId: nextQueuedInstruction.id,
+    }
+    setAutoSendingQueuedInstructionId(nextQueuedInstruction.id)
+
+    void submitInstructionText(selectedRunId, nextQueuedInstruction.content, {
+      clearComposer: false,
+      queuedInstructionId: nextQueuedInstruction.id,
+    }).catch(() => {
+      blockedQueuedSendRef.current = {
+        runId: selectedRunId,
+        itemId: nextQueuedInstruction.id,
+      }
+    }).finally(() => {
+      if (
+        queuedSendInFlightRef.current?.runId === selectedRunId
+        && queuedSendInFlightRef.current.itemId === nextQueuedInstruction.id
+      ) {
+        queuedSendInFlightRef.current = null
+      }
+      setAutoSendingQueuedInstructionId((currentId) =>
+        currentId === nextQueuedInstruction.id ? null : currentId,
+      )
+    })
+  }, [pending, selectedQueuedInstructions, selectedRunId, status])
+
   const busy = Boolean(pending)
   const canSendInstruction =
-    Boolean(selectedRunId) && instruction.trim().length > 0 && !busy && status === 'WAITING_FOR_REVIEW'
+    Boolean(selectedRunId)
+    && instruction.trim().length > 0
+    && !busy
+    && (status === 'WAITING_FOR_REVIEW' || aiWorking)
+  const queueingCurrentInstruction =
+    Boolean(selectedRunId)
+    && (status !== 'WAITING_FOR_REVIEW'
+      || selectedQueuedInstructions.length > 0
+      || queuedSendInFlightRef.current !== null)
   const selectedTitle = selectedRun?.displayName ?? runSnapshot?.displayName ?? 'No run selected'
   const draggingAttachment = attachmentDragDepth > 0
 
@@ -850,6 +1025,7 @@ function App() {
           setInstruction('')
           setDraftAttachmentNames([])
           setRunSnapshot(null)
+          setActionError(null)
           setSelectedRunId(runId)
         }}
         onDelete={(run) => void handleDeleteRun(run)}
@@ -981,8 +1157,13 @@ function App() {
           draftAttachments={draftAttachments}
           pending={pending}
           canSend={canSendInstruction}
-          codexRunning={aiWorking}
+          queueing={queueingCurrentInstruction}
+          queuedInstructions={selectedQueuedInstructions}
+          autoSendingQueuedInstructionId={autoSendingQueuedInstructionId}
+          composerFocusToken={composerFocusToken}
           onSend={() => void sendInstruction()}
+          onQueuedInstructionEdit={handleQueuedInstructionEdit}
+          onQueuedInstructionDelete={handleQueuedInstructionDelete}
           onUpload={(file) => void handleUpload(file)}
           onPasteAttachment={handleComposerPaste}
           onDraftAttachmentAdd={addDraftAttachment}
@@ -1448,8 +1629,13 @@ function ReviewComposer({
   draftAttachments,
   pending,
   canSend,
-  codexRunning,
+  queueing,
+  queuedInstructions,
+  autoSendingQueuedInstructionId,
+  composerFocusToken,
   onSend,
+  onQueuedInstructionEdit,
+  onQueuedInstructionDelete,
   onUpload,
   onPasteAttachment,
   onDraftAttachmentAdd,
@@ -1463,8 +1649,13 @@ function ReviewComposer({
   draftAttachments: AttachmentMeta[]
   pending: PendingAction | null
   canSend: boolean
-  codexRunning: boolean
+  queueing: boolean
+  queuedInstructions: QueuedInstruction[]
+  autoSendingQueuedInstructionId: string | null
+  composerFocusToken: number
   onSend: () => void
+  onQueuedInstructionEdit: (item: QueuedInstruction) => void
+  onQueuedInstructionDelete: (item: QueuedInstruction) => void
   onUpload: (file: File | undefined) => void
   onPasteAttachment: (event: ClipboardEvent<HTMLTextAreaElement>) => Promise<AttachmentMeta | null>
   onDraftAttachmentAdd: (name: string) => void
@@ -1493,15 +1684,15 @@ function ReviewComposer({
   const showMentionMenu = mentionOptions.length > 0
   const sendIcon = pending === 'send'
     ? 'ri-loader-4-line'
-    : codexRunning
-      ? 'ri-loader-4-line'
+    : queueing
+      ? 'ri-list-check-2'
       : canSend
         ? 'ri-send-plane-fill'
         : 'ri-send-plane-line'
   const sendLabel = pending === 'send'
     ? 'Sending...'
-    : codexRunning
-      ? 'Codex is running'
+    : queueing
+      ? 'Queue for review'
       : 'Send to Codex'
 
   useLayoutEffect(() => {
@@ -1511,6 +1702,12 @@ function ReviewComposer({
   useEffect(() => {
     setActiveMentionIndex(0)
   }, [mentionRange?.query])
+
+  useEffect(() => {
+    if (composerFocusToken > 0) {
+      textareaRef.current?.focus()
+    }
+  }, [composerFocusToken])
 
   useEffect(() => {
     if (activeMentionIndex >= mentionOptions.length) {
@@ -1696,6 +1893,12 @@ function ReviewComposer({
           ))}
         </div>
       )}
+      <QueuedInstructionList
+        items={queuedInstructions}
+        autoSendingItemId={autoSendingQueuedInstructionId}
+        onEdit={onQueuedInstructionEdit}
+        onDelete={onQueuedInstructionDelete}
+      />
       <div className="composer">
         <label className="composer-btn" title={pending === 'upload' ? 'Uploading...' : 'Attach review image'}>
           <i className={pending === 'upload' ? 'ri-loader-4-line' : 'ri-attachment-2'} aria-hidden="true" />
@@ -1734,7 +1937,7 @@ function ReviewComposer({
 
         <button
           type="button"
-          className={`send-btn ${codexRunning ? 'running' : ''}`}
+          className={`send-btn ${pending === 'send' ? 'running' : ''}`}
           disabled={!canSend}
           onClick={onSend}
           title={sendLabel}
@@ -1751,6 +1954,73 @@ function ReviewComposer({
         </p>
       )}
     </section>
+  )
+}
+
+function QueuedInstructionList({
+  items,
+  autoSendingItemId,
+  onEdit,
+  onDelete,
+}: {
+  items: QueuedInstruction[]
+  autoSendingItemId: string | null
+  onEdit: (item: QueuedInstruction) => void
+  onDelete: (item: QueuedInstruction) => void
+}) {
+  if (items.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="queued-instructions" aria-label="Queued messages">
+      <div className="queued-instructions-header">
+        <i className="ri-list-check-2" aria-hidden="true" />
+        <span>{items.length === 1 ? '1 message queued' : `${items.length} messages queued`}</span>
+      </div>
+      <div className="queued-instruction-list">
+        {items.map((item, index) => {
+          const isAutoSending = item.id === autoSendingItemId
+          return (
+            <article
+              className={`queued-instruction ${isAutoSending ? 'auto-sending' : ''}`}
+              key={item.id}
+              aria-label={`Queued message ${index + 1}`}
+            >
+              <span className="queued-instruction-order">{index + 1}</span>
+              <p>{item.content}</p>
+              <div className="queued-instruction-actions">
+                {isAutoSending && (
+                  <span className="queued-instruction-sending" aria-label="Sending queued message">
+                    <i className="ri-loader-4-line" aria-hidden="true" />
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={() => onEdit(item)}
+                  disabled={isAutoSending}
+                  aria-label={`Edit queued message ${index + 1}`}
+                  title="Edit queued message"
+                >
+                  <i className="ri-edit-line" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className="icon-btn danger"
+                  onClick={() => onDelete(item)}
+                  disabled={isAutoSending}
+                  aria-label={`Delete queued message ${index + 1}`}
+                  title="Delete queued message"
+                >
+                  <i className="ri-delete-bin-line" aria-hidden="true" />
+                </button>
+              </div>
+            </article>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
