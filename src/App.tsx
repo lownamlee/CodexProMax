@@ -564,8 +564,7 @@ function App() {
     }
 
     const scrollRect = scrollElement.getBoundingClientRect()
-    const anchorOffset = Math.min(scrollElement.clientHeight * 0.35, 160)
-    const anchorY = scrollRect.top + Math.max(anchorOffset, 48)
+    const visibleThresholdY = scrollRect.bottom - 24
     let nextActiveId = userMessageOutlines[0].id
 
     for (const message of userMessageOutlines) {
@@ -574,7 +573,7 @@ function App() {
         continue
       }
 
-      if (element.getBoundingClientRect().top <= anchorY) {
+      if (element.getBoundingClientRect().top <= visibleThresholdY) {
         nextActiveId = message.id
       } else {
         break
@@ -1535,6 +1534,7 @@ function UserMessageOutlineList({
   onSelect: (messageId: string) => void
 }) {
   const outlineListRef = useRef<HTMLOListElement | null>(null)
+  const outlineButtonRefs = useRef(new Map<string, HTMLButtonElement>())
   const outlinePinnedToBottomRef = useRef(true)
   const latestOutline = outlines.length > 0 ? outlines[outlines.length - 1] : null
   const outlineScrollAnchor = latestOutline ? `${outlines.length}:${latestOutline.id}` : 'empty'
@@ -1548,8 +1548,42 @@ function UserMessageOutlineList({
     outlineList.scrollTop = outlineList.scrollHeight
   }, [outlineScrollAnchor])
 
+  useLayoutEffect(() => {
+    if (!activeMessageId) {
+      return
+    }
+
+    const outlineList = outlineListRef.current
+    const activeButton = outlineButtonRefs.current.get(activeMessageId)
+    if (!outlineList || !activeButton) {
+      return
+    }
+
+    const activeTop = activeButton.offsetTop
+    const activeBottom = activeTop + activeButton.offsetHeight
+    const visibleTop = outlineList.scrollTop
+    const visibleBottom = visibleTop + outlineList.clientHeight
+
+    if (activeTop < visibleTop) {
+      outlineList.scrollTop = activeTop
+    } else if (activeBottom > visibleBottom) {
+      outlineList.scrollTop = activeBottom - outlineList.clientHeight
+    }
+
+    outlinePinnedToBottomRef.current = isScrolledNearBottom(outlineList)
+  }, [activeMessageId])
+
   function handleOutlineScroll(event: UIEvent<HTMLOListElement>) {
     outlinePinnedToBottomRef.current = isScrolledNearBottom(event.currentTarget)
+  }
+
+  function setOutlineButtonElement(messageId: string, element: HTMLButtonElement | null) {
+    if (element) {
+      outlineButtonRefs.current.set(messageId, element)
+      return
+    }
+
+    outlineButtonRefs.current.delete(messageId)
   }
 
   if (outlines.length === 0) {
@@ -1566,6 +1600,7 @@ function UserMessageOutlineList({
       {outlines.map((message) => (
         <li key={message.id} className="outline-item">
           <button
+            ref={(element) => setOutlineButtonElement(message.id, element)}
             type="button"
             className={`outline-button ${message.id === activeMessageId ? 'active' : ''}`}
             onClick={() => onSelect(message.id)}

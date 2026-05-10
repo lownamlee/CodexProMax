@@ -125,7 +125,7 @@ describe('Codex Pro Max wait script', () => {
 
     expect(result.code).toBe(0)
     expect(payload).toMatchObject({
-      status: 'INSTRUCTION_RECEIVED',
+      status: 'RUNNING',
       instruction: 'Continue now.',
       sessionPath: path.join(runDir, 'session.md'),
       shouldFinish: false,
