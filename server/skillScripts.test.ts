@@ -135,6 +135,40 @@ describe('Codex Pro Max wait script', () => {
     await expect(readFile(path.join(runDir, 'session.md'), 'utf8')).resolves.toContain('Continue now.')
   })
 
+  it('consume instruction does not duplicate backend-appended UTF-8 user history', async () => {
+    const root = await createTempRoot()
+    const runDir = path.join(root, 'runs', 'target-run')
+    const instruction = 'Use the Vite output ➜ Local: http://127.0.0.1:5173/'
+    const sessionBlock = [
+      '<!-- codex-pro-max:message {"id":"user-1","role":"user","createdAtIso":"2026-05-10T00:00:00.000Z"} -->',
+      '## User - 2026-05-10T00:00:00.000Z',
+      '',
+      instruction,
+      '',
+      '',
+    ].join('\n')
+    await mkdir(runDir, { recursive: true })
+    await writeFile(path.join(runDir, 'status.txt'), 'INSTRUCTION_RECEIVED', 'utf8')
+    await writeFile(path.join(runDir, 'instruction.txt'), instruction, 'utf8')
+    await writeFile(path.join(runDir, 'session.md'), sessionBlock, 'utf8')
+
+    const result = await runPowerShellScript(CONSUME_SCRIPT, ['-RunDir', runDir])
+    const payload = JSON.parse(result.stdout) as {
+      instruction: string
+      status: string
+    }
+    const session = await readFile(path.join(runDir, 'session.md'), 'utf8')
+
+    expect(result.code).toBe(0)
+    expect(payload).toMatchObject({
+      instruction,
+      status: 'RUNNING',
+    })
+    expect(session.match(/role":"user"/g)).toHaveLength(1)
+    expect(session).toContain('➜ Local')
+    expect(session).not.toContain('âžœ')
+  })
+
   it('consume instruction only finishes for direct stop commands', async () => {
     const root = await createTempRoot()
     const runDir = path.join(root, 'runs', 'target-run')
