@@ -222,7 +222,7 @@ describe('App', () => {
     expect(screen.getByLabelText('Protocol details')).toHaveClass('collapsed')
   })
 
-  it('shows the latest user messages as outlines and jumps to a selected message', async () => {
+  it('shows user messages as outlines, highlights by chat position, and jumps to a selected message', async () => {
     const messages: Snapshot['messages'] = Array.from({ length: 12 }, (_, index) => ({
       id: `user-${index + 1}`,
       role: 'user',
@@ -246,8 +246,25 @@ describe('App', () => {
 
       const sidebar = screen.getByLabelText('Protocol details')
       expect(await within(sidebar).findByRole('heading', { name: 'Outlines' })).toBeInTheDocument()
-      expect(within(sidebar).queryByRole('button', { name: /User request 2/i })).not.toBeInTheDocument()
+      expect(within(sidebar).getByRole('button', { name: /User request 2/i })).toBeInTheDocument()
       expect(within(sidebar).getByRole('button', { name: /User request 3/i })).toBeInTheDocument()
+
+      const scrollPane = screen.getByTestId('chat-scroll')
+      setScrollMetrics(scrollPane, {
+        clientHeight: 300,
+        scrollHeight: 900,
+        scrollTop: 300,
+      })
+      mockElementRect(scrollPane, { top: 0, bottom: 300 })
+      mockElementRect(within(scrollPane).getByText('User request 1').closest('article') as HTMLElement, { top: -260, bottom: -120 })
+      mockElementRect(within(scrollPane).getByText('User request 2').closest('article') as HTMLElement, { top: -80, bottom: 60 })
+      mockElementRect(within(scrollPane).getByText('User request 3').closest('article') as HTMLElement, { top: 40, bottom: 180 })
+      mockElementRect(within(scrollPane).getByText('User request 4').closest('article') as HTMLElement, { top: 220, bottom: 360 })
+      fireEvent.scroll(scrollPane)
+
+      await waitFor(() =>
+        expect(within(sidebar).getByRole('button', { name: /User request 3/i })).toHaveClass('active'),
+      )
 
       fireEvent.click(within(sidebar).getByRole('button', { name: /User request 12/i }))
 
@@ -258,6 +275,85 @@ describe('App', () => {
         value: originalScrollIntoView,
       })
     }
+  })
+
+  it('keeps the outline list pinned to bottom only when already at bottom', async () => {
+    const initialMessages: Snapshot['messages'] = [
+      {
+        id: 'user-1',
+        role: 'user',
+        content: 'First outline',
+        createdAtIso: '2026-05-07T00:00:01.000Z',
+      },
+      {
+        id: 'user-2',
+        role: 'user',
+        content: 'Second outline',
+        createdAtIso: '2026-05-07T00:00:02.000Z',
+      },
+    ]
+    const nextMessages: Snapshot['messages'] = [
+      ...initialMessages,
+      {
+        id: 'user-3',
+        role: 'user',
+        content: 'Third outline',
+        createdAtIso: '2026-05-07T00:00:03.000Z',
+      },
+    ]
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(jsonResponse(managerFactory()))
+      .mockResolvedValueOnce(jsonResponse(snapshotFactory({ messages: initialMessages })))
+
+    render(<App />)
+    await getEventSource()
+
+    const outlineList = await screen.findByTestId('outline-list')
+    const metrics = setScrollMetrics(outlineList, {
+      clientHeight: 80,
+      scrollHeight: 180,
+      scrollTop: 100,
+    })
+    fireEvent.scroll(outlineList)
+    metrics.setScrollHeight(260)
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({
+      ok: true,
+      snapshot: snapshotFactory({ messages: nextMessages }),
+    }))
+
+    fireEvent.change(await screen.findByLabelText('Instruction'), {
+      target: { value: 'Third outline' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /send to codex/i }))
+
+    expect(await within(screen.getByTestId('chat-scroll')).findByText('Third outline')).toBeInTheDocument()
+    await waitFor(() => expect(outlineList.scrollTop).toBe(260))
+
+    outlineList.scrollTop = 40
+    fireEvent.scroll(outlineList)
+    metrics.setScrollHeight(320)
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({
+      ok: true,
+      snapshot: snapshotFactory({
+        messages: [
+          ...nextMessages,
+          {
+            id: 'user-4',
+            role: 'user',
+            content: 'Fourth outline',
+            createdAtIso: '2026-05-07T00:00:04.000Z',
+          },
+        ],
+      }),
+    }))
+
+    fireEvent.change(screen.getByLabelText('Instruction'), {
+      target: { value: 'Fourth outline' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /send to codex/i }))
+
+    expect(await within(screen.getByTestId('chat-scroll')).findByText('Fourth outline')).toBeInTheDocument()
+    expect(outlineList.scrollTop).toBe(40)
   })
 
   it('selects a different run and switches detail content', async () => {
@@ -966,4 +1062,25 @@ function setScrollMetrics(
       scrollHeight = nextScrollHeight
     },
   }
+}
+
+function mockElementRect(
+  element: HTMLElement,
+  rect: Pick<DOMRect, 'top' | 'bottom'> & Partial<DOMRect>,
+) {
+  Object.defineProperty(element, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => ({
+      ...rect,
+      x: 0,
+      y: rect.top,
+      width: 240,
+      height: rect.bottom - rect.top,
+      left: 0,
+      right: 240,
+      top: rect.top,
+      bottom: rect.bottom,
+      toJSON: () => ({}),
+    }),
+  })
 }

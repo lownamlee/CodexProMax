@@ -99,6 +99,7 @@ function App() {
   const [attachmentDragDepth, setAttachmentDragDepth] = useState(0)
   const [composerHeight, setComposerHeight] = useState(DEFAULT_COMPOSER_HEIGHT_PX)
   const [chatAtBottom, setChatAtBottom] = useState(true)
+  const [activeUserMessageId, setActiveUserMessageId] = useState<string | null>(null)
   const [previewAttachment, setPreviewAttachment] = useState<AttachmentMeta | null>(null)
   const [previewProtocolFile, setPreviewProtocolFile] = useState<ProtocolFilePreview | null>(null)
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
@@ -430,6 +431,7 @@ function App() {
     const atBottom = isScrolledNearBottom(event.currentTarget)
     chatPinnedToBottomRef.current = atBottom
     setChatAtBottom(atBottom)
+    updateActiveUserMessage(event.currentTarget)
   }
 
   async function handleDeleteRun(run: RunSummary) {
@@ -470,8 +472,8 @@ function App() {
     [attachments, draftAttachmentNames],
   )
   const chatMessages = runSnapshot?.messages ?? []
-  const userMessageOutlines = useMemo(
-    () => chatMessages.filter((message) => message.role === 'user').slice(-10),
+  const userMessageOutlines = useMemo<UserMessageOutline[]>(
+    () => chatMessages.filter((message) => message.role === 'user'),
     [chatMessages],
   )
   const hasSessionHistoryFile = Boolean(runSnapshot?.files['session.md']?.exists)
@@ -493,22 +495,25 @@ function App() {
   useLayoutEffect(() => {
     chatPinnedToBottomRef.current = true
     setChatAtBottom(true)
+    setActiveUserMessageId(null)
   }, [selectedRunId])
 
   useLayoutEffect(() => {
-    if (!chatPinnedToBottomRef.current) {
+    if (chatPinnedToBottomRef.current) {
+      scrollChatToBottom()
       return
     }
 
-    scrollChatToBottom()
+    updateActiveUserMessage()
   }, [chatScrollAnchor])
 
   useLayoutEffect(() => {
-    if (!chatPinnedToBottomRef.current) {
+    if (chatPinnedToBottomRef.current) {
+      scrollChatToBottom()
       return
     }
 
-    scrollChatToBottom()
+    updateActiveUserMessage()
   }, [composerHeight, instruction])
 
   useEffect(() => {
@@ -548,7 +553,35 @@ function App() {
 
     chatPinnedToBottomRef.current = false
     setChatAtBottom(false)
+    setActiveUserMessageId(messageId)
     target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
+  function updateActiveUserMessage(scrollElement = chatScrollRef.current) {
+    if (!scrollElement || userMessageOutlines.length === 0) {
+      setActiveUserMessageId(null)
+      return
+    }
+
+    const scrollRect = scrollElement.getBoundingClientRect()
+    const anchorOffset = Math.min(scrollElement.clientHeight * 0.35, 160)
+    const anchorY = scrollRect.top + Math.max(anchorOffset, 48)
+    let nextActiveId = userMessageOutlines[0].id
+
+    for (const message of userMessageOutlines) {
+      const element = userMessageRefs.current.get(message.id)
+      if (!element) {
+        continue
+      }
+
+      if (element.getBoundingClientRect().top <= anchorY) {
+        nextActiveId = message.id
+      } else {
+        break
+      }
+    }
+
+    setActiveUserMessageId((currentId) => (currentId === nextActiveId ? currentId : nextActiveId))
   }
 
   function scrollChatToBottom(behavior: ScrollBehavior = 'auto') {
@@ -568,6 +601,7 @@ function App() {
 
     chatPinnedToBottomRef.current = true
     setChatAtBottom(true)
+    updateActiveUserMessage(scrollElement)
   }
 
   return (
@@ -733,6 +767,7 @@ function App() {
         deletingAttachmentName={deletingAttachmentName}
         filesPresent={filesPresent}
         userMessageOutlines={userMessageOutlines}
+        activeUserMessageId={activeUserMessageId}
         onUserMessageSelect={jumpToUserMessage}
       />
 
@@ -800,7 +835,7 @@ function RunInbox({
                     className={`${RUN_STATUS_ICONS[run.status]} run-icon run-status-icon run-${statusClassName(run.status)}`}
                     aria-hidden="true"
                   />
-                  <span className="run-title">{run.displayName}</span>
+                  <span className={`run-title run-${statusClassName(run.status)}`}>{run.displayName}</span>
                   <span className="run-meta">
                     {run.isLegacy ? 'Legacy root' : run.runId}
                     {run.attachmentCount > 0 ? ` - ${run.attachmentCount} attachments` : ''}
@@ -1425,6 +1460,7 @@ function ProtocolSidebar({
   deletingAttachmentName,
   filesPresent,
   userMessageOutlines,
+  activeUserMessageId,
   onUserMessageSelect,
 }: {
   collapsed: boolean
@@ -1437,6 +1473,7 @@ function ProtocolSidebar({
   deletingAttachmentName: string | null
   filesPresent: number
   userMessageOutlines: UserMessageOutline[]
+  activeUserMessageId: string | null
   onUserMessageSelect: (messageId: string) => void
 }) {
   return (
@@ -1446,10 +1483,11 @@ function ProtocolSidebar({
       aria-label="Protocol details"
     >
       <div className="sidebar-inner">
-        <div className="meta-group">
+        <div className="meta-group outline-group">
           <h4>Outlines</h4>
           <UserMessageOutlineList
             outlines={userMessageOutlines}
+            activeMessageId={activeUserMessageId}
             onSelect={onUserMessageSelect}
           />
         </div>
@@ -1489,11 +1527,31 @@ function ProtocolSidebar({
 
 function UserMessageOutlineList({
   outlines,
+  activeMessageId,
   onSelect,
 }: {
   outlines: UserMessageOutline[]
+  activeMessageId: string | null
   onSelect: (messageId: string) => void
 }) {
+  const outlineListRef = useRef<HTMLOListElement | null>(null)
+  const outlinePinnedToBottomRef = useRef(true)
+  const latestOutline = outlines.length > 0 ? outlines[outlines.length - 1] : null
+  const outlineScrollAnchor = latestOutline ? `${outlines.length}:${latestOutline.id}` : 'empty'
+
+  useLayoutEffect(() => {
+    const outlineList = outlineListRef.current
+    if (!outlineList || !outlinePinnedToBottomRef.current) {
+      return
+    }
+
+    outlineList.scrollTop = outlineList.scrollHeight
+  }, [outlineScrollAnchor])
+
+  function handleOutlineScroll(event: UIEvent<HTMLOListElement>) {
+    outlinePinnedToBottomRef.current = isScrolledNearBottom(event.currentTarget)
+  }
+
   if (outlines.length === 0) {
     return (
       <p className="empty-state compact">
@@ -1504,13 +1562,14 @@ function UserMessageOutlineList({
   }
 
   return (
-    <ol className="outline-list">
+    <ol className="outline-list" ref={outlineListRef} onScroll={handleOutlineScroll} data-testid="outline-list">
       {outlines.map((message) => (
         <li key={message.id} className="outline-item">
           <button
             type="button"
-            className="outline-button"
+            className={`outline-button ${message.id === activeMessageId ? 'active' : ''}`}
             onClick={() => onSelect(message.id)}
+            aria-current={message.id === activeMessageId ? 'true' : undefined}
             title={getMessageOutlineText(message.content, 160)}
           >
             <span className="outline-text">{getMessageOutlineText(message.content, 72)}</span>
