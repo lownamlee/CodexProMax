@@ -75,6 +75,7 @@ function App() {
   const [rightCollapsed, setRightCollapsed] = useState(false)
   const [attachmentDragDepth, setAttachmentDragDepth] = useState(0)
   const [composerHeight, setComposerHeight] = useState(DEFAULT_COMPOSER_HEIGHT_PX)
+  const [chatAtBottom, setChatAtBottom] = useState(true)
   const [previewAttachment, setPreviewAttachment] = useState<AttachmentMeta | null>(null)
   const chatScrollRef = useRef<HTMLDivElement | null>(null)
   const chatPinnedToBottomRef = useRef(true)
@@ -340,7 +341,9 @@ function App() {
   }
 
   function handleChatScroll(event: UIEvent<HTMLDivElement>) {
-    chatPinnedToBottomRef.current = isScrolledNearBottom(event.currentTarget)
+    const atBottom = isScrolledNearBottom(event.currentTarget)
+    chatPinnedToBottomRef.current = atBottom
+    setChatAtBottom(atBottom)
   }
 
   async function handleDeleteRun(run: RunSummary) {
@@ -403,24 +406,23 @@ function App() {
 
   useLayoutEffect(() => {
     chatPinnedToBottomRef.current = true
+    setChatAtBottom(true)
   }, [selectedRunId])
 
   useLayoutEffect(() => {
-    const scrollElement = chatScrollRef.current
-    if (!scrollElement || !chatPinnedToBottomRef.current) {
+    if (!chatPinnedToBottomRef.current) {
       return
     }
 
-    scrollElement.scrollTop = scrollElement.scrollHeight
+    scrollChatToBottom()
   }, [chatScrollAnchor])
 
   useLayoutEffect(() => {
-    const scrollElement = chatScrollRef.current
-    if (!scrollElement || !chatPinnedToBottomRef.current) {
+    if (!chatPinnedToBottomRef.current) {
       return
     }
 
-    scrollElement.scrollTop = scrollElement.scrollHeight
+    scrollChatToBottom()
   }, [composerHeight, instruction])
 
   useEffect(() => {
@@ -459,7 +461,27 @@ function App() {
     }
 
     chatPinnedToBottomRef.current = false
+    setChatAtBottom(false)
     target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
+  function scrollChatToBottom(behavior: ScrollBehavior = 'auto') {
+    const scrollElement = chatScrollRef.current
+    if (!scrollElement) {
+      return
+    }
+
+    if (behavior === 'smooth' && typeof scrollElement.scrollTo === 'function') {
+      scrollElement.scrollTo({
+        top: scrollElement.scrollHeight,
+        behavior,
+      })
+    } else {
+      scrollElement.scrollTop = scrollElement.scrollHeight
+    }
+
+    chatPinnedToBottomRef.current = true
+    setChatAtBottom(true)
   }
 
   return (
@@ -587,6 +609,18 @@ function App() {
             )
           )}
         </div>
+
+        {!chatAtBottom && (
+          <button
+            type="button"
+            className="scroll-bottom-button"
+            onClick={() => scrollChatToBottom('smooth')}
+            aria-label="Scroll to bottom"
+            title="Scroll to bottom"
+          >
+            <i className="ri-arrow-down-line" aria-hidden="true" />
+          </button>
+        )}
 
         <ReviewComposer
           instruction={instruction}

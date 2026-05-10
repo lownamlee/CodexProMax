@@ -709,6 +709,34 @@ describe('App', () => {
     expect(scrollPane.scrollTop).toBe(60)
   })
 
+  it('shows a floating scroll-to-bottom button only when chat is not at bottom', async () => {
+    render(<App />)
+    await getEventSource()
+
+    expect(await screen.findByRole('heading', { name: 'Draft A' })).toBeInTheDocument()
+
+    const scrollPane = screen.getByTestId('chat-scroll')
+    setScrollMetrics(scrollPane, {
+      clientHeight: 100,
+      scrollHeight: 240,
+      scrollTop: 140,
+    })
+    fireEvent.scroll(scrollPane)
+
+    expect(screen.queryByRole('button', { name: /scroll to bottom/i })).not.toBeInTheDocument()
+
+    scrollPane.scrollTop = 60
+    fireEvent.scroll(scrollPane)
+
+    const scrollButton = screen.getByRole('button', { name: /scroll to bottom/i })
+    expect(scrollButton).toBeInTheDocument()
+
+    fireEvent.click(scrollButton)
+
+    expect(scrollPane.scrollTop).toBe(240)
+    expect(screen.queryByRole('button', { name: /scroll to bottom/i })).not.toBeInTheDocument()
+  })
+
   it('shows reconnecting during SSE retry and open after recovery', async () => {
     render(<App />)
     const events = await getEventSource()

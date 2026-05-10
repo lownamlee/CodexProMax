@@ -546,6 +546,35 @@ code,
   scroll-behavior: smooth;
 }
 
+.scroll-bottom-button {
+  position: absolute;
+  right: 24px;
+  bottom: calc(var(--composer-bottom-space, 120px) + 16px);
+  z-index: 25;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-md);
+  color: var(--primary);
+  font-size: 20px;
+  transition:
+    background 0.2s var(--ease-out),
+    border-color 0.2s var(--ease-out),
+    color 0.2s var(--ease-out),
+    transform 0.2s var(--ease-out);
+}
+
+.scroll-bottom-button:hover {
+  border-color: #bae6fd;
+  background: var(--primary-soft);
+  color: var(--primary-hover);
+  transform: translateY(-2px);
+}
+
 .message {
   max-width: 800px;
   display: flex;
@@ -1635,6 +1664,11 @@ button:focus-visible,
 
   .chat-scroll {
     padding-bottom: var(--composer-bottom-space, 132px);
+  }
+
+  .scroll-bottom-button {
+    right: 14px;
+    bottom: calc(var(--composer-bottom-space, 132px) + 12px);
   }
 
   .message {
