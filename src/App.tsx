@@ -2095,12 +2095,16 @@ function UserMessageOutlineList({
       return
     }
 
-    if (lastOutlineScrollAnchorRef.current !== outlineScrollAnchor) {
+    if (activeMessageId === latestOutline?.id) {
+      if (outlinePinnedToBottomRef.current) {
+        outlineList.scrollTop = outlineList.scrollHeight
+        lastOutlineScrollAnchorRef.current = outlineScrollAnchor
+      }
       setVisibleActiveMessageId(activeMessageId)
       return
     }
 
-    if (activeMessageId === latestOutline?.id) {
+    if (lastOutlineScrollAnchorRef.current !== outlineScrollAnchor) {
       setVisibleActiveMessageId(activeMessageId)
       return
     }
@@ -2116,7 +2120,7 @@ function UserMessageOutlineList({
 
     outlinePinnedToBottomRef.current = isScrolledNearBottom(outlineList)
     setVisibleActiveMessageId(activeMessageId)
-  }, [activeMessageId, latestOutline?.id])
+  }, [activeMessageId, latestOutline?.id, outlineScrollAnchor])
 
   useLayoutEffect(() => {
     const outlineList = outlineListRef.current

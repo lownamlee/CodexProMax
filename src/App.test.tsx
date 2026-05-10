@@ -405,6 +405,8 @@ describe('App', () => {
         expect(within(sidebar).getByRole('button', { name: /User request 3/i })).toHaveClass('active'),
       )
 
+      outlineList.scrollTop = 320
+      fireEvent.scroll(outlineList)
       scrollPane.scrollTop = 600
       mockElementRect(userBubble('User request 12'), { top: 520, bottom: 660 })
       fireEvent.scroll(scrollPane)
@@ -412,6 +414,7 @@ describe('App', () => {
       await waitFor(() =>
         expect(within(sidebar).getByRole('button', { name: /User request 12/i })).toHaveClass('active'),
       )
+      await waitFor(() => expect(outlineList.scrollTop).toBe(400))
 
       fireEvent.click(within(sidebar).getByRole('button', { name: /User request 12/i }))
 
