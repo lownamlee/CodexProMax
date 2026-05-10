@@ -126,6 +126,7 @@ function App() {
   )
   const [draftAttachmentNames, setDraftAttachmentNames] = useState<string[]>([])
   const [pending, setPending] = useState<PendingAction | null>(null)
+  const [uploadingAttachmentName, setUploadingAttachmentName] = useState<string | null>(null)
   const [autoSendingQueuedInstructionIds, setAutoSendingQueuedInstructionIds] = useState<QueuedInstructionIdsByRun>({})
   const [deletingRunId, setDeletingRunId] = useState<string | null>(null)
   const [deletingAttachmentNames, setDeletingAttachmentNames] = useState<string[]>([])
@@ -432,6 +433,7 @@ function App() {
     }
 
     setPending('upload')
+    setUploadingAttachmentName(file.name || 'image attachment')
     setActionError(null)
 
     try {
@@ -443,6 +445,7 @@ function App() {
       setActionError(error instanceof Error ? error.message : 'Upload failed')
       return null
     } finally {
+      setUploadingAttachmentName(null)
       setPending(null)
     }
   }
@@ -1201,6 +1204,7 @@ function App() {
           attachments={attachments}
           draftAttachments={draftAttachments}
           pending={pending}
+          uploadingAttachmentName={uploadingAttachmentName}
           canSend={canSendInstruction}
           queueing={queueingCurrentInstruction}
           queuedInstructions={selectedQueuedInstructions}
@@ -1683,6 +1687,7 @@ function ReviewComposer({
   attachments,
   draftAttachments,
   pending,
+  uploadingAttachmentName,
   canSend,
   queueing,
   queuedInstructions,
@@ -1703,6 +1708,7 @@ function ReviewComposer({
   attachments: AttachmentMeta[]
   draftAttachments: AttachmentMeta[]
   pending: PendingAction | null
+  uploadingAttachmentName: string | null
   canSend: boolean
   queueing: boolean
   queuedInstructions: QueuedInstruction[]
@@ -1911,6 +1917,22 @@ function ReviewComposer({
               <span className="mention-size">{formatBytes(attachment.size)}</span>
             </button>
           ))}
+        </div>
+      )}
+      {uploadingAttachmentName && (
+        <div
+          className="composer-upload-progress"
+          role="progressbar"
+          aria-label={`Uploading ${uploadingAttachmentName}`}
+          aria-valuetext="Uploading"
+        >
+          <div className="composer-upload-copy">
+            <i className="ri-loader-4-line" aria-hidden="true" />
+            <span>{uploadingAttachmentName}</span>
+          </div>
+          <div className="composer-upload-track" aria-hidden="true">
+            <span />
+          </div>
         </div>
       )}
       {draftAttachments.length > 0 && (

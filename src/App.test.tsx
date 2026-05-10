@@ -1047,6 +1047,35 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /mention attachment uploaded\.png/i })).toBeInTheDocument()
   })
 
+  it('shows upload progress while attaching an image', async () => {
+    render(<App />)
+    await getEventSource()
+
+    const upload = deferredResponse()
+    const attachment = attachmentFactory('slow-upload.png')
+    vi.mocked(fetch).mockReturnValueOnce(upload.promise)
+
+    const file = new File(['image'], 'slow-upload.png', { type: 'image/png' })
+    fireEvent.change(await screen.findByLabelText(/attach review image/i), {
+      target: { files: [file] },
+    })
+
+    expect(await screen.findByRole('progressbar', { name: /uploading slow-upload\.png/i })).toBeInTheDocument()
+
+    upload.resolve(jsonResponse({
+      ok: true,
+      attachment,
+      snapshot: snapshotFactory({
+        attachments: [attachment],
+      }),
+    }))
+
+    await waitFor(() =>
+      expect(screen.queryByRole('progressbar', { name: /uploading slow-upload\.png/i })).not.toBeInTheDocument(),
+    )
+    expect(await screen.findByRole('button', { name: /preview slow-upload\.png/i })).toBeInTheDocument()
+  })
+
   it('does not send the current instruction with Ctrl Enter', async () => {
     const fetchMock = vi.mocked(fetch)
     render(<App />)

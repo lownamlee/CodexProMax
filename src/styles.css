@@ -1555,6 +1555,57 @@ code,
   color: #ffffff;
 }
 
+.composer-upload-progress {
+  width: min(800px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  margin: 0 auto 8px;
+  padding: 8px 10px;
+  border: 1px solid #bae6fd;
+  border-radius: var(--radius-sm);
+  background: #f0f9ff;
+  box-shadow: var(--shadow-sm);
+}
+
+.composer-upload-copy {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.composer-upload-copy i {
+  flex: 0 0 auto;
+  animation: spin 1.2s linear infinite;
+}
+
+.composer-upload-copy span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-upload-track {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dbeafe;
+}
+
+.composer-upload-track span {
+  width: 42%;
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: var(--primary);
+  animation: attachmentDeleteProgress 1.1s ease-in-out infinite;
+}
+
 .queued-instructions {
   width: min(800px, 100%);
   display: flex;
