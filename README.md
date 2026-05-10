@@ -8,7 +8,6 @@ The current design is intentionally small:
 - One UI-owned normal state: `INSTRUCTION_RECEIVED`.
 - One review state: `WAITING_FOR_REVIEW`.
 - One complete history file: `session.md`.
-- No `APPROVED`, no `REVISION_REQUESTED`, no `progress.md`.
 
 ## System Overview
 
@@ -24,7 +23,7 @@ The normal flow is:
 
 1. Codex completes a unit of work.
 2. Codex calls `request_review.ps1 -Output "<normal conclusion>"`.
-3. The script writes `output.md`, appends the assistant message to `session.md`, deletes stale `progress.md`, and sets `status.txt` to `WAITING_FOR_REVIEW`.
+3. The script writes `output.md`, appends the assistant message to `session.md`, cleans obsolete run notes, and sets `status.txt` to `WAITING_FOR_REVIEW`.
 4. The UI displays the conclusion and waits for the human.
 5. The human writes one instruction and clicks `Send to Codex`.
 6. The backend writes `instruction.txt`, appends the user message to `session.md`, and sets `status.txt` to `INSTRUCTION_RECEIVED`.
@@ -119,7 +118,7 @@ Root-level protocol files are legacy only. If root-level protocol files exist, t
 | `run.json` | Agent/backend | Run metadata shown in the inbox. |
 | `attachments/` | UI | Uploaded review images. |
 
-`progress.md` is retired. New scripts delete it if they encounter an old copy.
+New scripts clean obsolete run-note files if they encounter old copies.
 
 ### Status Model
 
@@ -140,9 +139,9 @@ Exceptional statuses:
 
 Legacy status handling:
 
-- `APPROVED` and `REVISION_REQUESTED` are no longer written.
-- If an old run has one of those statuses and `instruction.txt` has content, snapshots map it to `INSTRUCTION_RECEIVED`.
-- If an old run has one of those statuses and no instruction, snapshots map it to `IDLE`.
+- Old UI-owned statuses are normalized in snapshots.
+- If an old run has a pending instruction, snapshots map it to `INSTRUCTION_RECEIVED`.
+- If an old run has no pending instruction, snapshots map it to `IDLE`.
 
 ### Session History
 
@@ -162,7 +161,7 @@ Roles are:
 - `assistant`: Codex conclusions written by `request_review.ps1` or watcher fallback.
 - `user`: human instructions sent through the UI or consumed by `consume_instruction.ps1`.
 
-Legacy `messages.ndjson` is read only for compatibility. When the backend or scripts need to write history and no `session.md` exists yet, legacy messages are seeded into `session.md` first.
+Legacy chat logs are read only for compatibility. When the backend or scripts need to write history and no `session.md` exists yet, legacy messages are seeded into `session.md` first.
 
 ## Backend Design
 
@@ -215,7 +214,7 @@ The watcher ignores recursive changes to `events.ndjson` so audit writes do not 
 - Snapshot construction.
 - Markdown size warnings and render truncation.
 - Attachment validation and atomic writes.
-- `session.md` parsing, writing, and legacy `messages.ndjson` migration.
+- `session.md` parsing, writing, and legacy chat-log migration.
 - Legacy root discovery.
 - Legacy status normalization.
 
@@ -265,7 +264,7 @@ Helper scripts:
 
 | Script | Purpose |
 | --- | --- |
-| `request_review.ps1` | Writes `output.md`, appends assistant history to `session.md`, deletes stale `progress.md`, sets `WAITING_FOR_REVIEW`. |
+| `request_review.ps1` | Writes `output.md`, appends assistant history to `session.md`, cleans obsolete run notes, sets `WAITING_FOR_REVIEW`. |
 | `consume_instruction.ps1` | Reads `instruction.txt`, appends user history to `session.md`, clears instruction, sets `IDLE`, returns JSON. |
 | `wait_for_review.ps1` | Blocks until `status.txt` becomes `INSTRUCTION_RECEIVED`. |
 | `wait_for_review.sh` | Shell equivalent for non-Windows environments. |
@@ -291,17 +290,12 @@ Audit events are for traceability. `session.md` is the conversational history th
 
 Compatibility behavior exists so old runs keep working:
 
-- Existing `messages.ndjson` is parsed and migrated into `session.md`.
-- Old `APPROVED` / `REVISION_REQUESTED` statuses are normalized in snapshots.
+- Existing legacy chat logs are parsed and migrated into `session.md`.
+- Old UI-owned statuses are normalized in snapshots.
 - Root-level protocol files appear as `legacy-root`.
 - The route name `/action` remains, but request bodies no longer contain an action field.
 
-New code should not write:
-
-- `progress.md`
-- `APPROVED`
-- `REVISION_REQUESTED`
-- new `messages.ndjson` entries
+New code should write only the simplified protocol files and statuses described above.
 
 ## Project Structure
 
