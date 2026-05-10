@@ -662,6 +662,42 @@ describe('App', () => {
     expect(container.querySelector('.composer-mention-highlight')).toHaveTextContent('@existing.png')
   })
 
+  it('treats completed attachment mentions as cursor tokens', async () => {
+    render(<App />)
+    await getEventSource()
+
+    const input = await screen.findByLabelText('Instruction')
+    const value = 'Review @ex'
+    fireEvent.change(input, {
+      target: { value },
+    })
+    const textarea = input as HTMLTextAreaElement
+    textarea.setSelectionRange(value.length, value.length)
+    fireEvent.keyUp(input)
+    fireEvent.click(await screen.findByRole('option', { name: /existing\.png/i }))
+
+    const mentionStart = 'Review '.length
+    const mentionEnd = 'Review @existing.png'.length
+
+    textarea.setSelectionRange(mentionEnd, mentionEnd)
+    fireEvent.keyDown(textarea, { key: 'ArrowLeft' })
+
+    expect(textarea.selectionStart).toBe(mentionStart)
+    expect(textarea.selectionEnd).toBe(mentionStart)
+
+    textarea.setSelectionRange(mentionStart + 4, mentionStart + 4)
+    fireEvent.click(textarea)
+
+    await waitFor(() => expect(textarea.selectionStart).toBe(mentionStart))
+    expect(textarea.selectionEnd).toBe(mentionEnd)
+
+    textarea.setSelectionRange(mentionStart, mentionStart)
+    fireEvent.keyDown(textarea, { key: 'ArrowRight' })
+
+    expect(textarea.selectionStart).toBe(mentionEnd)
+    expect(textarea.selectionEnd).toBe(mentionEnd)
+  })
+
   it('uploads a pasted image attachment from the instruction field', async () => {
     const fetchMock = vi.mocked(fetch)
     render(<App />)

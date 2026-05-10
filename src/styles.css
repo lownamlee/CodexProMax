@@ -1583,14 +1583,8 @@ code,
 }
 
 .composer-mention-highlight {
-  margin: -1px -3px;
-  padding: 1px 3px;
-  border-radius: 5px;
-  background: var(--bg-app);
-  box-shadow: 0 0 0 1px var(--border);
   color: transparent;
-  font-family: var(--font-mono);
-  font-size: 0.9em;
+  font: inherit;
 }
 
 .composer textarea {

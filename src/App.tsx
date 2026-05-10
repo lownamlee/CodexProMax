@@ -1536,6 +1536,10 @@ function ReviewComposer({
   const highlightRef = useRef<HTMLDivElement | null>(null)
   const [mentionRange, setMentionRange] = useState<MentionRange | null>(null)
   const [activeMentionIndex, setActiveMentionIndex] = useState(0)
+  const attachmentNameSet = useMemo(
+    () => new Set(attachments.map((attachment) => attachment.name)),
+    [attachments],
+  )
   const mentionOptions = useMemo(() => {
     if (!mentionRange) {
       return []
@@ -1584,7 +1588,30 @@ function ReviewComposer({
   }
 
   function handleTextareaCursor(event: SyntheticEvent<HTMLTextAreaElement>) {
+    if (selectMentionTokenAtCaret(event.currentTarget)) {
+      return
+    }
+
     updateMentionRange(event.currentTarget.value, event.currentTarget.selectionStart)
+  }
+
+  function selectMentionTokenAtCaret(textarea: HTMLTextAreaElement): boolean {
+    if (textarea.selectionStart !== textarea.selectionEnd) {
+      return false
+    }
+
+    const caret = textarea.selectionStart
+    const tokenRange = findAttachmentMentionToken(textarea.value, caret, attachmentNameSet)
+    if (!tokenRange || caret <= tokenRange.start || caret >= tokenRange.end) {
+      return false
+    }
+
+    setMentionRange(null)
+    requestAnimationFrame(() => {
+      textarea.focus()
+      textarea.setSelectionRange(tokenRange.start, tokenRange.end)
+    })
+    return true
   }
 
   function insertAttachmentMention(attachmentName: string, range = mentionRange) {
@@ -1617,6 +1644,31 @@ function ReviewComposer({
   }
 
   function handleTextareaKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    const textarea = event.currentTarget
+    if (
+      (event.key === 'ArrowLeft' || event.key === 'ArrowRight')
+      && !event.altKey
+      && !event.ctrlKey
+      && !event.metaKey
+      && textarea.selectionStart === textarea.selectionEnd
+    ) {
+      const caret = textarea.selectionStart
+      const tokenRange = findAttachmentMentionToken(textarea.value, caret, attachmentNameSet)
+      if (tokenRange && event.key === 'ArrowLeft' && caret > tokenRange.start && caret <= tokenRange.end) {
+        event.preventDefault()
+        setMentionRange(null)
+        textarea.setSelectionRange(tokenRange.start, tokenRange.start)
+        return
+      }
+
+      if (tokenRange && event.key === 'ArrowRight' && caret >= tokenRange.start && caret < tokenRange.end) {
+        event.preventDefault()
+        setMentionRange(null)
+        textarea.setSelectionRange(tokenRange.end, tokenRange.end)
+        return
+      }
+    }
+
     if (!showMentionMenu) {
       return
     }
@@ -1819,6 +1871,32 @@ function findMentionRange(value: string, caret: number): MentionRange | null {
     end: caret,
     query: match[2],
   }
+}
+
+function findAttachmentMentionToken(
+  value: string,
+  caret: number,
+  attachmentNames: ReadonlySet<string>,
+): MentionRange | null {
+  const matcher = /(^|\s)@([a-zA-Z0-9._-]+)(?=\s|$)/g
+  for (const match of value.matchAll(matcher)) {
+    const name = match[2]
+    if (!attachmentNames.has(name)) {
+      continue
+    }
+
+    const start = (match.index ?? 0) + match[1].length
+    const end = start + name.length + 1
+    if (caret >= start && caret <= end) {
+      return {
+        start,
+        end,
+        query: name,
+      }
+    }
+  }
+
+  return null
 }
 
 function removeAttachmentMention(value: string, attachmentName: string): string {
