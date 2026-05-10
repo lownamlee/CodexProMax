@@ -260,7 +260,7 @@ describe('App', () => {
     expect(profileButton).toHaveAttribute('aria-expanded', 'true')
     const profileMenu = screen.getByRole('menu', { name: 'Profile menu' })
     expect(within(profileMenu).getByText('Ramlyburger')).toBeInTheDocument()
-    expect(within(profileMenu).getByText('Pro Max')).toBeInTheDocument()
+    expect(within(profileMenu).getByText('Ultra Plan')).toBeInTheDocument()
     expect(within(profileMenu).getByRole('menuitem', { name: /Add teammates/i })).toBeInTheDocument()
     expect(within(profileMenu).getByRole('menuitem', { name: /Workspace settings/i })).toBeInTheDocument()
     const logoutButton = within(profileMenu).getByRole('menuitem', { name: /Log out/i })

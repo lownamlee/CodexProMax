@@ -1357,7 +1357,7 @@ function RunInbox({
                 </span>
                 <span className="profile-menu-account-copy">
                   <span>Ramlyburger</span>
-                  <span>Pro Max</span>
+                  <span>Ultra Plan</span>
                 </span>
                 <i className="ri-arrow-right-s-line" aria-hidden="true" />
               </button>
@@ -1412,7 +1412,7 @@ function RunInbox({
             </span>
             <span className="sidebar-profile-copy">
               <span>Ramlyburger</span>
-              <span>Pro Max</span>
+              <span>Ultra Plan</span>
             </span>
             <i className="ri-more-2-fill sidebar-profile-more" aria-hidden="true" />
           </button>
