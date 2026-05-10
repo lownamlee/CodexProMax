@@ -88,6 +88,17 @@ type PendingAction = 'send' | 'upload' | 'load' | 'clear' | 'stop'
 type MentionRange = { start: number; end: number; query: string }
 type ScrollDirection = 'up' | 'down' | 'none'
 type UserMessageOutline = Pick<ChatMessage, 'id' | 'content' | 'createdAtIso'>
+type ConfirmDialogTone = 'default' | 'danger'
+type ConfirmDialogOptions = {
+  title: string
+  message: string
+  confirmLabel: string
+  cancelLabel?: string
+  tone?: ConfirmDialogTone
+}
+type ConfirmDialogState = ConfirmDialogOptions & {
+  resolve: (confirmed: boolean) => void
+}
 type ProtocolFilePreview = {
   fileName: ProtocolTextFile
   content: string
@@ -107,6 +118,7 @@ function App() {
   const [deletingRunId, setDeletingRunId] = useState<string | null>(null)
   const [deletingAttachmentNames, setDeletingAttachmentNames] = useState<string[]>([])
   const [actionError, setActionError] = useState<string | null>(null)
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null)
   const [leftCollapsed, setLeftCollapsed] = useState(() =>
     readStoredBoolean(LEFT_SIDEBAR_COLLAPSED_STORAGE_KEY, false),
   )
@@ -138,6 +150,23 @@ function App() {
         revealedAssistantMessageIdsRef.current.add(message.id)
       }
     }
+  }, [])
+
+  const requestConfirmation = useCallback((options: ConfirmDialogOptions) =>
+    new Promise<boolean>((resolve) => {
+      setConfirmDialog({
+        cancelLabel: 'Cancel',
+        tone: 'default',
+        ...options,
+        resolve,
+      })
+    }), [])
+
+  const resolveConfirmation = useCallback((confirmed: boolean) => {
+    setConfirmDialog((currentDialog) => {
+      currentDialog?.resolve(confirmed)
+      return null
+    })
   }, [])
 
   const runs = managerSnapshot?.runs ?? []
@@ -236,9 +265,12 @@ function App() {
     }
 
     const runLabel = selectedRun?.displayName ?? runSnapshot?.displayName ?? selectedRunId
-    const confirmed = window.confirm(
-      `Clear conversation history for "${runLabel}"?\n\nThis keeps the session open and leaves the run files intact.`,
-    )
+    const confirmed = await requestConfirmation({
+      title: 'Clear conversation history',
+      message: `Clear conversation history for "${runLabel}"?\n\nThis keeps the session open and leaves the run files intact.`,
+      confirmLabel: 'Clear history',
+      tone: 'danger',
+    })
     if (!confirmed) {
       return
     }
@@ -269,16 +301,22 @@ function App() {
     }
 
     const runLabel = selectedRun?.displayName ?? runSnapshot?.displayName ?? selectedRunId
-    const confirmed = window.confirm(
-      `Stop Codex for "${runLabel}"?\n\nThis sends a stop instruction through the current session.`,
-    )
+    const confirmed = await requestConfirmation({
+      title: 'Stop Codex',
+      message: `Stop Codex for "${runLabel}"?\n\nThis sends a stop instruction through the current session.`,
+      confirmLabel: 'Continue',
+      tone: 'danger',
+    })
     if (!confirmed) {
       return
     }
 
-    const confirmedAgain = window.confirm(
-      `Confirm stop for "${runLabel}"?\n\nCodex will receive the canonical stop instruction for this run.`,
-    )
+    const confirmedAgain = await requestConfirmation({
+      title: 'Confirm stop',
+      message: `Confirm stop for "${runLabel}"?\n\nCodex will receive the canonical stop instruction for this run.`,
+      confirmLabel: 'Stop session',
+      tone: 'danger',
+    })
     if (!confirmedAgain) {
       return
     }
@@ -334,7 +372,12 @@ function App() {
       return
     }
 
-    const confirmed = window.confirm(`Delete attachment "${attachment.name}"?`)
+    const confirmed = await requestConfirmation({
+      title: 'Delete attachment',
+      message: `Delete attachment "${attachment.name}"?`,
+      confirmLabel: 'Delete attachment',
+      tone: 'danger',
+    })
     if (!confirmed) {
       return
     }
@@ -366,7 +409,12 @@ function App() {
       return
     }
 
-    const confirmed = window.confirm(`Delete all ${attachments.length} attachments?`)
+    const confirmed = await requestConfirmation({
+      title: 'Delete all attachments',
+      message: `Delete all ${attachments.length} attachments?`,
+      confirmLabel: 'Delete all',
+      tone: 'danger',
+    })
     if (!confirmed) {
       return
     }
@@ -534,9 +582,12 @@ function App() {
       return
     }
 
-    const confirmed = window.confirm(
-      `Delete run "${run.displayName}"?\n\nThis removes runs/${run.runId}/ and its protocol files.`,
-    )
+    const confirmed = await requestConfirmation({
+      title: 'Delete run',
+      message: `Delete run "${run.displayName}"?\n\nThis removes runs/${run.runId}/ and its protocol files.`,
+      confirmLabel: 'Delete run',
+      tone: 'danger',
+    })
     if (!confirmed) {
       return
     }
@@ -969,6 +1020,10 @@ function App() {
         activeUserMessageId={activeUserMessageId}
         onUserMessageSelect={jumpToUserMessage}
       />
+
+      {confirmDialog && (
+        <ConfirmDialog dialog={confirmDialog} onResolve={resolveConfirmation} />
+      )}
 
       {previewAttachment && (
         <AttachmentPreview attachment={previewAttachment} onClose={() => setPreviewAttachment(null)} />
@@ -2292,6 +2347,51 @@ function AttachmentList({
         )
       })}
     </ul>
+  )
+}
+
+function ConfirmDialog({
+  dialog,
+  onResolve,
+}: {
+  dialog: ConfirmDialogState
+  onResolve: (confirmed: boolean) => void
+}) {
+  const tone = dialog.tone ?? 'default'
+  const messageParagraphs = dialog.message.split(/\n{2,}/)
+
+  return (
+    <div className="preview-backdrop confirm-backdrop" role="presentation" onClick={() => onResolve(false)}>
+      <section
+        className={`confirm-dialog ${tone === 'danger' ? 'danger' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={dialog.title}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="confirm-icon" aria-hidden="true">
+          <i className={tone === 'danger' ? 'ri-error-warning-line' : 'ri-question-line'} />
+        </div>
+        <div className="confirm-copy">
+          <h2>{dialog.title}</h2>
+          {messageParagraphs.map((paragraph, index) => (
+            <p key={`${paragraph}-${index}`}>{paragraph}</p>
+          ))}
+        </div>
+        <div className="confirm-actions">
+          <button type="button" className="confirm-button secondary" onClick={() => onResolve(false)}>
+            {dialog.cancelLabel ?? 'Cancel'}
+          </button>
+          <button
+            type="button"
+            className={`confirm-button ${tone === 'danger' ? 'danger' : 'primary'}`}
+            onClick={() => onResolve(true)}
+          >
+            {dialog.confirmLabel}
+          </button>
+        </div>
+      </section>
+    </div>
   )
 }
 

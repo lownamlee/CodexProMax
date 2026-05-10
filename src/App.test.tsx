@@ -515,11 +515,11 @@ describe('App', () => {
 
   it('deletes a run through the selected run endpoint', async () => {
     const fetchMock = vi.mocked(fetch)
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<App />)
     await getEventSource()
 
     fireEvent.click(await screen.findByRole('button', { name: /delete run-a/i }))
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Delete run' })).getByRole('button', { name: 'Delete run' }))
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith('/api/runs/run-a', {
@@ -588,13 +588,16 @@ describe('App', () => {
 
   it('clears conversation history without deleting the selected run', async () => {
     const fetchMock = vi.mocked(fetch)
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<App />)
     await getEventSource()
 
     expect(await screen.findByRole('heading', { name: 'Draft A' })).toBeInTheDocument()
 
     fireEvent.click(await screen.findByRole('button', { name: /clear conversation history/i }))
+    fireEvent.click(
+      within(await screen.findByRole('dialog', { name: 'Clear conversation history' }))
+        .getByRole('button', { name: 'Clear history' }),
+    )
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith('/api/runs/run-a/messages', {
@@ -611,14 +614,13 @@ describe('App', () => {
 
   it('requests a session stop through the header button', async () => {
     const fetchMock = vi.mocked(fetch)
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
-    confirm.mockClear()
     render(<App />)
     await getEventSource()
 
     fireEvent.click(await screen.findByRole('button', { name: /stop session/i }))
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Stop Codex' })).getByRole('button', { name: 'Continue' }))
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Confirm stop' })).getByRole('button', { name: 'Stop session' }))
 
-    expect(confirm).toHaveBeenCalledTimes(2)
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith('/api/runs/run-a/stop', {
         method: 'POST',
@@ -855,7 +857,6 @@ describe('App', () => {
         createdAtIso: '2026-05-07T00:00:01.000Z',
       },
     ]
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     vi.mocked(fetch)
       .mockResolvedValueOnce(jsonResponse(managerFactory()))
       .mockResolvedValueOnce(jsonResponse(snapshotFactory({
@@ -877,6 +878,10 @@ describe('App', () => {
       }),
     }))
     fireEvent.click(screen.getByRole('button', { name: /delete attachment existing\.png/i }))
+    fireEvent.click(
+      within(await screen.findByRole('dialog', { name: 'Delete attachment' }))
+        .getByRole('button', { name: 'Delete attachment' }),
+    )
 
     await waitFor(() =>
       expect(screen.queryByRole('button', { name: /preview message attachment existing\.png/i })).not.toBeInTheDocument(),
@@ -984,12 +989,15 @@ describe('App', () => {
 
   it('deletes an attachment from the selected run', async () => {
     const fetchMock = vi.mocked(fetch)
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<App />)
     await getEventSource()
 
     expect(await screen.findByRole('button', { name: /preview existing\.png/i })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /delete attachment existing\.png/i }))
+    fireEvent.click(
+      within(await screen.findByRole('dialog', { name: 'Delete attachment' }))
+        .getByRole('button', { name: 'Delete attachment' }),
+    )
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith('/api/runs/run-a/attachments/existing.png', {
@@ -999,12 +1007,27 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: /preview existing\.png/i })).not.toBeInTheDocument()
   })
 
+  it('closes confirmation dialogs when clicking outside', async () => {
+    const fetchMock = vi.mocked(fetch)
+    render(<App />)
+    await getEventSource()
+
+    fireEvent.click(await screen.findByRole('button', { name: /delete attachment existing\.png/i }))
+    const dialog = await screen.findByRole('dialog', { name: 'Delete attachment' })
+
+    fireEvent.click(dialog.parentElement as HTMLElement)
+
+    expect(screen.queryByRole('dialog', { name: 'Delete attachment' })).not.toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/runs/run-a/attachments/existing.png', {
+      method: 'DELETE',
+    })
+  })
+
   it('deletes all attachments with per-card progress', async () => {
     const attachments = [attachmentFactory('first.png'), attachmentFactory('second.png')]
     const firstDelete = deferredResponse()
     const secondDelete = deferredResponse()
     const fetchMock = vi.mocked(fetch)
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     fetchMock
       .mockResolvedValueOnce(jsonResponse(managerFactory()))
       .mockResolvedValueOnce(jsonResponse(snapshotFactory({ attachments })))
@@ -1016,8 +1039,10 @@ describe('App', () => {
 
     const sidebar = screen.getByLabelText('Protocol details')
     fireEvent.click(await within(sidebar).findByRole('button', { name: /delete all attachments/i }))
+    const dialog = await screen.findByRole('dialog', { name: 'Delete all attachments' })
 
-    expect(window.confirm).toHaveBeenCalledWith('Delete all 2 attachments?')
+    expect(within(dialog).getByText('Delete all 2 attachments?')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete all' }))
     expect(await within(sidebar).findByRole('progressbar', { name: /deleting first\.png/i })).toBeInTheDocument()
     expect(within(sidebar).getByRole('progressbar', { name: /deleting second\.png/i })).toBeInTheDocument()
 
