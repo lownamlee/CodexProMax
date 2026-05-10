@@ -960,7 +960,7 @@ code,
   height: 40px;
   display: grid;
   place-items: center;
-  transform: translateY(-56px);
+  transform: translateY(-25px);
   border: 1px solid var(--border);
   border-radius: 50%;
   background: var(--bg-surface);
@@ -979,7 +979,7 @@ code,
   border-color: #bae6fd;
   background: var(--primary-soft);
   color: var(--primary-hover);
-  transform: translateY(-58px);
+  transform: translateY(-27px);
 }
 
 .message {
