@@ -73,6 +73,8 @@ const RUN_STATUS_ICONS: Record<ProtocolStatus, string> = {
 }
 
 const CHAT_BOTTOM_THRESHOLD_PX = 12
+const QUEUED_SEND_POLL_INTERVAL_MS = 120
+const QUEUED_SEND_BOTTOM_SETTLE_MS = 900
 const USER_BUBBLE_TOP_ZONE_PX = 160
 const USER_BUBBLE_TOP_TOLERANCE_PX = 24
 const COMPOSER_TEXTAREA_MIN_HEIGHT_PX = 44
@@ -157,6 +159,7 @@ function App() {
   const activeMessageFrameRef = useRef<number | null>(null)
   const activeMessageScrollElementRef = useRef<HTMLDivElement | null>(null)
   const smoothScrollReleaseTimerRef = useRef<number | null>(null)
+  const bottomScrollSettleUntilRef = useRef(0)
   const userMessageRefs = useRef(new Map<string, HTMLElement>())
   const queuedInstructionIdRef = useRef(0)
   const queuedInstructionsByRunRef = useRef<QueuedInstructionsByRun>({})
@@ -766,22 +769,37 @@ function App() {
       }
 
       const scrollElement = chatScrollRef.current
-      if (!scrollElement || isScrolledNearBottom(scrollElement)) {
+      if (!scrollElement) {
         clearQueuedSendDelay(runId)
         void submitQueuedInstruction(runId, item)
         return
       }
 
-      scrollChatToBottom()
+      const now = Date.now()
+      const settleRemaining = bottomScrollSettleUntilRef.current - now
+      if (isScrolledNearBottom(scrollElement) && settleRemaining <= 0) {
+        clearQueuedSendDelay(runId)
+        void submitQueuedInstruction(runId, item)
+        return
+      }
+
+      if (settleRemaining <= 0) {
+        scrollChatToBottom()
+      }
+
+      const nextDelay = Math.max(
+        QUEUED_SEND_POLL_INTERVAL_MS,
+        Math.min(settleRemaining, QUEUED_SEND_BOTTOM_SETTLE_MS),
+      )
       queuedSendDelayTimersRef.current = {
         ...queuedSendDelayTimersRef.current,
-        [runId]: window.setTimeout(sendWhenReady, 120),
+        [runId]: window.setTimeout(sendWhenReady, nextDelay),
       }
     }
 
     queuedSendDelayTimersRef.current = {
       ...queuedSendDelayTimersRef.current,
-      [runId]: window.setTimeout(sendWhenReady, 120),
+      [runId]: window.setTimeout(sendWhenReady, QUEUED_SEND_POLL_INTERVAL_MS),
     }
   }
 
@@ -1162,6 +1180,26 @@ function App() {
     }
   }
 
+  function guardProgrammaticBottomScroll() {
+    clearSmoothScrollReleaseTimer()
+    bottomScrollSettleUntilRef.current = Date.now() + QUEUED_SEND_BOTTOM_SETTLE_MS
+    smoothScrollReleaseTimerRef.current = window.setTimeout(() => {
+      smoothScrollReleaseTimerRef.current = null
+      const currentScrollElement = chatScrollRef.current
+      if (!currentScrollElement) {
+        return
+      }
+
+      const atBottom = isScrolledNearBottom(currentScrollElement)
+      chatPinnedToBottomRef.current = atBottom
+      setChatAtBottom(atBottom)
+      if (atBottom) {
+        setChatBottomSyncVersion((version) => version + 1)
+        updateActiveUserMessage(currentScrollElement)
+      }
+    }, QUEUED_SEND_BOTTOM_SETTLE_MS)
+  }
+
   function queuePinnedBottomCorrection(scrollElement: HTMLDivElement) {
     window.requestAnimationFrame(() => {
       if (!chatPinnedToBottomRef.current || chatScrollRef.current !== scrollElement) {
@@ -1181,29 +1219,22 @@ function App() {
       return
     }
 
-    if (behavior === 'smooth' && typeof scrollElement.scrollTo === 'function') {
+    const shouldGuardScroll =
+      behavior === 'smooth'
+      || bottomScrollSettleUntilRef.current > Date.now()
+      || !isScrolledNearBottom(scrollElement)
+    if (shouldGuardScroll) {
+      guardProgrammaticBottomScroll()
+    } else {
       clearSmoothScrollReleaseTimer()
-      smoothScrollReleaseTimerRef.current = window.setTimeout(() => {
-        smoothScrollReleaseTimerRef.current = null
-        const currentScrollElement = chatScrollRef.current
-        if (!currentScrollElement) {
-          return
-        }
+    }
 
-        const atBottom = isScrolledNearBottom(currentScrollElement)
-        chatPinnedToBottomRef.current = atBottom
-        setChatAtBottom(atBottom)
-        if (atBottom) {
-          setChatBottomSyncVersion((version) => version + 1)
-          updateActiveUserMessage(currentScrollElement)
-        }
-      }, 900)
+    if (behavior === 'smooth' && typeof scrollElement.scrollTo === 'function') {
       scrollElement.scrollTo({
         top: scrollElement.scrollHeight,
         behavior,
       })
     } else {
-      clearSmoothScrollReleaseTimer()
       scrollElement.scrollTop = scrollElement.scrollHeight
     }
 

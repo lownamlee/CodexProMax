@@ -831,6 +831,7 @@ describe('App', () => {
       target: { value: 'Queued message should pin bottom.' },
     })
     fireEvent.click(screen.getByRole('button', { name: /queue for review/i }))
+    expect(await screen.findByLabelText('Queued messages')).toHaveTextContent('Queued message should pin bottom.')
     metrics.setScrollHeight(520)
 
     act(() => {
@@ -844,8 +845,8 @@ describe('App', () => {
     })
 
     expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/action'))).toHaveLength(0)
-    expect(await within(scrollPane).findByText('Queued message should pin bottom.')).toBeInTheDocument()
     await waitFor(() => expect(scrollPane.scrollTop).toBe(520))
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/action'))).toHaveLength(0)
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/runs/run-a/action',
@@ -856,7 +857,9 @@ describe('App', () => {
           }),
         }),
       ),
+      { timeout: 2000 },
     )
+    expect(await within(scrollPane).findByText('Queued message should pin bottom.')).toBeInTheDocument()
   })
 
   it('does not wait for bottom before sending a queued message when the selected chat was not pinned', async () => {
