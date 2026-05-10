@@ -1639,15 +1639,13 @@ function UserMessageOutlineList({
       return
     }
 
-    const activeTop = activeButton.offsetTop
-    const activeBottom = activeTop + activeButton.offsetHeight
-    const visibleTop = outlineList.scrollTop
-    const visibleBottom = visibleTop + outlineList.clientHeight
+    const outlineRect = outlineList.getBoundingClientRect()
+    const activeRect = activeButton.getBoundingClientRect()
 
-    if (activeTop < visibleTop) {
-      outlineList.scrollTop = activeTop
-    } else if (activeBottom > visibleBottom) {
-      outlineList.scrollTop = activeBottom - outlineList.clientHeight
+    if (activeRect.top < outlineRect.top) {
+      outlineList.scrollTop += activeRect.top - outlineRect.top
+    } else if (activeRect.bottom > outlineRect.bottom) {
+      outlineList.scrollTop += activeRect.bottom - outlineRect.bottom
     }
 
     outlinePinnedToBottomRef.current = isScrolledNearBottom(outlineList)

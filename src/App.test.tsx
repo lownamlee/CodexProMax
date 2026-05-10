@@ -288,11 +288,10 @@ describe('App', () => {
         scrollHeight: 400,
         scrollTop: 220,
       })
-      mockElementOffset(within(sidebar).getByRole('button', { name: /User request 3/i }), {
-        offsetTop: 80,
-        offsetHeight: 28,
-      })
       mockElementRect(scrollPane, { top: 0, bottom: 300 })
+      mockElementRect(outlineList, { top: 0, bottom: 80 })
+      mockElementRect(within(sidebar).getByRole('button', { name: /User request 3/i }), { top: -140, bottom: -112 })
+      mockElementRect(within(sidebar).getByRole('button', { name: /User request 4/i }), { top: 64, bottom: 96 })
       mockElementRect(userBubble('User request 1'), { top: -260, bottom: -120 })
       mockElementRect(userBubble('User request 2'), { top: -80, bottom: 60 })
       mockElementRect(userBubble('User request 3'), { top: 40, bottom: 180 })
@@ -323,6 +322,7 @@ describe('App', () => {
       await waitFor(() =>
         expect(within(sidebar).getByRole('button', { name: /User request 4/i })).toHaveClass('active'),
       )
+      await waitFor(() => expect(outlineList.scrollTop).toBe(96))
 
       mockElementRect(userBubble('User request 4'), { top: 150, bottom: 290 })
       fireEvent.scroll(scrollPane)
@@ -341,6 +341,7 @@ describe('App', () => {
       )
 
       scrollPane.scrollTop = 220
+      mockElementRect(within(sidebar).getByRole('button', { name: /User request 3/i }), { top: 20, bottom: 48 })
       mockElementRect(userBubble('User request 3'), { top: 20, bottom: 160 })
       mockElementRect(userBubble('User request 4'), { top: 230, bottom: 370 })
       fireEvent.scroll(scrollPane)
@@ -1172,22 +1173,5 @@ function mockElementRect(
       bottom: rect.bottom,
       toJSON: () => ({}),
     }),
-  })
-}
-
-function mockElementOffset(
-  element: HTMLElement,
-  metrics: {
-    offsetTop: number
-    offsetHeight: number
-  },
-) {
-  Object.defineProperty(element, 'offsetTop', {
-    configurable: true,
-    get: () => metrics.offsetTop,
-  })
-  Object.defineProperty(element, 'offsetHeight', {
-    configurable: true,
-    get: () => metrics.offsetHeight,
   })
 }
