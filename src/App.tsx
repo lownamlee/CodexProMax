@@ -8,7 +8,6 @@ import {
   useState,
   type ChangeEvent,
   type ClipboardEvent,
-  type CSSProperties,
   type DragEvent,
   type KeyboardEvent,
   type ReactNode,
@@ -65,7 +64,6 @@ const USER_BUBBLE_TOP_ZONE_PX = 160
 const USER_BUBBLE_TOP_TOLERANCE_PX = 24
 const COMPOSER_TEXTAREA_MIN_HEIGHT_PX = 44
 const COMPOSER_TEXTAREA_MAX_HEIGHT_PX = 180
-const DEFAULT_COMPOSER_HEIGHT_PX = 120
 const CODEX_PROFILE_IMAGE = '/codex-color.png'
 const USER_PROFILE_IMAGE = '/burger.png'
 const RESPONSE_SHUFFLE_CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#%&*+-=<>?'
@@ -105,7 +103,6 @@ function App() {
     readStoredBoolean(RIGHT_SIDEBAR_COLLAPSED_STORAGE_KEY, false),
   )
   const [attachmentDragDepth, setAttachmentDragDepth] = useState(0)
-  const [composerHeight, setComposerHeight] = useState(DEFAULT_COMPOSER_HEIGHT_PX)
   const [chatAtBottom, setChatAtBottom] = useState(true)
   const [activeUserMessageId, setActiveUserMessageId] = useState<string | null>(null)
   const [previewAttachment, setPreviewAttachment] = useState<AttachmentMeta | null>(null)
@@ -536,7 +533,7 @@ function App() {
     }
 
     updateActiveUserMessage()
-  }, [composerHeight, instruction])
+  }, [instruction])
 
   useEffect(() => {
     if (!previewAttachment) return
@@ -554,9 +551,6 @@ function App() {
     Boolean(selectedRunId) && instruction.trim().length > 0 && !busy && status === 'WAITING_FOR_REVIEW'
   const selectedTitle = selectedRun?.displayName ?? runSnapshot?.displayName ?? 'No run selected'
   const draggingAttachment = attachmentDragDepth > 0
-  const chatContainerStyle = {
-    '--composer-bottom-space': `${composerHeight + 16}px`,
-  } as CSSProperties
 
   function setUserMessageElement(messageId: string, element: HTMLElement | null) {
     if (element) {
@@ -720,7 +714,6 @@ function App() {
 
       <main
         className={`chat-container ${draggingAttachment ? 'dragging-attachment' : ''}`}
-        style={chatContainerStyle}
         onDragEnter={handleAttachmentDragEnter}
         onDragOver={handleAttachmentDragOver}
         onDragLeave={handleAttachmentDragLeave}
@@ -856,7 +849,6 @@ function App() {
           onDraftAttachmentAdd={addDraftAttachment}
           onDraftAttachmentRemove={removeDraftAttachment}
           onAttachmentPreview={setPreviewAttachment}
-          onHeightChange={setComposerHeight}
           error={actionError ?? streamError ?? null}
         />
       </main>
@@ -1261,7 +1253,6 @@ function ReviewComposer({
   onDraftAttachmentAdd,
   onDraftAttachmentRemove,
   onAttachmentPreview,
-  onHeightChange,
   error,
 }: {
   instruction: string
@@ -1277,10 +1268,8 @@ function ReviewComposer({
   onDraftAttachmentAdd: (name: string) => void
   onDraftAttachmentRemove: (name: string) => void
   onAttachmentPreview: (attachment: AttachmentMeta) => void
-  onHeightChange: (height: number) => void
   error: string | null
 }) {
-  const wrapperRef = useRef<HTMLElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const highlightRef = useRef<HTMLDivElement | null>(null)
   const [mentionRange, setMentionRange] = useState<MentionRange | null>(null)
@@ -1312,24 +1301,6 @@ function ReviewComposer({
   useLayoutEffect(() => {
     resizeComposerTextarea(textareaRef.current)
   }, [instruction])
-
-  useLayoutEffect(() => {
-    const wrapper = wrapperRef.current
-    if (!wrapper) {
-      return
-    }
-
-    const reportHeight = () => onHeightChange(Math.ceil(wrapper.getBoundingClientRect().height))
-    reportHeight()
-    if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', reportHeight)
-      return () => window.removeEventListener('resize', reportHeight)
-    }
-
-    const observer = new ResizeObserver(reportHeight)
-    observer.observe(wrapper)
-    return () => observer.disconnect()
-  }, [onHeightChange])
 
   useEffect(() => {
     setActiveMentionIndex(0)
@@ -1413,7 +1384,7 @@ function ReviewComposer({
   }
 
   return (
-    <section className="composer-wrapper" aria-label="Review" ref={wrapperRef}>
+    <section className="composer-wrapper" aria-label="Review">
       <label className="sr-only" htmlFor="instruction">
         Instruction
       </label>
