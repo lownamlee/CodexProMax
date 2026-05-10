@@ -1,5 +1,6 @@
 import {
   useEffect,
+  Fragment,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -370,6 +371,7 @@ function App() {
 
   const status: ProtocolStatus = runSnapshot?.status ?? selectedRun?.status ?? 'IDLE'
   const statusDetails = STATUS_DETAILS[status]
+  const aiWorking = isCodexWorking(status)
   const attachments = useMemo(() => runSnapshot?.attachments ?? [], [runSnapshot?.attachments])
   const draftAttachments = useMemo(
     () => attachments.filter((attachment) => draftAttachmentNames.includes(attachment.name)),
@@ -384,6 +386,7 @@ function App() {
     lastChatMessage?.id ?? 'none',
     lastChatMessage?.createdAtIso ?? 'none',
     lastChatMessage?.content.length ?? 0,
+    aiWorking ? 'ai-working' : 'ai-ready',
     pending === 'load' ? 'loading' : 'ready',
   ].join(':')
   const filesPresent = useMemo(() => {
@@ -416,6 +419,8 @@ function App() {
   }, [attachments])
 
   const busy = Boolean(pending)
+  const canSendInstruction =
+    Boolean(selectedRunId) && instruction.trim().length > 0 && !busy && !aiWorking
   const selectedTitle = selectedRun?.displayName ?? runSnapshot?.displayName ?? 'No run selected'
   const managerRoot = managerSnapshot?.rootPath ?? 'Loading workspace...'
   const draggingAttachment = attachmentDragDepth > 0
@@ -516,7 +521,14 @@ function App() {
             <EmptyInbox managerSnapshot={managerSnapshot} />
           ) : (
             chatMessages.length > 0 ? (
-              chatMessages.map((message) => <ChatMessageItem key={message.id} message={message} />)
+              chatMessages.map((message, index) => (
+                <Fragment key={message.id}>
+                  <ChatMessageItem message={message} />
+                  {aiWorking && index === chatMessages.length - 1 && message.role === 'user' && (
+                    <AiLoadingMessage />
+                  )}
+                </Fragment>
+              ))
             ) : hasSessionHistoryFile ? (
               <EmptyConversationHistory />
             ) : (
@@ -543,7 +555,7 @@ function App() {
           attachments={attachments}
           draftAttachments={draftAttachments}
           pending={pending}
-          canSend={Boolean(selectedRunId) && instruction.trim().length > 0 && !busy}
+          canSend={canSendInstruction}
           onSend={() => void sendInstruction()}
           onUpload={(file) => void handleUpload(file)}
           onPasteAttachment={handleComposerPaste}
@@ -712,6 +724,31 @@ function ChatMessageItem({ message }: { message: ChatMessage }) {
       )}
     </article>
   )
+}
+
+function AiLoadingMessage() {
+  return (
+    <article
+      className="message chat-message assistant-message ai-loading-message"
+      aria-label="Codex is working"
+      data-testid="ai-loading-indicator"
+    >
+      <div className="avatar" aria-hidden="true">
+        <i className="ri-robot-2-fill" />
+      </div>
+      <div className="message-content">
+        <div className="ai-loading-bubble" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+      </div>
+    </article>
+  )
+}
+
+function isCodexWorking(status: ProtocolStatus) {
+  return status === 'IDLE' || status === 'INSTRUCTION_RECEIVED'
 }
 
 function MarkdownPanel({

@@ -138,13 +138,21 @@ beforeEach(() => {
       }
 
       if (requestUrl.includes('/api/runs/') && requestUrl.includes('/action')) {
-        JSON.parse(String(init?.body)) as { instruction: string }
+        const body = JSON.parse(String(init?.body)) as { instruction: string }
         return jsonResponse({
           ok: true,
           snapshot: snapshotFactory({
             runId: 'run-a',
             displayName: 'Run A',
             status: 'INSTRUCTION_RECEIVED',
+            messages: [
+              {
+                id: 'user-action-1',
+                role: 'user',
+                content: body.instruction,
+                createdAtIso: '2026-05-07T00:00:04.000Z',
+              },
+            ],
           }),
         })
       }
@@ -240,6 +248,26 @@ describe('App', () => {
         }),
       }),
     )
+  })
+
+  it('shows Codex loading below the latest user message and blocks sending while working', async () => {
+    render(<App />)
+    await getEventSource()
+
+    const input = await screen.findByLabelText('Instruction')
+    fireEvent.change(input, {
+      target: { value: 'Continue the implementation.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /send to codex/i }))
+
+    expect(await screen.findByText('Continue the implementation.')).toBeInTheDocument()
+    expect(screen.getByTestId('ai-loading-indicator')).toBeInTheDocument()
+
+    fireEvent.change(input, {
+      target: { value: 'Second instruction while busy.' },
+    })
+
+    expect(screen.getByRole('button', { name: /send to codex/i })).toBeDisabled()
   })
 
   it('clears conversation history without deleting the selected run', async () => {
