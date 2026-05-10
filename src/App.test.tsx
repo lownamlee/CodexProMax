@@ -201,6 +201,27 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /Run B/i }).querySelector('.run-status-instruction-received')).toBeInTheDocument()
   })
 
+  it('uses the smooth svg spinner for running runs', async () => {
+    const manager = managerFactory()
+    manager.runs[0] = {
+      ...manager.runs[0],
+      status: 'RUNNING',
+      owner: 'agent',
+    }
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(jsonResponse(manager))
+      .mockResolvedValueOnce(jsonResponse(snapshotFactory({ status: 'RUNNING' })))
+
+    render(<App />)
+    await getEventSource()
+
+    const runButton = await screen.findByRole('button', { name: /Run A/i })
+    const spinner = runButton.querySelector('svg.run-status-spinner')
+    expect(spinner).toBeInTheDocument()
+    expect(spinner?.querySelector('circle')).toHaveAttribute('r', '20')
+    expect(runButton.querySelector('.ri-loader-4-line')).not.toBeInTheDocument()
+  })
+
   it('persists collapsed sidebar state across remounts', async () => {
     const { unmount } = render(<App />)
     await getEventSource()

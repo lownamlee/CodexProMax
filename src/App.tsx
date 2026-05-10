@@ -830,10 +830,7 @@ function RunInbox({
                   aria-current={run.runId === selectedRunId ? 'true' : undefined}
                   title={`${run.displayName} - ${run.status}`}
                 >
-                  <i
-                    className={`${RUN_STATUS_ICONS[run.status]} run-icon run-status-icon run-${statusClassName(run.status)}`}
-                    aria-hidden="true"
-                  />
+                  <RunStatusIcon status={run.status} />
                   <span className={`run-title run-${statusClassName(run.status)}`}>{run.displayName}</span>
                   <span className="run-meta">
                     {run.isLegacy ? 'Legacy root' : run.runId}
@@ -862,6 +859,28 @@ function RunInbox({
         )}
       </div>
     </aside>
+  )
+}
+
+function RunStatusIcon({ status }: { status: ProtocolStatus }) {
+  const statusClass = `run-${statusClassName(status)}`
+  if (status === 'RUNNING') {
+    return (
+      <svg
+        className={`run-icon run-status-icon run-status-spinner ${statusClass}`}
+        viewBox="0 0 50 50"
+        aria-hidden="true"
+      >
+        <circle cx="25" cy="25" r="20" />
+      </svg>
+    )
+  }
+
+  return (
+    <i
+      className={`${RUN_STATUS_ICONS[status]} run-icon run-status-icon ${statusClass}`}
+      aria-hidden="true"
+    />
   )
 }
 

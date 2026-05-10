@@ -278,12 +278,48 @@ button:disabled {
   color: var(--danger);
 }
 
-.run-status-icon.run-status-running {
-  animation: spin 1.2s linear infinite;
+.run-status-spinner {
+  width: 18px;
+  height: 18px;
+  display: block;
+  animation: runSpinnerRotate 2s linear infinite;
+}
+
+.run-status-spinner circle {
+  fill: none;
+  stroke: #0078d4;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-dasharray: 1, 200;
+  stroke-dashoffset: 0;
+  animation: runSpinnerStretch 1.5s ease-in-out infinite;
 }
 
 .run-item:hover .run-icon {
   transform: scale(1.1);
+}
+
+@keyframes runSpinnerRotate {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes runSpinnerStretch {
+  0% {
+    stroke-dasharray: 1, 200;
+    stroke-dashoffset: 0;
+  }
+
+  50% {
+    stroke-dasharray: 90, 200;
+    stroke-dashoffset: -35px;
+  }
+
+  100% {
+    stroke-dasharray: 90, 200;
+    stroke-dashoffset: -124px;
+  }
 }
 
 @keyframes spin {
