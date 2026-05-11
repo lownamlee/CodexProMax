@@ -4,10 +4,11 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
-const WAIT_SCRIPT = 'C:\\Users\\ramly\\.codex\\skills\\codex-pro-max-hitl\\scripts\\wait_for_review.ps1'
-const REQUEST_SCRIPT = 'C:\\Users\\ramly\\.codex\\skills\\codex-pro-max-hitl\\scripts\\request_review.ps1'
-const CONSUME_SCRIPT = 'C:\\Users\\ramly\\.codex\\skills\\codex-pro-max-hitl\\scripts\\consume_instruction.ps1'
-const INSTALL_SCRIPT = path.resolve('install-codex-pro-max.ps1')
+const SKILL_SCRIPT_DIR = path.resolve('setup', 'skills', 'codex-pro-max-hitl', 'scripts')
+const WAIT_SCRIPT = path.resolve('wait_for_review.ps1')
+const REQUEST_SCRIPT = path.join(SKILL_SCRIPT_DIR, 'request_review.ps1')
+const CONSUME_SCRIPT = path.join(SKILL_SCRIPT_DIR, 'consume_instruction.ps1')
+const SETUP_SCRIPT = path.resolve('setup.cmd')
 
 interface StartedWaitScript {
   child: ReturnType<typeof spawn>
@@ -108,10 +109,10 @@ describe('Codex Pro Max wait script', () => {
     expect(started.output.stdout).toContain('STATUS_CHANGED: INSTRUCTION_RECEIVED')
   })
 
-  it('installer writes portable global instructions and skill scripts', async () => {
+  it('setup writes portable global instructions and skill scripts', async () => {
     const codexHome = await createTempRoot()
 
-    const result = await runPowerShellScript(INSTALL_SCRIPT, ['-CodexHome', codexHome, '-NoBackup'])
+    const result = await runCmdScript(SETUP_SCRIPT, ['-CodexHome', codexHome, '-NoBackup'])
 
     expect(result.code).toBe(0)
     await expect(fileExists(path.join(codexHome, 'AGENTS.md'))).resolves.toBe(true)
@@ -119,10 +120,17 @@ describe('Codex Pro Max wait script', () => {
     await expect(fileExists(path.join(codexHome, 'skills', 'codex-pro-max-hitl', 'scripts', 'request_review.ps1'))).resolves.toBe(true)
     await expect(fileExists(path.join(codexHome, 'skills', 'codex-pro-max-hitl', 'scripts', 'consume_instruction.ps1'))).resolves.toBe(true)
     await expect(fileExists(path.join(codexHome, 'skills', 'codex-pro-max-hitl', 'scripts', 'wait_for_review.ps1'))).resolves.toBe(true)
+    await expect(fileExists(path.join(codexHome, 'skills', 'codex-pro-max-hitl', 'INSTALLATION.json'))).resolves.toBe(true)
 
     const agents = await readFile(path.join(codexHome, 'AGENTS.md'), 'utf8')
-    expect(agents).toContain(process.cwd())
+    expect(agents).toContain('INSTALLATION.json')
     expect(agents).toContain('wait_for_review.ps1 -RunDir "<run-dir>"')
+    const installation = JSON.parse(
+      await readFile(path.join(codexHome, 'skills', 'codex-pro-max-hitl', 'INSTALLATION.json'), 'utf8'),
+    ) as { projectRoot: string; codexHome: string; skillRoot: string }
+    expect(installation.projectRoot).toBe(process.cwd())
+    expect(installation.codexHome).toBe(codexHome)
+    expect(installation.skillRoot).toBe(path.join(codexHome, 'skills', 'codex-pro-max-hitl'))
   })
 
   it('request review writes output and session while deleting progress', async () => {
@@ -281,6 +289,24 @@ async function runPowerShellScript(scriptPath: string, args: string[]) {
   const started = startPowerShellScript(scriptPath, args)
   const result = await waitForExit(started, 4_000)
   return { ...result, stdout: started.output.stdout, stderr: started.output.stderr }
+}
+
+async function runCmdScript(scriptPath: string, args: string[]) {
+  const output = { stdout: '', stderr: '' }
+  const child = spawn('cmd', ['/d', '/c', scriptPath, ...args], {
+    env: { ...process.env, CODEX_PRO_MAX_SETUP_NO_PAUSE: '1' },
+    windowsHide: true,
+  })
+
+  child.stdout?.on('data', (chunk: Buffer) => {
+    output.stdout += chunk.toString('utf8')
+  })
+  child.stderr?.on('data', (chunk: Buffer) => {
+    output.stderr += chunk.toString('utf8')
+  })
+
+  const result = await waitForExit({ child, output }, 4_000)
+  return { ...result, stdout: output.stdout, stderr: output.stderr }
 }
 
 function startPowerShellScript(scriptPath: string, args: string[], env: Record<string, string> = {}): StartedWaitScript {

@@ -6,50 +6,43 @@ Codex Pro Max is a local human-in-the-loop inbox for Codex-style agents. It give
 
 The app is intentionally file-first. Codex and the browser coordinate through plain protocol files under `runs/<runId>/`, while the Express API watches those files and broadcasts live UI updates.
 
-## Installation
+## Setup
 
 ### Requirements
 
 - Node.js 24 or newer.
 - npm 11 or newer.
-- Windows PowerShell for the bundled `.ps1` helper scripts.
+- Windows PowerShell. `setup.cmd` uses it internally, and the runtime helper scripts are still `.ps1` files.
 
 The default API port is `53127`. The default Vite UI port is `5173`.
 
-### 1. Install Dependencies
+### 1. Run Setup
 
-```bash
-npm install
+Double-click `setup.cmd` from this repository. From a terminal, you can run:
+
+```bat
+.\setup.cmd
 ```
 
-### 2. Install the HITL Skill
-
-Run the installer from this repository:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\install-codex-pro-max.ps1
-```
-
-The installer writes:
+The setup command copies the checked-in files under `setup/` and writes:
 
 - Global instructions at `C:\Users\ramly\.codex\AGENTS.md`.
 - The skill at `C:\Users\ramly\.codex\skills\codex-pro-max-hitl`.
 - Helper scripts for request, wait, and consume operations.
+- Installation metadata at `C:\Users\ramly\.codex\skills\codex-pro-max-hitl\INSTALLATION.json`.
 
 The generated instructions point to this clone, so the repository can live outside `Desktop`.
 
-### 3. Start the App
+### 2. Start the App
 
-```bash
-npm run dev
-```
+Double-click `start-project.cmd`.
 
-This starts both services:
+It checks whether dependencies are installed, runs `npm install` when packages are missing or out of sync, then starts both services with `npm run dev`:
 
 - API: `http://127.0.0.1:53127/`
 - UI: `http://127.0.0.1:5173/`
 
-### 4. Use the Inbox
+### 3. Use the Inbox
 
 Open the UI and select a run from the left sidebar. A Codex run appears when a session writes protocol files under `runs/<runId>/`.
 
@@ -62,7 +55,7 @@ Typical loop:
 5. Codex's wait script exits.
 6. Codex calls `consume_instruction.ps1` and continues.
 
-### 5. Validate a Clone
+### 4. Validate a Clone
 
 ```bash
 npm test
