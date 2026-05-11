@@ -13,5 +13,6 @@ output.md
 instruction.txt
 events.ndjson
 teammates.json
+redesign_awwwards.html
 *.log
 *.tmp
