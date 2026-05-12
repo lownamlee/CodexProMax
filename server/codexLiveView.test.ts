@@ -233,6 +233,13 @@ describe('Codex live view JSONL parser', () => {
       payload: {
         type: 'token_count',
         info: {
+          total_token_usage: {
+            input_tokens: 135721336,
+            cached_input_tokens: 133152896,
+            output_tokens: 346237,
+            reasoning_output_tokens: 117450,
+            total_tokens: 136067573,
+          },
           last_token_usage: {
             input_tokens: 67688,
             cached_input_tokens: 66944,
@@ -242,6 +249,27 @@ describe('Codex live view JSONL parser', () => {
           },
           model_context_window: 258400,
         },
+        rate_limits: {
+          limit_id: 'codex',
+          limit_name: null,
+          primary: {
+            used_percent: 67,
+            window_minutes: 300,
+            resets_at: 1778615464,
+          },
+          secondary: {
+            used_percent: 41,
+            window_minutes: 10080,
+            resets_at: 1779090417,
+          },
+          credits: {
+            has_credits: false,
+            unlimited: false,
+            balance: null,
+          },
+          plan_type: 'team',
+          rate_limit_reached_type: null,
+        },
       },
     }))
 
@@ -249,11 +277,31 @@ describe('Codex live view JSONL parser', () => {
       timestamp: '2026-05-12T09:29:29.803Z',
       contextWindow: 258400,
       usedTokens: 67869,
+      remainingTokens: 190531,
       inputTokens: 67688,
       cachedInputTokens: 66944,
       outputTokens: 181,
       reasoningOutputTokens: 164,
+      totalUsage: {
+        totalTokens: 136067573,
+      },
+      rateLimits: {
+        limitId: 'codex',
+        planType: 'team',
+        primary: {
+          usedPercent: 67,
+          remainingPercent: 33,
+          windowMinutes: 300,
+          resetsAt: 1778615464,
+        },
+        secondary: {
+          usedPercent: 41,
+          remainingPercent: 59,
+          windowMinutes: 10080,
+        },
+      },
     })
     expect(context?.percentUsed).toBeCloseTo(26.265)
+    expect(context?.percentRemaining).toBeCloseTo(73.735)
   })
 })

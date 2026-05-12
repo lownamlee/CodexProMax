@@ -131,11 +131,45 @@ beforeEach(() => {
             timestamp: '2026-05-12T09:22:01.000Z',
             contextWindow: 258400,
             usedTokens: 67869,
+            remainingTokens: 190531,
             inputTokens: 67688,
             cachedInputTokens: 66944,
             outputTokens: 181,
             reasoningOutputTokens: 164,
             percentUsed: 26.264318885448918,
+            percentRemaining: 73.73568111455108,
+            totalUsage: {
+              inputTokens: 135721336,
+              cachedInputTokens: 133152896,
+              outputTokens: 346237,
+              reasoningOutputTokens: 117450,
+              totalTokens: 136067573,
+            },
+            rateLimits: {
+              limitId: 'codex',
+              limitName: null,
+              planType: 'team',
+              rateLimitReachedType: null,
+              primary: {
+                usedPercent: 67,
+                remainingPercent: 33,
+                windowMinutes: 300,
+                resetsAt: 1778615464,
+                resetsAtIso: '2026-05-12T19:51:04.000Z',
+              },
+              secondary: {
+                usedPercent: 41,
+                remainingPercent: 59,
+                windowMinutes: 10080,
+                resetsAt: 1779090417,
+                resetsAtIso: '2026-05-18T13:06:57.000Z',
+              },
+              credits: {
+                hasCredits: false,
+                unlimited: false,
+                balance: null,
+              },
+            },
           },
           tailBytes: 2048,
           totalSizeBytes: 4096,
@@ -367,8 +401,20 @@ describe('App', () => {
       "Get-Content -Path 'src\\App.tsx' Select-Object -First 5",
       { selector: '.codex-live-command-details summary span' },
     )).toBeInTheDocument()
-    expect(within(livePage).getByLabelText('Context limit')).toHaveTextContent('67.9K / 258.4K')
-    expect(within(livePage).getByLabelText('Context limit')).toHaveTextContent('26%')
+    expect(within(livePage).getByLabelText('Context limit')).toHaveTextContent('Context')
+    expect(within(livePage).getByLabelText('Context limit')).toHaveTextContent('26% used')
+    expect(within(livePage).getByLabelText('Context limit')).toHaveTextContent('67.9K of 258.4K used')
+    expect(within(livePage).getByLabelText('Context limit')).toHaveTextContent('Total 136.1M')
+    expect(within(livePage).getByLabelText('Context limit')).toHaveTextContent('5h limit')
+    expect(within(livePage).getByLabelText('Context limit')).toHaveTextContent('33% left')
+    expect(within(livePage).getByLabelText('Context limit')).toHaveTextContent('Weekly limit')
+    expect(within(livePage).getByLabelText('Context limit')).toHaveTextContent('59% left')
+    expect(within(livePage).getByLabelText('Context limit')).toHaveTextContent('Resets')
+    expect(within(livePage).getByLabelText('Context limit')).toHaveTextContent('Team')
+    const gaugeBars = within(livePage).getByLabelText('Context limit').querySelectorAll('.codex-live-gauge-bar span')
+    expect(Number.parseFloat((gaugeBars[0] as HTMLElement).style.width)).toBeCloseTo(26.264)
+    expect((gaugeBars[1] as HTMLElement).style.width).toBe('67%')
+    expect((gaugeBars[2] as HTMLElement).style.width).toBe('41%')
     expect(screen.queryByText(/Showing newest records/i)).not.toBeInTheDocument()
 
     const articles = Array.from(screen.getByTestId('codex-live-thread').querySelectorAll('article'))

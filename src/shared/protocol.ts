@@ -248,11 +248,45 @@ export interface CodexLiveContextUsage {
   timestamp: string
   contextWindow: number
   usedTokens: number
+  remainingTokens: number
   inputTokens: number
   cachedInputTokens: number
   outputTokens: number
   reasoningOutputTokens: number
   percentUsed: number
+  percentRemaining: number
+  totalUsage: CodexLiveTokenUsage
+  rateLimits: CodexLiveRateLimits | null
+}
+
+export interface CodexLiveTokenUsage {
+  inputTokens: number
+  cachedInputTokens: number
+  outputTokens: number
+  reasoningOutputTokens: number
+  totalTokens: number
+}
+
+export interface CodexLiveRateLimits {
+  limitId: string
+  limitName: string | null
+  planType: string
+  rateLimitReachedType: string | null
+  primary: CodexLiveRateLimitWindow | null
+  secondary: CodexLiveRateLimitWindow | null
+  credits: {
+    hasCredits: boolean
+    unlimited: boolean
+    balance: number | null
+  }
+}
+
+export interface CodexLiveRateLimitWindow {
+  usedPercent: number
+  remainingPercent: number
+  windowMinutes: number
+  resetsAt: number
+  resetsAtIso: string
 }
 
 export interface CodexLiveSessionsResponse {

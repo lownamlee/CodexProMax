@@ -3238,25 +3238,50 @@ code,
 }
 
 .codex-live-context {
-  width: min(280px, 34vw);
-  min-width: 180px;
+  width: min(520px, 52vw);
+  min-width: 320px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 6px 10px;
+  gap: 7px;
   padding: 7px 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: #f8fcff;
 }
 
-.codex-live-context > div:first-child {
+.codex-live-gauge-list {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.codex-live-gauge {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.codex-live-gauge-heading {
   min-width: 0;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 10px;
-  grid-column: 1 / -1;
+  gap: 6px;
+}
+
+.codex-live-context-meta {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.codex-live-context .codex-live-context-meta span {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: var(--primary-hover);
+  font-size: 10px;
 }
 
 .codex-live-context span,
@@ -3272,18 +3297,30 @@ code,
   white-space: nowrap;
 }
 
-.codex-live-context-bar {
+.codex-live-gauge-bar {
   height: 6px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e0f2fe;
+  background: #e2e8f0;
 }
 
-.codex-live-context-bar span {
+.codex-live-gauge-bar span {
   height: 100%;
   display: block;
   border-radius: inherit;
-  background: var(--primary);
+  background: linear-gradient(90deg, #22c55e, var(--primary));
+}
+
+.codex-live-gauge-context .codex-live-gauge-bar span {
+  background: linear-gradient(90deg, #38bdf8, #2563eb);
+}
+
+.codex-live-gauge-primary .codex-live-gauge-bar span {
+  background: linear-gradient(90deg, #fbbf24, #f97316);
+}
+
+.codex-live-gauge-secondary .codex-live-gauge-bar span {
+  background: linear-gradient(90deg, #34d399, #0f766e);
 }
 
 .codex-live-thread {
@@ -4007,6 +4044,10 @@ button:focus-visible,
   .codex-live-context {
     width: 100%;
     min-width: 0;
+  }
+
+  .codex-live-gauge-list {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .codex-live-thread {

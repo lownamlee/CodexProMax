@@ -37,6 +37,7 @@ import { useSnapshotStream } from './hooks/useSnapshotStream'
 import type {
   AttachmentMeta,
   CodexLiveHistoryResponse,
+  CodexLiveRateLimitWindow,
   CodexLiveRecord,
   CodexLiveSessionSummary,
   CodexLiveSessionsResponse,
@@ -3723,17 +3724,57 @@ function CodexLiveSessionButton({
 
 function CodexLiveContextMeter({ usage }: { usage: NonNullable<CodexLiveHistoryResponse['context']> }) {
   const percent = Math.max(0, Math.min(100, usage.percentUsed))
+  const primaryLimit = usage.rateLimits?.primary ?? null
+  const secondaryLimit = usage.rateLimits?.secondary ?? null
+  const planType = usage.rateLimits?.planType || ''
+  const totalTokens = usage.totalUsage?.totalTokens ?? 0
+  const gauges = [
+    {
+      key: 'context',
+      tone: 'context',
+      label: 'Context',
+      percent,
+      value: `${formatPercent(percent)} used`,
+      detail: `${formatTokenCount(usage.usedTokens)} of ${formatTokenCount(usage.contextWindow)} used`,
+    },
+    primaryLimit && {
+      key: 'primary',
+      tone: 'primary',
+      label: formatLimitName(primaryLimit, '5h limit'),
+      percent: primaryLimit.usedPercent,
+      value: `${formatPercent(primaryLimit.remainingPercent)} left`,
+      detail: formatResetDateTime(primaryLimit.resetsAtIso),
+    },
+    secondaryLimit && {
+      key: 'secondary',
+      tone: 'secondary',
+      label: formatLimitName(secondaryLimit, 'Weekly limit'),
+      percent: secondaryLimit.usedPercent,
+      value: `${formatPercent(secondaryLimit.remainingPercent)} left`,
+      detail: formatResetDateTime(secondaryLimit.resetsAtIso),
+    },
+  ].filter(Boolean) as Array<{ key: string; tone: string; label: string; percent: number; value: string; detail: string }>
 
   return (
     <div className="codex-live-context" aria-label="Context limit">
-      <div>
-        <span>Context</span>
-        <strong>{formatTokenCount(usage.usedTokens)} / {formatTokenCount(usage.contextWindow)}</strong>
+      <div className="codex-live-gauge-list">
+        {gauges.map((gauge) => (
+          <div className={`codex-live-gauge codex-live-gauge-${gauge.tone}`} key={gauge.key}>
+            <div className="codex-live-gauge-heading">
+              <span>{gauge.label}</span>
+              <strong>{gauge.value}</strong>
+            </div>
+            <div className="codex-live-gauge-bar" aria-hidden="true">
+              <span style={{ width: `${Math.max(0, Math.min(100, gauge.percent))}%` }} />
+            </div>
+            {gauge.detail && <small>{gauge.detail}</small>}
+          </div>
+        ))}
       </div>
-      <div className="codex-live-context-bar" aria-hidden="true">
-        <span style={{ width: `${percent}%` }} />
+      <div className="codex-live-context-meta">
+        {totalTokens > 0 && <span>Total {formatTokenCount(totalTokens)}</span>}
+        {planType && <span>{humanizePlanType(planType)}</span>}
       </div>
-      <small>{Math.round(percent)}%</small>
     </div>
   )
 }
@@ -4019,6 +4060,35 @@ function formatTokenCount(value: number) {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
   if (value >= 1_000) return `${(value / 1_000).toFixed(1).replace(/\.0$/, '')}K`
   return String(Math.round(value))
+}
+
+function formatPercent(value: number) {
+  if (!Number.isFinite(value)) return '0%'
+  return `${Math.round(Math.max(0, Math.min(100, value)))}%`
+}
+
+function formatLimitName(limit: CodexLiveRateLimitWindow, fallback: string) {
+  if (limit.windowMinutes === 300) return '5h limit'
+  if (limit.windowMinutes === 10_080) return 'Weekly limit'
+  return formatWindowMinutes(limit.windowMinutes) || fallback
+}
+
+function formatWindowMinutes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return ''
+  if (value % 10_080 === 0) return `${value / 10_080}w limit`
+  if (value % 1_440 === 0) return `${value / 1_440}d limit`
+  if (value % 60 === 0) return `${value / 60}h limit`
+  return `${Math.round(value)}m limit`
+}
+
+function formatResetDateTime(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return `Resets ${dateFormatter.format(date)}`
+}
+
+function humanizePlanType(value: string) {
+  return value.replace(/[-_]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
 function ProtocolFilePreviewDialog({

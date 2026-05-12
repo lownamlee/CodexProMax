@@ -4,6 +4,8 @@ import path from 'node:path'
 import type {
   CodexLiveContextUsage,
   CodexLiveHistoryResponse,
+  CodexLiveRateLimits,
+  CodexLiveRateLimitWindow,
   CodexLiveRecord,
   CodexLiveSessionSummary,
   CodexLiveSessionsResponse,
@@ -126,8 +128,11 @@ export function parseCodexLiveContext(line: string): CodexLiveContextUsage | nul
 
   const info = payload.info || {}
   const lastUsage = info.last_token_usage || {}
+  const totalUsage = info.total_token_usage || {}
   const contextWindow = tokenNumber(info.model_context_window)
   const usedTokens = tokenNumber(lastUsage.total_tokens)
+  const remainingTokens = Math.max(0, contextWindow - usedTokens)
+  const percentUsed = contextWindow > 0 ? (usedTokens / contextWindow) * 100 : 0
 
   if (contextWindow <= 0 && usedTokens <= 0) return null
 
@@ -135,11 +140,21 @@ export function parseCodexLiveContext(line: string): CodexLiveContextUsage | nul
     timestamp: String(record.timestamp || ''),
     contextWindow,
     usedTokens,
+    remainingTokens,
     inputTokens: tokenNumber(lastUsage.input_tokens),
     cachedInputTokens: tokenNumber(lastUsage.cached_input_tokens),
     outputTokens: tokenNumber(lastUsage.output_tokens),
     reasoningOutputTokens: tokenNumber(lastUsage.reasoning_output_tokens),
-    percentUsed: contextWindow > 0 ? (usedTokens / contextWindow) * 100 : 0,
+    percentUsed,
+    percentRemaining: Math.max(0, 100 - percentUsed),
+    totalUsage: {
+      inputTokens: tokenNumber(totalUsage.input_tokens),
+      cachedInputTokens: tokenNumber(totalUsage.cached_input_tokens),
+      outputTokens: tokenNumber(totalUsage.output_tokens),
+      reasoningOutputTokens: tokenNumber(totalUsage.reasoning_output_tokens),
+      totalTokens: tokenNumber(totalUsage.total_tokens),
+    },
+    rateLimits: parseRateLimits(payload.rate_limits),
   }
 }
 
@@ -580,6 +595,54 @@ function clampInt(value: unknown, min: number, max: number, fallback: number) {
 function tokenNumber(value: unknown) {
   const numeric = Number(value)
   return Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : 0
+}
+
+function percentNumber(value: unknown) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return 0
+  return Math.max(0, Math.min(100, numeric))
+}
+
+function nullableString(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value : null
+}
+
+function parseRateLimits(value: unknown): CodexLiveRateLimits | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  const credits = record.credits && typeof record.credits === 'object' && !Array.isArray(record.credits)
+    ? record.credits as Record<string, unknown>
+    : {}
+
+  return {
+    limitId: typeof record.limit_id === 'string' ? record.limit_id : '',
+    limitName: nullableString(record.limit_name),
+    planType: typeof record.plan_type === 'string' ? record.plan_type : '',
+    rateLimitReachedType: nullableString(record.rate_limit_reached_type),
+    primary: parseRateLimitWindow(record.primary),
+    secondary: parseRateLimitWindow(record.secondary),
+    credits: {
+      hasCredits: credits.has_credits === true,
+      unlimited: credits.unlimited === true,
+      balance: typeof credits.balance === 'number' && Number.isFinite(credits.balance) ? credits.balance : null,
+    },
+  }
+}
+
+function parseRateLimitWindow(value: unknown): CodexLiveRateLimitWindow | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  const usedPercent = percentNumber(record.used_percent)
+  const windowMinutes = tokenNumber(record.window_minutes)
+  const resetsAt = tokenNumber(record.resets_at)
+
+  return {
+    usedPercent,
+    remainingPercent: Math.max(0, 100 - usedPercent),
+    windowMinutes,
+    resetsAt,
+    resetsAtIso: resetsAt > 0 ? new Date(resetsAt * 1000).toISOString() : '',
+  }
 }
 
 function humanize(value: string) {
