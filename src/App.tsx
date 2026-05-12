@@ -9,6 +9,7 @@ import {
   useState,
   type ChangeEvent,
   type ClipboardEvent,
+  type ComponentProps,
   type DragEvent,
   type KeyboardEvent,
   type ReactNode,
@@ -17,6 +18,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   clearConversationHistory as clearConversationHistoryRequest,
   createTeammate,
@@ -94,6 +96,16 @@ const PROTOCOL_FILES_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-protoc
 const ATTACHMENTS_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-attachments-collapsed'
 const QUEUED_INSTRUCTIONS_STORAGE_KEY = 'codex-pro-max:queued-instructions:v1'
 const CTRL_ENTER_CONFIRM_STORAGE_KEY = 'codex-pro-max:confirm-ctrl-enter-send'
+const MARKDOWN_REMARK_PLUGINS = [remarkGfm]
+const MARKDOWN_COMPONENTS = {
+  table({ node: _node, ...props }: ComponentProps<'table'> & { node?: unknown }) {
+    return (
+      <div className="markdown-table-scroll">
+        <table {...props} />
+      </div>
+    )
+  },
+}
 
 type PendingAction = 'send' | 'upload' | 'load' | 'clear' | 'stop'
 type MentionRange = { start: number; end: number; query: string }
@@ -2119,7 +2131,7 @@ const MarkdownPanel = memo(function MarkdownPanel({
     <>
       {warning}
       <div className="prose markdown-body">
-        <ReactMarkdown>{markdown}</ReactMarkdown>
+        <ReactMarkdown components={MARKDOWN_COMPONENTS} remarkPlugins={MARKDOWN_REMARK_PLUGINS}>{markdown}</ReactMarkdown>
       </div>
     </>
   )

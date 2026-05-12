@@ -1428,6 +1428,30 @@ describe('App', () => {
     )
   })
 
+  it('renders GitHub-flavored markdown tables', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(jsonResponse(managerFactory()))
+      .mockResolvedValueOnce(jsonResponse(snapshotFactory({
+        outputMd: [
+          '## Missing CDD data',
+          '',
+          '| Field | Status |',
+          '| --- | --- |',
+          '| PEP status | Not in SSM PDF |',
+        ].join('\n'),
+      })))
+
+    render(<App />)
+    await getEventSource()
+
+    const table = await screen.findByRole('table')
+    expect(within(table).getByRole('columnheader', { name: 'Field' })).toBeInTheDocument()
+    expect(within(table).getByRole('columnheader', { name: 'Status' })).toBeInTheDocument()
+    expect(within(table).getByRole('cell', { name: 'PEP status' })).toBeInTheDocument()
+    expect(within(table).getByRole('cell', { name: 'Not in SSM PDF' })).toBeInTheDocument()
+    expect(table.parentElement).toHaveClass('markdown-table-scroll')
+  })
+
   it('opens uploaded attachments in an image preview', async () => {
     render(<App />)
     await getEventSource()
