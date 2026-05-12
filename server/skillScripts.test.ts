@@ -1,13 +1,13 @@
 import { spawn } from 'node:child_process'
-import { access, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
-const SKILL_SCRIPT_DIR = path.resolve('setup', 'skills', 'codex-pro-max-hitl', 'scripts')
-const WAIT_SCRIPT = path.resolve('wait_for_review.ps1')
+const SKILL_SCRIPT_DIR = path.resolve('setup', 'skills', 'codex-pro-max', 'scripts')
+const CREATE_SCRIPT = path.join(SKILL_SCRIPT_DIR, 'create_session.ps1')
+const WAIT_SCRIPT = path.join(SKILL_SCRIPT_DIR, 'wait_for_review.ps1')
 const REQUEST_SCRIPT = path.join(SKILL_SCRIPT_DIR, 'request_review.ps1')
-const CONSUME_SCRIPT = path.join(SKILL_SCRIPT_DIR, 'consume_instruction.ps1')
 const SETUP_SCRIPT = path.resolve('setup.cmd')
 
 interface StartedWaitScript {
@@ -26,25 +26,47 @@ afterEach(async () => {
   )
 })
 
-describe('Codex Pro Max wait script', () => {
-  it('resolves CODEX_THREAD_ID into a stable run folder', async () => {
+describe('Codex Pro Max skill scripts', () => {
+  it('creates a session folder automatically', async () => {
     const root = await createTempRoot()
     const threadId = 'thread-abc-123'
     const runDir = path.join(root, 'runs', threadId)
-    await mkdir(runDir, { recursive: true })
-    await writeFile(path.join(runDir, 'status.txt'), 'INSTRUCTION_RECEIVED')
 
-    const started = startWaitScript({
-      CODEX_PRO_MAX_ROOT: root,
+    const result = await runPowerShellScript(CREATE_SCRIPT, ['-Root', root], {
       CODEX_THREAD_ID: threadId,
-      CODEX_PRO_MAX_POLL_SECONDS: '1',
     })
-
-    const result = await waitForExit(started, 4_000)
+    const payload = JSON.parse(result.stdout) as {
+      ok: boolean
+      runId: string
+      runDir: string
+      status: string
+      sessionPath: string
+    }
+    const metadata = JSON.parse(await readFile(path.join(runDir, 'run.json'), 'utf8')) as {
+      runId: string
+      displayName: string
+      workspacePath: string
+      codexThreadId: string
+    }
 
     expect(result.code).toBe(0)
-    expect(started.output.stdout).toContain(path.join(root, 'runs', threadId, 'status.txt'))
-    expect(started.output.stdout).toContain('STATUS_CHANGED: INSTRUCTION_RECEIVED')
+    expect(payload).toMatchObject({
+      ok: true,
+      runId: threadId,
+      runDir,
+      status: 'RUNNING',
+      sessionPath: path.join(runDir, 'session.md'),
+    })
+    expect(metadata).toMatchObject({
+      runId: threadId,
+      displayName: threadId,
+      workspacePath: root,
+      codexThreadId: threadId,
+    })
+    await expect(readFile(path.join(runDir, 'status.txt'), 'utf8')).resolves.toBe('RUNNING')
+    await expect(readFile(path.join(runDir, 'instruction.txt'), 'utf8')).resolves.toBe('')
+    await expect(readFile(path.join(runDir, 'output.md'), 'utf8')).resolves.toBe('')
+    await expect(readFile(path.join(runDir, 'session.md'), 'utf8')).resolves.toBe('')
   })
 
   it('exits only when the selected run status changes', async () => {
@@ -56,11 +78,12 @@ describe('Codex Pro Max wait script', () => {
     await writeFile(path.join(targetRunDir, 'status.txt'), 'WAITING_FOR_REVIEW')
     await writeFile(path.join(otherRunDir, 'status.txt'), 'INSTRUCTION_RECEIVED')
 
-    const started = startWaitScript({
-      CODEX_PRO_MAX_ROOT: root,
-      CODEX_PRO_MAX_RUN_ID: 'target-run',
-      CODEX_PRO_MAX_POLL_SECONDS: '1',
-    })
+    const started = startWaitScript(
+      {
+        CODEX_PRO_MAX_POLL_SECONDS: '1',
+      },
+      ['-RunDir', targetRunDir],
+    )
 
     let exited = false
     const exitPromise = waitForExit(started, 6_000).then((result) => {
@@ -71,15 +94,26 @@ describe('Codex Pro Max wait script', () => {
     await delay(1_200)
     expect(exited).toBe(false)
 
+    await writeFile(path.join(targetRunDir, 'instruction.txt'), 'Continue target run.')
     await writeFile(path.join(targetRunDir, 'status.txt'), 'INSTRUCTION_RECEIVED')
     const result = await exitPromise
+    const payload = JSON.parse(started.output.stdout) as {
+      instruction: string
+      status: string
+      shouldFinish: boolean
+    }
 
     expect(result.code).toBe(0)
-    expect(started.output.stdout).toContain(path.join(root, 'runs', 'target-run', 'status.txt'))
-    expect(started.output.stdout).toContain('STATUS_CHANGED: INSTRUCTION_RECEIVED')
+    expect(payload).toMatchObject({
+      instruction: 'Continue target run.',
+      status: 'RUNNING',
+      shouldFinish: false,
+    })
+    await expect(readFile(path.join(targetRunDir, 'status.txt'), 'utf8')).resolves.toBe('RUNNING')
+    await expect(readFile(path.join(targetRunDir, 'instruction.txt'), 'utf8')).resolves.toBe('')
   })
 
-  it('supports explicit non-stop waits for a run directory', async () => {
+  it('blocks until an instruction arrives for a run directory', async () => {
     const root = await createTempRoot()
     const runDir = path.join(root, 'runs', 'target-run')
     await mkdir(runDir, { recursive: true })
@@ -101,36 +135,54 @@ describe('Codex Pro Max wait script', () => {
     await delay(1_200)
     expect(exited).toBe(false)
 
+    await writeFile(path.join(runDir, 'instruction.txt'), 'Continue now.')
     await writeFile(path.join(runDir, 'status.txt'), 'INSTRUCTION_RECEIVED')
     const result = await exitPromise
+    const payload = JSON.parse(started.output.stdout) as {
+      instruction: string
+      status: string
+    }
 
     expect(result.code).toBe(0)
-    expect(started.output.stdout).toContain(path.join(runDir, 'status.txt'))
-    expect(started.output.stdout).toContain('STATUS_CHANGED: INSTRUCTION_RECEIVED')
+    expect(payload).toMatchObject({
+      instruction: 'Continue now.',
+      status: 'RUNNING',
+    })
   })
 
   it('setup writes portable global instructions and skill scripts', async () => {
     const codexHome = await createTempRoot()
+    const skillRoot = path.join(codexHome, 'skills', 'codex-pro-max')
+    await mkdir(path.join(skillRoot, 'scripts'), { recursive: true })
+    await writeFile(path.join(skillRoot, 'scripts', 'stale-copy.tmp'), 'stale file')
 
-    const result = await runCmdScript(SETUP_SCRIPT, ['-CodexHome', codexHome, '-NoBackup'])
+    const result = await runCmdScript(SETUP_SCRIPT, ['-CodexHome', codexHome])
 
     expect(result.code).toBe(0)
     await expect(fileExists(path.join(codexHome, 'AGENTS.md'))).resolves.toBe(true)
-    await expect(fileExists(path.join(codexHome, 'skills', 'codex-pro-max-hitl', 'SKILL.md'))).resolves.toBe(true)
-    await expect(fileExists(path.join(codexHome, 'skills', 'codex-pro-max-hitl', 'scripts', 'request_review.ps1'))).resolves.toBe(true)
-    await expect(fileExists(path.join(codexHome, 'skills', 'codex-pro-max-hitl', 'scripts', 'consume_instruction.ps1'))).resolves.toBe(true)
-    await expect(fileExists(path.join(codexHome, 'skills', 'codex-pro-max-hitl', 'scripts', 'wait_for_review.ps1'))).resolves.toBe(true)
-    await expect(fileExists(path.join(codexHome, 'skills', 'codex-pro-max-hitl', 'INSTALLATION.json'))).resolves.toBe(true)
+    await expect(fileExists(path.join(codexHome, 'skills', 'codex-pro-max', 'SKILL.md'))).resolves.toBe(true)
+    await expect(fileExists(path.join(codexHome, 'skills', 'codex-pro-max', 'scripts', 'create_session.ps1'))).resolves.toBe(true)
+    await expect(fileExists(path.join(codexHome, 'skills', 'codex-pro-max', 'scripts', 'request_review.ps1'))).resolves.toBe(true)
+    await expect(fileExists(path.join(codexHome, 'skills', 'codex-pro-max', 'scripts', 'wait_for_review.ps1'))).resolves.toBe(true)
+    await expect(fileExists(path.join(codexHome, 'skills', 'codex-pro-max', 'INSTALLATION.json'))).resolves.toBe(true)
+    await expect(fileExists(path.join(codexHome, 'config.toml'))).resolves.toBe(true)
 
     const agents = await readFile(path.join(codexHome, 'AGENTS.md'), 'utf8')
-    expect(agents).toContain('INSTALLATION.json')
-    expect(agents).toContain('wait_for_review.ps1 -RunDir "<run-dir>"')
+    expect(agents).toContain('codex-pro-max')
+    expect(agents).toContain('create_session.ps1')
+    expect(agents).toContain('wait_for_review.ps1 -RunDir "<runDir>"')
     const installation = JSON.parse(
-      await readFile(path.join(codexHome, 'skills', 'codex-pro-max-hitl', 'INSTALLATION.json'), 'utf8'),
+      await readFile(path.join(codexHome, 'skills', 'codex-pro-max', 'INSTALLATION.json'), 'utf8'),
     ) as { projectRoot: string; codexHome: string; skillRoot: string }
     expect(installation.projectRoot).toBe(process.cwd())
     expect(installation.codexHome).toBe(codexHome)
-    expect(installation.skillRoot).toBe(path.join(codexHome, 'skills', 'codex-pro-max-hitl'))
+    expect(installation.skillRoot).toBe(path.join(codexHome, 'skills', 'codex-pro-max'))
+    const config = await readFile(path.join(codexHome, 'config.toml'), 'utf8')
+    expect(config).toContain(path.join(codexHome, 'skills', 'codex-pro-max', 'SKILL.md').replaceAll('\\', '\\\\'))
+    const scriptFiles = await readdir(path.join(skillRoot, 'scripts'))
+    expect([...scriptFiles].sort()).toEqual(['create_session.ps1', 'request_review.ps1', 'wait_for_review.ps1'])
+    const installedFiles = await readdir(skillRoot, { recursive: true })
+    expect(installedFiles.some((fileName) => String(fileName).includes('stale-copy.tmp'))).toBe(false)
   })
 
   it('request review writes output and session while deleting progress', async () => {
@@ -138,15 +190,6 @@ describe('Codex Pro Max wait script', () => {
     const runDir = path.join(root, 'runs', 'target-run')
     await mkdir(runDir, { recursive: true })
     await writeFile(path.join(runDir, 'progress.md'), 'stale progress')
-    await writeFile(
-      path.join(runDir, 'messages.ndjson'),
-      `${JSON.stringify({
-        id: 'legacy-user',
-        role: 'user',
-        content: 'Old instruction.',
-        createdAtIso: '2026-05-07T00:00:00.000Z',
-      })}\n`,
-    )
 
     const result = await runPowerShellScript(REQUEST_SCRIPT, [
       '-RunDir',
@@ -160,18 +203,17 @@ describe('Codex Pro Max wait script', () => {
     await expect(readFile(path.join(runDir, 'status.txt'), 'utf8')).resolves.toBe('WAITING_FOR_REVIEW')
     await expect(fileExists(path.join(runDir, 'progress.md'))).resolves.toBe(false)
     const session = await readFile(path.join(runDir, 'session.md'), 'utf8')
-    expect(session).toContain('Old instruction.')
     expect(session).toContain('Done.')
   })
 
-  it('consume instruction appends user history and returns session path', async () => {
+  it('wait for review reads instruction, appends user history, and returns session path', async () => {
     const root = await createTempRoot()
     const runDir = path.join(root, 'runs', 'target-run')
     await mkdir(runDir, { recursive: true })
     await writeFile(path.join(runDir, 'status.txt'), 'INSTRUCTION_RECEIVED')
     await writeFile(path.join(runDir, 'instruction.txt'), 'Continue now.')
 
-    const result = await runPowerShellScript(CONSUME_SCRIPT, ['-RunDir', runDir])
+    const result = await runPowerShellScript(WAIT_SCRIPT, ['-RunDir', runDir])
     const payload = JSON.parse(result.stdout) as {
       status: string
       instruction: string
@@ -191,7 +233,7 @@ describe('Codex Pro Max wait script', () => {
     await expect(readFile(path.join(runDir, 'session.md'), 'utf8')).resolves.toContain('Continue now.')
   })
 
-  it('consume instruction does not duplicate backend-appended UTF-8 user history', async () => {
+  it('wait for review does not duplicate backend-appended UTF-8 user history', async () => {
     const root = await createTempRoot()
     const runDir = path.join(root, 'runs', 'target-run')
     const instruction = 'Use the Vite output ➜ Local: http://127.0.0.1:5173/'
@@ -208,7 +250,7 @@ describe('Codex Pro Max wait script', () => {
     await writeFile(path.join(runDir, 'instruction.txt'), instruction, 'utf8')
     await writeFile(path.join(runDir, 'session.md'), sessionBlock, 'utf8')
 
-    const result = await runPowerShellScript(CONSUME_SCRIPT, ['-RunDir', runDir])
+    const result = await runPowerShellScript(WAIT_SCRIPT, ['-RunDir', runDir])
     const payload = JSON.parse(result.stdout) as {
       instruction: string
       status: string
@@ -225,36 +267,48 @@ describe('Codex Pro Max wait script', () => {
     expect(session).not.toContain('âžœ')
   })
 
-  it('consume instruction only finishes for direct stop commands', async () => {
+  it('wait for review does not finish from instruction text', async () => {
     const root = await createTempRoot()
     const runDir = path.join(root, 'runs', 'target-run')
     await mkdir(runDir, { recursive: true })
     await writeFile(path.join(runDir, 'status.txt'), 'INSTRUCTION_RECEIVED')
-    await writeFile(path.join(runDir, 'instruction.txt'), 'Add a stop button to the session.')
+    await writeFile(path.join(runDir, 'instruction.txt'), 'Stop this Codex Pro Max session now.')
 
-    const result = await runPowerShellScript(CONSUME_SCRIPT, ['-RunDir', runDir])
+    const result = await runPowerShellScript(WAIT_SCRIPT, ['-RunDir', runDir])
     const payload = JSON.parse(result.stdout) as {
+      instruction: string
+      status: string
       shouldFinish: boolean
     }
 
     expect(result.code).toBe(0)
-    expect(payload.shouldFinish).toBe(false)
+    expect(payload).toMatchObject({
+      instruction: 'Stop this Codex Pro Max session now.',
+      status: 'RUNNING',
+      shouldFinish: false,
+    })
   })
 
-  it('consume instruction finishes for the canonical stop-session instruction', async () => {
+  it('wait for review finishes only when the UI writes stopped status', async () => {
     const root = await createTempRoot()
     const runDir = path.join(root, 'runs', 'target-run')
     await mkdir(runDir, { recursive: true })
-    await writeFile(path.join(runDir, 'status.txt'), 'INSTRUCTION_RECEIVED')
-    await writeFile(path.join(runDir, 'instruction.txt'), 'Stop this Codex Pro Max HITL session now.')
+    await writeFile(path.join(runDir, 'status.txt'), 'STOPPED')
+    await writeFile(path.join(runDir, 'instruction.txt'), '')
 
-    const result = await runPowerShellScript(CONSUME_SCRIPT, ['-RunDir', runDir])
+    const result = await runPowerShellScript(WAIT_SCRIPT, ['-RunDir', runDir])
     const payload = JSON.parse(result.stdout) as {
+      instruction: string
+      status: string
       shouldFinish: boolean
     }
 
     expect(result.code).toBe(0)
-    expect(payload.shouldFinish).toBe(true)
+    expect(payload).toMatchObject({
+      instruction: '',
+      status: 'STOPPED',
+      shouldFinish: true,
+    })
   })
 })
 
@@ -285,8 +339,8 @@ function startWaitScript(env: Record<string, string>, args: string[] = []): Star
   return { child, output }
 }
 
-async function runPowerShellScript(scriptPath: string, args: string[]) {
-  const started = startPowerShellScript(scriptPath, args)
+async function runPowerShellScript(scriptPath: string, args: string[], env: Record<string, string> = {}) {
+  const started = startPowerShellScript(scriptPath, args, env)
   const result = await waitForExit(started, 4_000)
   return { ...result, stdout: started.output.stdout, stderr: started.output.stderr }
 }

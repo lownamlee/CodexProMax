@@ -5,12 +5,12 @@ import path from 'node:path'
 import type { CreateTeammateRequest, InstructionRequest, ProtocolTextFile, Teammate } from '../src/shared/protocol'
 import {
   DEFAULT_TEAMMATES,
-  LEGACY_RUN_ID,
   MAX_TEAMMATES,
   PROTOCOL_TEXT_FILES,
   TEAMMATE_AVATAR_URLS,
 } from '../src/shared/protocol'
 import { HttpError } from './errors'
+import { listCodexLiveSessions, readCodexLiveHistory } from './codexLiveView'
 import { MultiRunSnapshotHub } from './snapshotHub'
 import {
   ALLOWED_IMAGE_MIME_TYPES,
@@ -52,7 +52,7 @@ const upload = multer({
   },
 })
 
-const STOP_SESSION_INSTRUCTION = 'Stop this Codex Pro Max HITL session now.'
+const STOP_SESSION_INSTRUCTION = 'Stop this Codex Pro Max session now.'
 const PROTOCOL_FILE_PREVIEW_BYTES = 1024 * 1024
 const TEAMMATES_FILE_NAME = 'teammates.json'
 
@@ -77,6 +77,17 @@ export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
       ok: true,
       teammates: await readTeammates(rootPath),
     })
+  })
+
+  app.get('/api/codex-live/sessions', async (request, response) => {
+    response.json(await listCodexLiveSessions(Number(request.query.limit || 100)))
+  })
+
+  app.get('/api/codex-live/sessions/:sessionId', async (request, response) => {
+    response.json(await readCodexLiveHistory(request.params.sessionId, {
+      records: Number(request.query.records || 0) || undefined,
+      tailBytes: Number(request.query.tailBytes || 0) || undefined,
+    }))
   })
 
   app.post('/api/teammates', async (request, response) => {
@@ -112,10 +123,6 @@ export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
 
   app.delete('/api/runs/:runId', async (request, response) => {
     const runId = parseRunId(request.params.runId)
-    if (runId === LEGACY_RUN_ID) {
-      throw new HttpError(400, 'Legacy root cannot be deleted from the runs inbox.')
-    }
-
     await deleteRun(rootPath, runId)
     await hub.broadcastSnapshot()
     response.json({
@@ -173,12 +180,6 @@ export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
     const attachmentPath = path.join(getAttachmentsPath(getRunPath(rootPath, runId)), fileName)
     response.sendFile(attachmentPath)
   })
-
-  app.post('/api/action', async (request, response) => {
-    response.json(await handleInstruction(rootPath, hub, LEGACY_RUN_ID, request.body))
-  })
-
-  app.post('/api/upload', upload.single('file'), uploadHandler(rootPath, hub, LEGACY_RUN_ID))
 
   app.use((_request, response) => {
     response.status(404).json({ ok: false, error: 'Not found' })
@@ -271,16 +272,12 @@ async function stopRun(
   }
 }
 
-function uploadHandler(
-  rootPath: string,
-  hub: MultiRunSnapshotHub,
-  forcedRunId?: string,
-): RequestHandler {
+function uploadHandler(rootPath: string, hub: MultiRunSnapshotHub): RequestHandler {
   return async (request, response) => {
     const rawRunId = Array.isArray(request.params.runId)
       ? request.params.runId[0]
       : request.params.runId
-    const runId = forcedRunId ?? parseRunId(rawRunId)
+    const runId = parseRunId(rawRunId)
     const runPath = getRunPath(rootPath, runId)
     const file = request.file
     if (!file) {
@@ -471,10 +468,6 @@ function parseInstructionRequest(value: unknown): InstructionRequest {
 
 function parseRunId(value: string | undefined): string {
   const runId = value ?? ''
-  if (runId === LEGACY_RUN_ID) {
-    return runId
-  }
-
   if (!isSafeRunId(runId)) {
     throw new HttpError(400, 'Unsafe run id.')
   }

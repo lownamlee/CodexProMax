@@ -3,11 +3,7 @@ import chokidar, { type FSWatcher } from 'chokidar'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { ManagerSnapshot, Snapshot } from '../src/shared/protocol'
-import {
-  LEGACY_RUN_ID,
-  PROTOCOL_TEXT_FILES,
-  RUNS_DIR_NAME,
-} from '../src/shared/protocol'
+import { PROTOCOL_TEXT_FILES, RUNS_DIR_NAME } from '../src/shared/protocol'
 import {
   ATTACHMENTS_DIR_NAME,
   RUN_METADATA_FILE,
@@ -194,29 +190,6 @@ export class MultiRunSnapshotHub {
       return this.describeRunWatchTarget(parts)
     }
 
-    if (PROTOCOL_TEXT_FILES.includes(firstSegment as (typeof PROTOCOL_TEXT_FILES)[number])) {
-      if (firstSegment === 'events.ndjson') {
-        return null
-      }
-
-      return {
-        runId: LEGACY_RUN_ID,
-        runPath: this.rootPath,
-        eventType: 'protocol.file.changed',
-        fileName: firstSegment,
-        protocolFile: firstSegment,
-      }
-    }
-
-    if (firstSegment === ATTACHMENTS_DIR_NAME && parts.length === 2) {
-      return {
-        runId: LEGACY_RUN_ID,
-        runPath: this.rootPath,
-        eventType: 'attachment.changed',
-        fileName: parts[1],
-      }
-    }
-
     return null
   }
 
@@ -312,11 +285,7 @@ export class MultiRunSnapshotHub {
       return this.shouldIgnoreRunPath(parts)
     }
 
-    if (firstSegment === ATTACHMENTS_DIR_NAME) {
-      return parts.length > 2
-    }
-
-    return !PROTOCOL_TEXT_FILES.includes(firstSegment as (typeof PROTOCOL_TEXT_FILES)[number])
+    return true
   }
 
   private shouldIgnoreRunPath(parts: string[]): boolean {

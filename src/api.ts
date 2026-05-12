@@ -1,5 +1,7 @@
 import type {
   ApiErrorResponse,
+  CodexLiveHistoryResponse,
+  CodexLiveSessionsResponse,
   CreateTeammateRequest,
   InstructionRequest,
   ManagerResponse,
@@ -109,6 +111,22 @@ export async function createTeammate(request: CreateTeammateRequest): Promise<Te
   })
 
   return parseJsonResponse<TeammatesResponse>(response)
+}
+
+export async function fetchCodexLiveSessions(): Promise<CodexLiveSessionsResponse> {
+  const response = await fetch('/api/codex-live/sessions?limit=100')
+  return parseJsonResponse<CodexLiveSessionsResponse>(response)
+}
+
+export async function fetchCodexLiveHistory(
+  sessionId: string,
+  records = 200,
+): Promise<CodexLiveHistoryResponse> {
+  const response = await fetch(`/api/codex-live/sessions/${encodeURIComponent(sessionId)}?${new URLSearchParams({
+    records: String(records),
+    tailBytes: String(384 * 1024),
+  })}`)
+  return parseJsonResponse<CodexLiveHistoryResponse>(response)
 }
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {

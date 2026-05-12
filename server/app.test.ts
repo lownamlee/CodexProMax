@@ -6,7 +6,6 @@ import type { Server } from 'node:http'
 import request from 'supertest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  LEGACY_RUN_ID,
   MARKDOWN_WARN_BYTES,
   type ManagerSnapshot,
 } from '../src/shared/protocol'
@@ -96,20 +95,14 @@ describe('Codex Pro Max multi-run API', () => {
     expect(savedResponse.body.teammates).toHaveLength(7)
   })
 
-  it('exposes root-level protocol files as legacy-root', async () => {
+  it('ignores root-level protocol files', async () => {
     await fs.writeFile(path.join(rootPath, 'status.txt'), 'WAITING_FOR_REVIEW\n', 'utf8')
-    await fs.writeFile(path.join(rootPath, 'output.md'), 'Legacy output', 'utf8')
+    await fs.writeFile(path.join(rootPath, 'output.md'), 'Root output', 'utf8')
     appHandle = createApp({ rootPath, startWatcher: false })
 
     const response = await request(appHandle.app).get('/api/snapshot').expect(200)
 
-    expect(response.body.runs).toHaveLength(1)
-    expect(response.body.runs[0]).toMatchObject({
-      runId: LEGACY_RUN_ID,
-      displayName: 'Legacy Root',
-      status: 'WAITING_FOR_REVIEW',
-      isLegacy: true,
-    })
+    expect(response.body.runs).toEqual([])
   })
 
   it('keeps two runs isolated when actions are sent to one run', async () => {
@@ -191,17 +184,8 @@ describe('Codex Pro Max multi-run API', () => {
     await expect(fs.readFile(path.join(runA, 'instruction.txt'), 'utf8')).resolves.toBe('')
     await expect(fs.readFile(path.join(runA, 'output.md'), 'utf8')).resolves.toBe('Current output.')
     await expect(fs.readFile(path.join(runA, 'session.md'), 'utf8')).resolves.toContain(
-      'Stop this Codex Pro Max HITL session now.',
+      'Stop this Codex Pro Max session now.',
     )
-  })
-
-  it('rejects deleting legacy-root', async () => {
-    await fs.writeFile(path.join(rootPath, 'status.txt'), 'WAITING_FOR_REVIEW\n', 'utf8')
-    appHandle = createApp({ rootPath, startWatcher: false })
-
-    const response = await request(appHandle.app).delete('/api/runs/legacy-root').expect(400)
-
-    expect(response.body.error).toMatch(/legacy root cannot be deleted/i)
   })
 
   it('writes instruction before status through the injected writer', async () => {
@@ -258,24 +242,7 @@ describe('Codex Pro Max multi-run API', () => {
     })
   })
 
-  it('maps legacy approval statuses out of snapshots', async () => {
-    const runA = getRunPath(rootPath, 'run-a')
-    const runB = getRunPath(rootPath, 'run-b')
-    await fs.mkdir(runA, { recursive: true })
-    await fs.mkdir(runB, { recursive: true })
-    await fs.writeFile(path.join(runA, 'status.txt'), 'APPROVED\n', 'utf8')
-    await fs.writeFile(path.join(runA, 'instruction.txt'), 'Ship it.\n', 'utf8')
-    await fs.writeFile(path.join(runB, 'status.txt'), 'REVISION_REQUESTED\n', 'utf8')
-    appHandle = createApp({ rootPath, startWatcher: false })
-
-    const runAResponse = await request(appHandle.app).get('/api/runs/run-a/snapshot').expect(200)
-    const runBResponse = await request(appHandle.app).get('/api/runs/run-b/snapshot').expect(200)
-
-    expect(runAResponse.body.status).toBe('INSTRUCTION_RECEIVED')
-    expect(runBResponse.body.status).toBe('RUNNING')
-  })
-
-  it('maps unknown statuses to running', async () => {
+  it('marks invalid statuses as error', async () => {
     const runA = getRunPath(rootPath, 'run-a')
     await fs.mkdir(runA, { recursive: true })
     await fs.writeFile(path.join(runA, 'status.txt'), 'UNKNOWN_STATUS\n', 'utf8')
@@ -283,7 +250,7 @@ describe('Codex Pro Max multi-run API', () => {
 
     const response = await request(appHandle.app).get('/api/runs/run-a/snapshot').expect(200)
 
-    expect(response.body.status).toBe('RUNNING')
+    expect(response.body.status).toBe('ERROR')
   })
 
   it('rejects unsafe run ids', async () => {

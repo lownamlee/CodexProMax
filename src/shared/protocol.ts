@@ -62,7 +62,6 @@ export const MARKDOWN_FILES = ['output.md'] as const
 export type MarkdownFile = (typeof MARKDOWN_FILES)[number]
 
 export const RUNS_DIR_NAME = 'runs'
-export const LEGACY_RUN_ID = 'legacy-root'
 
 export interface FileMeta {
   exists: boolean
@@ -136,7 +135,6 @@ export interface RunSummary {
   outputPreview: string
   attachmentCount: number
   hasInstruction: boolean
-  isLegacy: boolean
 }
 
 export interface ManagerSnapshot {
@@ -221,6 +219,56 @@ export interface ManagerResponse {
 export interface TeammatesResponse {
   ok: true
   teammates: Teammate[]
+}
+
+export interface CodexLiveSessionSummary {
+  id: string
+  fileName: string
+  relativePath: string
+  createdAtIso: string
+  updatedAtIso: string
+  sizeBytes: number
+}
+
+export type CodexLiveRecordKind = 'message' | 'tool-call' | 'tool-output' | 'reasoning' | 'event'
+
+export interface CodexLiveRecord {
+  id: string
+  index: number
+  timestamp: string
+  kind: CodexLiveRecordKind
+  title: string
+  text: string
+  callId: string
+  status: 'completed' | 'failed' | 'running' | 'unknown'
+}
+
+export interface CodexLiveContextUsage {
+  timestamp: string
+  contextWindow: number
+  usedTokens: number
+  inputTokens: number
+  cachedInputTokens: number
+  outputTokens: number
+  reasoningOutputTokens: number
+  percentUsed: number
+}
+
+export interface CodexLiveSessionsResponse {
+  ok: true
+  rootPath: string
+  sessions: CodexLiveSessionSummary[]
+}
+
+export interface CodexLiveHistoryResponse {
+  ok: true
+  rootPath: string
+  session: CodexLiveSessionSummary
+  records: CodexLiveRecord[]
+  context: CodexLiveContextUsage | null
+  tailBytes: number
+  totalSizeBytes: number
+  truncated: boolean
 }
 
 export interface ApiErrorResponse {

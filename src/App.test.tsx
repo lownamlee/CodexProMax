@@ -41,6 +41,7 @@ class MockEventSource {
 
 beforeEach(() => {
   MockEventSource.instances = []
+  window.history.replaceState(null, '', '/')
   window.localStorage.clear()
   let prankTeammates = teammateFactory()
   vi.stubGlobal('EventSource', MockEventSource)
@@ -73,6 +74,73 @@ beforeEach(() => {
 
       if (requestUrl === '/api/snapshot') {
         return jsonResponse(managerFactory())
+      }
+
+      if (requestUrl === '/api/codex-live/sessions?limit=100') {
+        return jsonResponse({
+          ok: true,
+          rootPath: 'C:\\Users\\ramly\\.codex\\sessions',
+          sessions: [
+            {
+              id: 'session-1',
+              fileName: 'rollout-2026-05-12T09-05-49-session-1.jsonl',
+              relativePath: '2026/05/12/rollout-2026-05-12T09-05-49-session-1.jsonl',
+              createdAtIso: '2026-05-12T09:05:49.000Z',
+              updatedAtIso: '2026-05-12T09:22:00.000Z',
+              sizeBytes: 2048,
+            },
+          ],
+        })
+      }
+
+      if (requestUrl.startsWith('/api/codex-live/sessions/session-1?')) {
+        return jsonResponse({
+          ok: true,
+          rootPath: 'C:\\Users\\ramly\\.codex\\sessions',
+          session: {
+            id: 'session-1',
+            fileName: 'rollout-2026-05-12T09-05-49-session-1.jsonl',
+            relativePath: '2026/05/12/rollout-2026-05-12T09-05-49-session-1.jsonl',
+            createdAtIso: '2026-05-12T09:05:49.000Z',
+            updatedAtIso: '2026-05-12T09:22:00.000Z',
+            sizeBytes: 2048,
+          },
+          records: [
+            {
+              id: 'old-record',
+              index: 0,
+              timestamp: '2026-05-12T09:05:00.000Z',
+              kind: 'reasoning',
+              title: 'Thinking',
+              text: 'Earlier reasoning',
+              callId: '',
+              status: 'running',
+            },
+            {
+              id: 'latest-record',
+              index: 1,
+              timestamp: '2026-05-12T09:22:00.000Z',
+              kind: 'tool-call',
+              title: 'Shell command',
+              text: 'Latest command',
+              callId: 'call-latest',
+              status: 'running',
+            },
+          ],
+          context: {
+            timestamp: '2026-05-12T09:22:01.000Z',
+            contextWindow: 258400,
+            usedTokens: 67869,
+            inputTokens: 67688,
+            cachedInputTokens: 66944,
+            outputTokens: 181,
+            reasoningOutputTokens: 164,
+            percentUsed: 26.264318885448918,
+          },
+          tailBytes: 2048,
+          totalSizeBytes: 4096,
+          truncated: true,
+        })
       }
 
       if (requestUrl.includes('/api/runs/run-a/snapshot')) {
@@ -131,7 +199,7 @@ beforeEach(() => {
               {
                 id: 'stop-1',
                 role: 'user',
-                content: 'Stop this Codex Pro Max HITL session now.',
+                content: 'Stop this Codex Pro Max session now.',
                 createdAtIso: '2026-05-07T00:00:03.000Z',
               },
             ],
@@ -166,7 +234,6 @@ beforeEach(() => {
                 outputPreview: 'Instruction packet.',
                 attachmentCount: 0,
                 hasInstruction: false,
-                isLegacy: false,
               },
             ],
             selectedRunId: 'run-b',
@@ -271,6 +338,30 @@ describe('App', () => {
 
     expect(screen.getByLabelText('Run inbox')).toHaveClass('collapsed')
     expect(screen.getByLabelText('Protocol details')).toHaveClass('collapsed')
+  })
+
+  it('opens Codex Live as a page and keeps the latest record at the bottom', async () => {
+    render(<App />)
+    await getEventSource()
+
+    fireEvent.click(await screen.findByRole('button', { name: /open codex live view/i }))
+
+    expect(window.location.pathname).toBe('/codex-live')
+    expect(screen.queryByRole('dialog', { name: /codex live view/i })).not.toBeInTheDocument()
+
+    const livePage = await screen.findByRole('main', { name: /codex live conversation/i })
+    expect(await within(livePage).findByText('Latest command')).toBeInTheDocument()
+    expect(within(livePage).getByLabelText('Context limit')).toHaveTextContent('67.9K / 258.4K')
+    expect(within(livePage).getByLabelText('Context limit')).toHaveTextContent('26%')
+    expect(screen.queryByText(/Showing newest records/i)).not.toBeInTheDocument()
+
+    const articles = Array.from(screen.getByTestId('codex-live-thread').querySelectorAll('article'))
+    expect(articles).toHaveLength(2)
+    expect(articles[0]).toHaveTextContent('Thinking')
+    expect(articles[0]).toHaveTextContent('Earlier reasoning')
+    expect(articles[1]).toHaveTextContent('Shell command')
+    expect(articles[1]).toHaveTextContent('Running')
+    expect(articles[1].querySelector('details')).toBeInTheDocument()
   })
 
   it('opens the left sidebar profile menu', async () => {
@@ -1137,7 +1228,7 @@ describe('App', () => {
         method: 'POST',
       }),
     )
-    expect(within(screen.getByTestId('chat-scroll')).getByText('Stop this Codex Pro Max HITL session now.')).toBeInTheDocument()
+    expect(within(screen.getByTestId('chat-scroll')).getByText('Stop this Codex Pro Max session now.')).toBeInTheDocument()
   })
 
   it('enables stop session only while waiting for review', async () => {
@@ -1989,7 +2080,6 @@ function managerFactory(overrides: Partial<ManagerSnapshot> = {}): ManagerSnapsh
         outputPreview: 'Ready for review.',
         attachmentCount: 0,
         hasInstruction: false,
-        isLegacy: false,
       },
       {
         runId: 'run-b',
@@ -2002,7 +2092,6 @@ function managerFactory(overrides: Partial<ManagerSnapshot> = {}): ManagerSnapsh
         outputPreview: 'Instruction packet.',
         attachmentCount: 1,
         hasInstruction: false,
-        isLegacy: false,
       },
     ],
     health: {

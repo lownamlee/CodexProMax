@@ -24,6 +24,8 @@ import {
   createTeammate,
   deleteAttachment as deleteAttachmentRequest,
   deleteRun as deleteRunRequest,
+  fetchCodexLiveHistory,
+  fetchCodexLiveSessions,
   fetchProtocolFile,
   fetchRunSnapshot,
   fetchTeammates,
@@ -34,6 +36,10 @@ import {
 import { useSnapshotStream } from './hooks/useSnapshotStream'
 import type {
   AttachmentMeta,
+  CodexLiveHistoryResponse,
+  CodexLiveRecord,
+  CodexLiveSessionSummary,
+  CodexLiveSessionsResponse,
   ChatMessage,
   ManagerSnapshot,
   MarkdownSafety,
@@ -137,6 +143,12 @@ type ProtocolFilePreview = {
   size: number | null
 }
 
+function isCodexLiveLocation() {
+  return window.location.pathname === '/codex-live'
+    || window.location.hash === '#codex-live'
+    || new URLSearchParams(window.location.search).get('view') === 'codex-live'
+}
+
 function App() {
   const { snapshot: managerSnapshot, error: streamError } = useSnapshotStream()
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
@@ -154,6 +166,7 @@ function App() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [codexLivePage, setCodexLivePage] = useState(isCodexLiveLocation)
   const [ctrlEnterConfirmOpen, setCtrlEnterConfirmOpen] = useState(false)
   const [confirmCtrlEnterSend, setConfirmCtrlEnterSend] = useState(() =>
     readStoredBoolean(CTRL_ENTER_CONFIRM_STORAGE_KEY, true),
@@ -219,6 +232,24 @@ function App() {
     writeStoredQueuedInstructions(queuedInstructionsByRun)
     queuedInstructionsByRunRef.current = queuedInstructionsByRun
   }, [queuedInstructionsByRun])
+
+  useEffect(() => {
+    function syncCodexLiveLocation() {
+      const nextIsLivePage = isCodexLiveLocation()
+      setCodexLivePage(nextIsLivePage)
+      if (nextIsLivePage && window.location.pathname !== '/codex-live') {
+        window.history.replaceState(null, '', '/codex-live')
+      }
+    }
+
+    syncCodexLiveLocation()
+    window.addEventListener('popstate', syncCodexLiveLocation)
+    window.addEventListener('hashchange', syncCodexLiveLocation)
+    return () => {
+      window.removeEventListener('popstate', syncCodexLiveLocation)
+      window.removeEventListener('hashchange', syncCodexLiveLocation)
+    }
+  }, [])
 
   useEffect(() => {
     if (!managerSnapshot) {
@@ -903,10 +934,6 @@ function App() {
   }
 
   async function handleDeleteRun(run: RunSummary) {
-    if (run.isLegacy) {
-      return
-    }
-
     const confirmed = await requestConfirmation({
       title: 'Delete run',
       message: `Delete run "${run.displayName}"?\n\nThis removes runs/${run.runId}/ and its protocol files.`,
@@ -1264,7 +1291,19 @@ function App() {
     }
   }
 
-  return (
+  function openCodexLivePage() {
+    window.history.pushState(null, '', '/codex-live')
+    setCodexLivePage(true)
+  }
+
+  function closeCodexLivePage() {
+    window.history.pushState(null, '', '/')
+    setCodexLivePage(false)
+  }
+
+  return codexLivePage ? (
+    <CodexLivePage onBack={closeCodexLivePage} />
+  ) : (
     <div className={`app ${leftCollapsed ? 'left-collapsed' : ''} ${rightCollapsed ? 'right-collapsed' : ''}`}>
       <RunInbox
         runs={runs}
@@ -1309,6 +1348,16 @@ function App() {
           </div>
 
           <div className="header-right">
+            <button
+              type="button"
+              className="icon-btn codex-live-open-button"
+              onClick={openCodexLivePage}
+              aria-label="Open Codex live view"
+              title="Codex live view"
+            >
+              <i className="ri-pulse-line" aria-hidden="true" />
+              <span>Codex Live</span>
+            </button>
             <button
               type="button"
               className="icon-btn danger"
@@ -1559,7 +1608,7 @@ function RunInbox({
                   <RunStatusIcon status={run.status} />
                   <span className={`run-title run-${statusClassName(run.status)}`}>{run.displayName}</span>
                   <span className="run-meta">
-                    {run.isLegacy ? 'Legacy root' : run.runId}
+                    {run.runId}
                     {run.attachmentCount > 0 ? ` - ${run.attachmentCount} attachments` : ''}
                   </span>
                   <span className="run-preview">
@@ -1567,18 +1616,16 @@ function RunInbox({
                   </span>
                 </button>
 
-                {!run.isLegacy && (
-                  <button
-                    type="button"
-                    className="run-delete-button"
-                    onClick={() => onDelete(run)}
-                    disabled={deletingRunId === run.runId}
-                    aria-label={`Delete ${run.runId}`}
-                    title={`Delete ${run.displayName}`}
-                  >
-                    <i className="ri-delete-bin-6-line" aria-hidden="true" />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="run-delete-button"
+                  onClick={() => onDelete(run)}
+                  disabled={deletingRunId === run.runId}
+                  aria-label={`Delete ${run.runId}`}
+                  title={`Delete ${run.displayName}`}
+                >
+                  <i className="ri-delete-bin-6-line" aria-hidden="true" />
+                </button>
               </div>
             ))}
           </div>
@@ -3452,6 +3499,335 @@ function SettingsDialog({
   )
 }
 
+function CodexLivePage({ onBack }: { onBack: () => void }) {
+  const [sessionsData, setSessionsData] = useState<CodexLiveSessionsResponse | null>(null)
+  const [selectedSessionId, setSelectedSessionId] = useState('')
+  const [history, setHistory] = useState<CodexLiveHistoryResponse | null>(null)
+  const [recordLimit, setRecordLimit] = useState(200)
+  const [filter, setFilter] = useState('')
+  const [loadingSessions, setLoadingSessions] = useState(false)
+  const [loadingHistory, setLoadingHistory] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const threadRef = useRef<HTMLDivElement | null>(null)
+
+  const sessions = sessionsData?.sessions ?? []
+  const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? sessions[0] ?? null
+  const filteredSessions = useMemo(() => {
+    const needle = filter.trim().toLowerCase()
+    if (!needle) return sessions
+    return sessions.filter((session) =>
+      [session.fileName, session.relativePath, session.updatedAtIso].join(' ').toLowerCase().includes(needle),
+    )
+  }, [filter, sessions])
+
+  const refreshSessions = useCallback(async () => {
+    setLoadingSessions(true)
+    try {
+      const nextSessions = await fetchCodexLiveSessions()
+      setSessionsData(nextSessions)
+      setSelectedSessionId((current) => {
+        if (current && nextSessions.sessions.some((session) => session.id === current)) {
+          return current
+        }
+        return nextSessions.sessions[0]?.id ?? ''
+      })
+      setError(null)
+    } catch (refreshError) {
+      setError(refreshError instanceof Error ? refreshError.message : 'Codex live sessions request failed')
+    } finally {
+      setLoadingSessions(false)
+    }
+  }, [])
+
+  const refreshHistory = useCallback(async (sessionId: string, limit: number) => {
+    if (!sessionId) return
+    setLoadingHistory(true)
+    try {
+      const nextHistory = await fetchCodexLiveHistory(sessionId, limit)
+      setHistory(nextHistory)
+      setError(null)
+    } catch (refreshError) {
+      setError(refreshError instanceof Error ? refreshError.message : 'Codex live history request failed')
+    } finally {
+      setLoadingHistory(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function load() {
+      if (cancelled) return
+      await refreshSessions()
+    }
+
+    void load()
+    const timer = window.setInterval(() => void load(), 15_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [refreshSessions])
+
+  useEffect(() => {
+    if (!selectedSession?.id) return
+    let cancelled = false
+
+    async function load() {
+      if (cancelled || !selectedSession?.id) return
+      await refreshHistory(selectedSession.id, recordLimit)
+    }
+
+    void load()
+    const timer = window.setInterval(() => void load(), 5_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [recordLimit, refreshHistory, selectedSession?.id])
+
+  const records = history?.records ?? []
+  const selectedSessionTitle = selectedSession ? formatLiveSessionTitle(selectedSession) : 'Codex Live'
+  const contextUsage = history?.context ?? null
+
+  useEffect(() => {
+    const thread = threadRef.current
+    if (!thread) return
+    thread.scrollTop = thread.scrollHeight
+  }, [records.length, selectedSessionId])
+
+  return (
+    <div className="codex-live-page">
+      <aside className="codex-live-sidebar">
+        <div className="codex-live-sidebar-header">
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={onBack}
+            aria-label="Back to Codex Pro Max"
+            title="Back to Codex Pro Max"
+          >
+            <i className="ri-arrow-left-line" aria-hidden="true" />
+          </button>
+          <div>
+            <strong>Codex Live</strong>
+            <span>Live conversation</span>
+          </div>
+          <div className="codex-live-header-actions">
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => void refreshSessions()}
+              aria-label="Refresh Codex sessions"
+              title="Refresh Codex sessions"
+            >
+              <i className={loadingSessions ? 'ri-loader-4-line' : 'ri-refresh-line'} aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+
+        <label className="codex-live-search">
+          <i className="ri-search-line" aria-hidden="true" />
+          <input
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+            placeholder="Filter conversations"
+            aria-label="Filter Codex conversations"
+          />
+        </label>
+
+        <div className="codex-live-session-list">
+          {filteredSessions.length > 0 ? (
+            filteredSessions.map((session) => (
+              <CodexLiveSessionButton
+                key={session.id}
+                session={session}
+                active={session.id === selectedSession?.id}
+                onClick={() => setSelectedSessionId(session.id)}
+              />
+            ))
+          ) : (
+            <div className="codex-live-empty">
+              <i className="ri-chat-history-line" aria-hidden="true" />
+              <span>{sessions.length > 0 ? 'No matching conversations' : 'No conversations'}</span>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      <main className="codex-live-chat" aria-label="Codex live conversation">
+        <header className="codex-live-chat-header">
+          <div className="codex-live-chat-title">
+            <strong>{selectedSessionTitle}</strong>
+            <span>{selectedSession ? `${formatMessageTime(selectedSession.updatedAtIso)} - ${records.length} events` : 'Select a conversation'}</span>
+          </div>
+          {contextUsage && <CodexLiveContextMeter usage={contextUsage} />}
+          <div className="codex-live-controls">
+            <select
+              value={recordLimit}
+              onChange={(event) => setRecordLimit(Number(event.target.value))}
+              aria-label="Codex live record count"
+            >
+              {[100, 200, 400].map((count) => <option key={count} value={count}>{count} events</option>)}
+            </select>
+            <button
+              type="button"
+              className="icon-btn"
+              disabled={!selectedSession}
+              onClick={() => selectedSession && void refreshHistory(selectedSession.id, recordLimit)}
+              aria-label="Refresh Codex live history"
+              title="Refresh Codex live history"
+            >
+              <i className={loadingHistory ? 'ri-loader-4-line' : 'ri-refresh-line'} aria-hidden="true" />
+            </button>
+          </div>
+        </header>
+
+        {error && <div className="codex-live-error">{error}</div>}
+
+        <div className="codex-live-thread" data-testid="codex-live-thread" ref={threadRef}>
+          {records.length > 0 ? (
+            records.map((record) => <CodexLiveRecordItem key={record.id} record={record} />)
+          ) : (
+            <div className="codex-live-empty large">
+              <i className="ri-pulse-line" aria-hidden="true" />
+              <span>{loadingHistory ? 'Loading' : 'No conversation yet'}</span>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  )
+}
+
+function CodexLiveSessionButton({
+  session,
+  active,
+  onClick,
+}: {
+  session: CodexLiveSessionSummary
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button type="button" className={`codex-live-session ${active ? 'active' : ''}`} onClick={onClick}>
+      <span>
+        <strong>{formatLiveSessionTitle(session)}</strong>
+        <small>Updated {formatMessageTime(session.updatedAtIso)}</small>
+      </span>
+      <span className="codex-live-session-meta">
+        <b>{formatBytes(session.sizeBytes)}</b>
+      </span>
+    </button>
+  )
+}
+
+function CodexLiveContextMeter({ usage }: { usage: NonNullable<CodexLiveHistoryResponse['context']> }) {
+  const percent = Math.max(0, Math.min(100, usage.percentUsed))
+
+  return (
+    <div className="codex-live-context" aria-label="Context limit">
+      <div>
+        <span>Context</span>
+        <strong>{formatTokenCount(usage.usedTokens)} / {formatTokenCount(usage.contextWindow)}</strong>
+      </div>
+      <div className="codex-live-context-bar" aria-hidden="true">
+        <span style={{ width: `${percent}%` }} />
+      </div>
+      <small>{Math.round(percent)}%</small>
+    </div>
+  )
+}
+
+function CodexLiveRecordItem({ record }: { record: CodexLiveRecord }) {
+  const visibleText = codexLiveVisibleText(record)
+  const detailsText = codexLiveDetailsText(record)
+  const fromUser = record.kind === 'message' && record.title.toLowerCase() === 'user'
+
+  return (
+    <article className={`codex-live-message codex-live-${record.kind} ${fromUser ? 'codex-live-from-user' : ''}`}>
+      <div className="codex-live-avatar" aria-hidden="true">
+        <i className={codexLiveKindIcon(record.kind)} />
+      </div>
+      <div className="codex-live-bubble">
+        <div className="codex-live-message-heading">
+          <div>
+            <strong>{codexLiveRecordTitle(record)}</strong>
+            <span>{formatMessageTime(record.timestamp)}</span>
+          </div>
+        </div>
+        {visibleText && <p>{visibleText}</p>}
+        {detailsText && (
+          <details className="codex-live-details">
+            <summary>Details</summary>
+            <pre>{trimLiveRecordText(detailsText)}</pre>
+          </details>
+        )}
+      </div>
+    </article>
+  )
+}
+
+function codexLiveRecordTitle(record: CodexLiveRecord) {
+  if (record.kind === 'reasoning') return 'Thinking'
+  if (record.kind === 'tool-output') return record.status === 'failed' ? 'Tool failed' : 'Tool finished'
+  return record.title
+}
+
+function codexLiveVisibleText(record: CodexLiveRecord) {
+  if (record.kind === 'message' || record.kind === 'reasoning') {
+    return record.text.trim() || (record.kind === 'reasoning' ? 'Thinking' : '')
+  }
+
+  if (record.kind === 'tool-output') {
+    return record.status === 'failed' ? summarizeFailedOutput(record.text) : 'Done'
+  }
+
+  if (record.kind === 'tool-call') {
+    return record.status === 'completed' ? 'Done' : 'Running'
+  }
+
+  return record.title
+}
+
+function codexLiveDetailsText(record: CodexLiveRecord) {
+  if (record.kind === 'message' || record.kind === 'reasoning') return ''
+  return record.text.trim()
+}
+
+function codexLiveKindIcon(kind: CodexLiveRecord['kind']) {
+  if (kind === 'tool-call') return 'ri-terminal-box-line'
+  if (kind === 'tool-output') return 'ri-checkbox-circle-line'
+  if (kind === 'reasoning') return 'ri-loader-4-line'
+  if (kind === 'message') return 'ri-message-3-line'
+  return 'ri-information-line'
+}
+
+function trimLiveRecordText(value: string) {
+  return value.length > 12_000 ? `${value.slice(0, 12_000)}\n... truncated in live view ...` : value
+}
+
+function summarizeFailedOutput(value: string) {
+  const lines = value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !/^Exit code:/i.test(line) && !/^Wall time:/i.test(line) && line !== 'Output:')
+
+  return lines.at(-1) || 'Failed'
+}
+
+function formatLiveSessionTitle(session: CodexLiveSessionSummary) {
+  return formatMessageTime(session.createdAtIso || session.updatedAtIso)
+}
+
+function formatTokenCount(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return '0'
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1).replace(/\.0$/, '')}K`
+  return String(Math.round(value))
+}
+
 function ProtocolFilePreviewDialog({
   preview,
   onClose,
@@ -3688,7 +4064,7 @@ function EmptyInbox({ managerSnapshot }: { managerSnapshot: ManagerSnapshot | nu
         <div className="empty-state large">
           <h2>No Codex runs found</h2>
           <p>
-            Start a Codex session with the HITL skill, or create a run folder under{' '}
+            Start a Codex session with Codex Pro Max, or create a run folder under{' '}
             <code>{managerSnapshot?.runsPath ?? 'runs/<runId>/'}</code>.
           </p>
         </div>

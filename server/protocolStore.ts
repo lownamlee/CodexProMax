@@ -16,7 +16,6 @@ import type {
   Snapshot,
 } from '../src/shared/protocol'
 import {
-  LEGACY_RUN_ID,
   MARKDOWN_FILES,
   MARKDOWN_RENDER_LIMIT_BYTES,
   MARKDOWN_WARN_BYTES,
@@ -30,7 +29,6 @@ export const DEFAULT_API_PORT = 53127
 export const ATTACHMENTS_DIR_NAME = 'attachments'
 export const RUN_METADATA_FILE = 'run.json'
 export const SESSION_FILE = 'session.md'
-export const LEGACY_CHAT_MESSAGES_FILE = 'messages.ndjson'
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 const OUTPUT_PREVIEW_BYTES = 4096
 
@@ -75,10 +73,6 @@ export function sanitizeRunId(value: string): string {
 }
 
 export function getRunPath(rootPath: string, runId: string): string {
-  if (runId === LEGACY_RUN_ID) {
-    return rootPath
-  }
-
   if (!isSafeRunId(runId)) {
     throw new Error(`Unsafe run id: ${runId}`)
   }
@@ -153,7 +147,7 @@ export async function getRunSnapshot(
   const files = Object.fromEntries(fileEntries) as Record<ProtocolTextFile, FileMeta>
   const instruction = await readTextIfExists(getProtocolPath(runPath, 'instruction.txt'))
   const statusRaw = (await readTextIfExists(getProtocolPath(runPath, 'status.txt'))).trim()
-  const status = normalizeProtocolStatus(statusRaw, instruction)
+  const status = readProtocolStatus(statusRaw)
   const markdownEntries = await Promise.all(
     MARKDOWN_FILES.map(async (fileName) => {
       const result = await readMarkdownFile(runPath, fileName)
@@ -191,10 +185,6 @@ export async function ensureRunMetadata(
   runId: string,
   updates: Partial<Pick<RunMetadata, 'displayName' | 'workspacePath' | 'codexThreadId'>> = {},
 ): Promise<RunMetadata> {
-  if (runId === LEGACY_RUN_ID) {
-    return readRunMetadata(rootPath, runId)
-  }
-
   const runPath = getRunPath(rootPath, runId)
   await fs.mkdir(runPath, { recursive: true })
 
@@ -214,7 +204,7 @@ export async function ensureRunMetadata(
 
 export async function listAttachments(
   runPath: string,
-  runId: string = LEGACY_RUN_ID,
+  runId: string,
 ): Promise<AttachmentMeta[]> {
   const attachmentsPath = getAttachmentsPath(runPath)
   let entries
@@ -265,15 +255,6 @@ export async function readChatMessages(runPath: string, fallbackOutput = ''): Pr
     return sessionMessages
   }
 
-  const legacyMessages = await readLegacyChatMessages(runPath)
-  if (legacyMessages.length > 0) {
-    await atomicWriteTextFile(
-      sessionPath,
-      legacyMessages.map(formatSessionMessage).join(''),
-    )
-    return legacyMessages
-  }
-
   if (!fallbackOutput.trim()) {
     return []
   }
@@ -284,30 +265,6 @@ export async function readChatMessages(runPath: string, fallbackOutput = ''): Pr
     content: fallbackOutput.trim(),
     createdAtIso: new Date().toISOString(),
   }]
-}
-
-async function readLegacyChatMessages(runPath: string): Promise<ChatMessage[]> {
-  const raw = await readTextIfExists(path.join(runPath, LEGACY_CHAT_MESSAGES_FILE))
-  return raw
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line): ChatMessage | null => {
-      try {
-        const parsed = JSON.parse(line) as Partial<ChatMessage>
-        if (parsed.role !== 'assistant' && parsed.role !== 'user') return null
-        if (typeof parsed.content !== 'string' || !parsed.content.trim()) return null
-        return {
-          id: typeof parsed.id === 'string' ? parsed.id : randomUUID(),
-          role: parsed.role,
-          content: parsed.content,
-          createdAtIso: typeof parsed.createdAtIso === 'string' ? parsed.createdAtIso : new Date().toISOString(),
-        }
-      } catch {
-        return null
-      }
-    })
-    .filter((message): message is ChatMessage => Boolean(message))
 }
 
 function parseSessionMessages(raw: string): ChatMessage[] {
@@ -376,16 +333,11 @@ export async function clearInstructionAndWriteStatus(
   await writer(getProtocolPath(runPath, 'status.txt'), `${status}\n`)
 }
 
-function normalizeProtocolStatus(statusRaw: string, instruction: string): ProtocolStatus {
-  if (isProtocolStatus(statusRaw)) {
-    return statusRaw
+function readProtocolStatus(statusRaw: string): ProtocolStatus {
+  if (!statusRaw) {
+    return 'RUNNING'
   }
-
-  if (statusRaw === 'APPROVED' || statusRaw === 'REVISION_REQUESTED') {
-    return instruction.trim() ? 'INSTRUCTION_RECEIVED' : 'RUNNING'
-  }
-
-  return 'RUNNING'
+  return isProtocolStatus(statusRaw) ? statusRaw : 'ERROR'
 }
 
 export async function saveAttachment(
@@ -424,10 +376,6 @@ export async function deleteAttachment(runPath: string, fileName: string): Promi
 }
 
 export async function deleteRun(rootPath: string, runId: string): Promise<void> {
-  if (runId === LEGACY_RUN_ID) {
-    throw new Error('Legacy root cannot be deleted as a run.')
-  }
-
   const runPath = getRunPath(rootPath, runId)
   await fs.rm(runPath, { recursive: true, force: true })
 }
@@ -462,7 +410,6 @@ export async function appendChatMessage(
   if (!trimmed) return null
 
   await fs.mkdir(runPath, { recursive: true })
-  await seedSessionFromLegacyIfMissing(runPath)
   const messages = await readChatMessages(runPath)
   const previous = messages[messages.length - 1]
   if (previous?.role === role && previous.content.trim() === trimmed) {
@@ -484,20 +431,6 @@ export async function appendChatMessage(
 export async function appendAssistantReviewMessage(runPath: string): Promise<ChatMessage | null> {
   const output = await readTextIfExists(getProtocolPath(runPath, 'output.md'))
   return appendChatMessage(runPath, 'assistant', output)
-}
-
-async function seedSessionFromLegacyIfMissing(runPath: string): Promise<void> {
-  const sessionPath = path.join(runPath, SESSION_FILE)
-  if (await pathExists(sessionPath)) {
-    return
-  }
-
-  const legacyMessages = await readLegacyChatMessages(runPath)
-  if (legacyMessages.length === 0) {
-    return
-  }
-
-  await fs.writeFile(sessionPath, legacyMessages.map(formatSessionMessage).join(''), 'utf8')
 }
 
 export async function atomicWriteTextFile(filePath: string, contents: string): Promise<void> {
@@ -539,19 +472,7 @@ async function listRunIds(rootPath: string): Promise<string[]> {
     }
   }
 
-  if (await hasLegacyProtocolFiles(rootPath)) {
-    runIds.add(LEGACY_RUN_ID)
-  }
-
   return [...runIds]
-}
-
-async function hasLegacyProtocolFiles(rootPath: string): Promise<boolean> {
-  const legacyProtocolFiles = PROTOCOL_TEXT_FILES.filter((fileName) => fileName !== 'events.ndjson')
-  const results = await Promise.all(
-    legacyProtocolFiles.map((fileName) => pathExists(getProtocolPath(rootPath, fileName))),
-  )
-  return results.some(Boolean)
 }
 
 async function getRunSummary(
@@ -570,7 +491,7 @@ async function getRunSummary(
   const files = Object.fromEntries(fileEntries) as Record<ProtocolTextFile, FileMeta>
   const instruction = await readTextIfExists(getProtocolPath(runPath, 'instruction.txt'))
   const statusRaw = (await readTextIfExists(getProtocolPath(runPath, 'status.txt'))).trim()
-  const status = normalizeProtocolStatus(statusRaw, instruction)
+  const status = readProtocolStatus(statusRaw)
   const attachments = await listAttachments(runPath, runId)
   const updatedAtMs = getLatestUpdatedAtMs(files, attachments)
 
@@ -585,7 +506,6 @@ async function getRunSummary(
     outputPreview: createPreview(await readTextPreviewIfExists(getProtocolPath(runPath, 'output.md'))),
     attachmentCount: attachments.length,
     hasInstruction: instruction.trim().length > 0,
-    isLegacy: runId === LEGACY_RUN_ID,
   }
 }
 
@@ -621,7 +541,7 @@ async function readRunMetadata(rootPath: string, runId: string): Promise<RunMeta
 }
 
 function defaultDisplayName(runId: string): string {
-  return runId === LEGACY_RUN_ID ? 'Legacy Root' : runId
+  return runId
 }
 
 async function readTextIfExists(filePath: string): Promise<string> {

@@ -45,33 +45,10 @@ function Format-SessionBlock([string]$Role, [string]$Content, [string]$CreatedAt
   return "<!-- codex-pro-max:message $metadata -->`n## $title - $CreatedAtIso`n`n$trimmed`n`n"
 }
 
-function Initialize-SessionFromLegacy([string]$Path) {
-  $sessionPath = Join-Path $Path "session.md"
-  if (Test-Path -LiteralPath $sessionPath) { return }
-
-  $messagesPath = Join-Path $Path "messages.ndjson"
-  if (-not (Test-Path -LiteralPath $messagesPath)) { return }
-
-  $body = ""
-  foreach ($line in ([System.IO.File]::ReadLines($messagesPath, $script:Utf8NoBom))) {
-    if (-not $line.Trim()) { continue }
-    try {
-      $message = $line | ConvertFrom-Json
-      if ($message.role -ne "assistant" -and $message.role -ne "user") { continue }
-      $body += Format-SessionBlock ([string]$message.role) ([string]$message.content) ([string]$message.createdAtIso) ([string]$message.id)
-    } catch {}
-  }
-
-  if ($body) {
-    Write-AtomicTextNoBom $sessionPath $body
-  }
-}
-
 function Append-SessionMessage([string]$Path, [string]$Role, [string]$Content) {
   $trimmed = $Content.Trim()
   if (-not $trimmed) { return }
 
-  Initialize-SessionFromLegacy $Path
   $sessionPath = Join-Path $Path "session.md"
   $existing = Read-TextUtf8NoBom $sessionPath
   if ($existing.TrimEnd().EndsWith($trimmed)) { return }

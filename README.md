@@ -12,7 +12,7 @@ The app is intentionally file-first. Codex and the browser coordinate through pl
 
 - Node.js 24 or newer.
 - npm 11 or newer.
-- Windows PowerShell. `setup.cmd` uses it internally, and the runtime helper scripts are still `.ps1` files.
+- Windows PowerShell. `setup.cmd` uses it internally, and the helper scripts are still `.ps1` files.
 
 The default API port is `53127`. The default Vite UI port is `5173`.
 
@@ -24,12 +24,12 @@ Double-click `setup.cmd` from this repository. From a terminal, you can run:
 .\setup.cmd
 ```
 
-The setup command copies the checked-in files under `setup/` and writes:
+The setup command copies root `AGENTS.md`, copies the checked-in skill files under `setup/`, and writes:
 
 - Global instructions at `C:\Users\ramly\.codex\AGENTS.md`.
-- The skill at `C:\Users\ramly\.codex\skills\codex-pro-max-hitl`.
+- The skill at `C:\Users\ramly\.codex\skills\codex-pro-max`.
 - Helper scripts for request, wait, and consume operations.
-- Installation metadata at `C:\Users\ramly\.codex\skills\codex-pro-max-hitl\INSTALLATION.json`.
+- Installation metadata at `C:\Users\ramly\.codex\skills\codex-pro-max\INSTALLATION.json`.
 
 The generated instructions point to this clone, so the repository can live outside `Desktop`.
 
@@ -48,12 +48,13 @@ Open the UI and select a run from the left sidebar. A Codex run appears when a s
 
 Typical loop:
 
-1. Codex finishes work and calls `request_review.ps1`.
-2. The UI shows the latest conclusion.
-3. The human writes the next instruction.
-4. The backend writes `instruction.txt` and updates `status.txt`.
-5. Codex's wait script exits.
-6. Codex calls `consume_instruction.ps1` and continues.
+1. Codex calls `create_session.ps1` to get `runDir`.
+2. Codex finishes work and calls `request_review.ps1`.
+3. The UI shows the latest conclusion.
+4. The human writes the next instruction.
+5. The backend writes `instruction.txt` and updates `status.txt`.
+6. Codex's wait script reads and clears the instruction, then returns JSON.
+7. Codex continues unless the JSON has `shouldFinish=true`.
 
 ### 4. Validate a Clone
 
@@ -75,16 +76,15 @@ npm run build
 
 ## Environment Variables
 
+Normal users should not set session environment variables. Codex gets a run folder by calling `create_session.ps1`.
+
 | Variable | Purpose |
 | --- | --- |
-| `CODEX_PRO_MAX_ROOT` | Optional manager root. Defaults to the current workspace directory. |
+| `CODEX_PRO_MAX_ROOT` | Optional manager root for the API and session creation. |
 | `CODEX_PRO_MAX_API_PORT` | Optional API port. Defaults to `53127`. |
-| `CODEX_PRO_MAX_RUN_DIR` | Exact run directory for one Codex session. Highest priority for the skill. |
-| `CODEX_PRO_MAX_RUN_ID` | Run id used as `runs/<runId>` under the manager root. |
-| `CODEX_THREAD_ID` | Codex thread id fallback for stable per-session run folders. |
 | `CODEX_PRO_MAX_POLL_SECONDS` | Optional wait script polling interval. |
 
-If no run id is available, the skill creates a safe `run-<timestamp>-<random>` folder.
+If Codex provides `CODEX_THREAD_ID`, `create_session.ps1` can use it internally for a stable run folder. Users do not need to set it.
 
 ## Feature Tour
 
@@ -94,7 +94,7 @@ If no run id is available, the skill creates a safe `run-<timestamp>-<random>` f
 - Shows display name, run id, status icon, attachment count, and latest output preview.
 - Sorts runs by latest protocol-file or attachment activity.
 - Supports selecting a run without mixing instructions between sessions.
-- Supports deleting real run folders while protecting `legacy-root`.
+- Supports deleting run folders from the inbox.
 - Preserves left-sidebar collapsed state across reloads.
 
 ### Conversation View
@@ -175,15 +175,15 @@ The app has three moving parts:
 
 Normal review flow:
 
-1. Codex completes a unit of work.
-2. Codex calls `request_review.ps1 -RunDir "<run-dir>" -Output "<normal conclusion>"`.
-3. The script writes `output.md`, appends the assistant message to `session.md`, removes stale progress, and sets `status.txt` to `WAITING_FOR_REVIEW`.
-4. The UI displays the conclusion and waits for the human.
-5. The human sends one instruction from the composer.
-6. The backend writes `instruction.txt` first, then sets `status.txt` to `INSTRUCTION_RECEIVED`.
-7. `wait_for_review.ps1` exits for that run.
-8. Codex calls `consume_instruction.ps1`, which reads and clears `instruction.txt`, sets `status.txt` to `RUNNING`, and returns the instruction plus `sessionPath`.
-9. Codex continues unless the consume payload says `shouldFinish=true`.
+1. Codex calls `create_session.ps1` and uses the returned `runDir`.
+2. Codex completes a unit of work.
+3. Codex calls `request_review.ps1 -RunDir "<runDir>" -Output "<normal conclusion>"`.
+4. The script writes `output.md`, appends the assistant message to `session.md`, removes stale progress, and sets `status.txt` to `WAITING_FOR_REVIEW`.
+5. The UI displays the conclusion and waits for the human.
+6. The human sends one instruction from the composer.
+7. The backend writes `instruction.txt` first, then sets `status.txt` to `INSTRUCTION_RECEIVED`.
+8. `wait_for_review.ps1` reads and clears `instruction.txt`, sets `status.txt` to `RUNNING`, and returns the instruction plus `sessionPath`.
+9. Codex continues unless the returned JSON has `shouldFinish=true`.
 
 Queued messages use the same `/action` endpoint. The queue is a browser-side convenience layer; the backend still receives one instruction at a time.
 
@@ -204,7 +204,7 @@ Each active Codex session is isolated under `runs/<runId>/`:
       attachments/
 ```
 
-Root-level protocol files are legacy only. If root-level protocol files exist, the backend exposes them as the synthetic run id `legacy-root` so old review state is still visible.
+Only files under `runs/<runId>/` are protocol state. Root-level protocol files are ignored.
 
 ### Core Files
 
@@ -217,8 +217,6 @@ Root-level protocol files are legacy only. If root-level protocol files exist, t
 | `events.ndjson` | Backend | Append-only audit log for backend/user/watcher events. |
 | `run.json` | Agent/backend | Run metadata shown in the inbox. |
 | `attachments/` | UI | Uploaded review images for that run. |
-
-New scripts clean obsolete run-note files if they encounter old copies.
 
 ### Status Model
 
@@ -237,12 +235,6 @@ Exceptional statuses:
 | `BLOCKED` | Agent | Codex is waiting on an external dependency or cannot proceed. |
 | `ERROR` | Agent | Codex hit a failure and needs human input. |
 
-Legacy status handling:
-
-- Old UI-owned statuses are normalized in snapshots.
-- If an old run has a pending instruction, snapshots map it to `INSTRUCTION_RECEIVED`.
-- If an old run has no pending instruction, snapshots map it to `RUNNING`.
-
 ### Session History
 
 `session.md` is the source of truth for conversation history. It is intentionally readable by both humans and agents.
@@ -259,9 +251,7 @@ Implemented the requested change.
 Roles are:
 
 - `assistant`: Codex conclusions written by `request_review.ps1` or watcher fallback.
-- `user`: human instructions sent through the UI or consumed by `consume_instruction.ps1`.
-
-Legacy chat logs are read only for compatibility. When the backend or scripts need to write history and no `session.md` exists yet, legacy messages are seeded into `session.md` first.
+- `user`: human instructions sent through the UI and read by `wait_for_review.ps1`.
 
 ## Backend API
 
@@ -277,11 +267,11 @@ Legacy chat logs are read only for compatibility. When the backend or scripts ne
 | `DELETE /api/runs/:runId/attachments/:fileName` | Deletes one attachment from the selected run. |
 | `DELETE /api/runs/:runId/messages` | Clears `session.md` for the selected run while keeping the run open. |
 | `POST /api/runs/:runId/stop` | Closes the selected run from the UI stop action. |
-| `DELETE /api/runs/:runId` | Deletes a real run folder. `legacy-root` is protected. |
+| `DELETE /api/runs/:runId` | Deletes a run folder. |
 | `GET /api/teammates` | Reads teammate rows from `teammates.json` or returns defaults. |
 | `POST /api/teammates` | Adds one teammate invite if capacity and email validation pass. |
 
-The `/action` route name is kept for API compatibility, but the payload is now only:
+Instruction requests use this payload:
 
 ```json
 {
@@ -290,13 +280,6 @@ The `/action` route name is kept for API compatibility, but the payload is now o
 ```
 
 The backend writes `instruction.txt` before `status.txt` so a waiting agent never observes `INSTRUCTION_RECEIVED` without the matching instruction.
-
-Legacy aliases remain available:
-
-- `POST /api/action`
-- `POST /api/upload`
-
-Both target `legacy-root`.
 
 ## Backend Internals
 
@@ -318,10 +301,8 @@ Both target `legacy-root`.
 - Manager and run snapshot construction.
 - Markdown size warnings and render truncation metadata.
 - Attachment validation, safe filenames, and atomic writes.
-- `session.md` parsing, writing, cache invalidation, and legacy chat-log migration.
+- `session.md` parsing, writing, and cache invalidation.
 - Conversation-history clearing by truncating only `session.md`.
-- Legacy root discovery.
-- Legacy status normalization.
 
 Run ids must match the safe-name rules and cannot escape `<manager-root>/runs`.
 
@@ -330,25 +311,20 @@ Run ids must match the safe-name rules and cannot escape `<manager-root>/runs`.
 The global skill lives at:
 
 ```text
-C:\Users\ramly\.codex\skills\codex-pro-max-hitl
+C:\Users\ramly\.codex\skills\codex-pro-max
 ```
 
-Run directory resolution priority:
-
-1. `CODEX_PRO_MAX_RUN_DIR`
-2. `CODEX_PRO_MAX_ROOT\runs\CODEX_PRO_MAX_RUN_ID`
-3. `CODEX_PRO_MAX_ROOT\runs\CODEX_THREAD_ID`
-4. `CODEX_PRO_MAX_ROOT\runs\run-<timestamp>-<random>`
+Codex should not construct run folders itself. It should call `create_session.ps1` once, parse the returned JSON, and reuse `runDir` for the other scripts.
 
 Helper scripts:
 
 | Script | Purpose |
 | --- | --- |
+| `create_session.ps1` | Creates or reopens a run folder, initializes protocol files, writes `run.json`, and returns JSON with `runDir`. |
 | `request_review.ps1` | Writes `output.md`, appends assistant history to `session.md`, clears stale progress, and sets `WAITING_FOR_REVIEW`. |
-| `wait_for_review.ps1` | Blocks until `status.txt` becomes `INSTRUCTION_RECEIVED`; use `-RunDir` to pin the exact run. |
-| `consume_instruction.ps1` | Reads `instruction.txt`, appends user history to `session.md`, clears instruction, sets `RUNNING`, and returns JSON. |
+| `wait_for_review.ps1` | Blocks until `status.txt` becomes `INSTRUCTION_RECEIVED`, then reads and clears `instruction.txt`, appends user history, sets `RUNNING`, and returns JSON. |
 
-The wait script is intentionally blocking. If it exits because a matching instruction arrived, call `consume_instruction.ps1` for the same run directory.
+The wait script is intentionally blocking. When it exits normally, use the returned JSON instruction and continue. It returns `shouldFinish=true` only when the UI stop button has set the run status to `STOPPED`.
 
 ## Audit Events
 
@@ -367,17 +343,6 @@ Common event types:
 - `attachment.changed`: attachment additions, changes, and removals.
 
 Audit events are for traceability. `session.md` is the conversational history that agents should read.
-
-## Compatibility and Migration
-
-Compatibility behavior exists so old runs keep working:
-
-- Existing legacy chat logs are parsed and migrated into `session.md`.
-- Old UI-owned statuses are normalized in snapshots.
-- Root-level protocol files appear as `legacy-root`.
-- The route name `/action` remains, but request bodies no longer contain an action field.
-
-New code should write only the simplified protocol files and statuses described above.
 
 ## Project Structure
 
@@ -406,12 +371,11 @@ runs/
 
 The test suite covers:
 
-- Empty manager snapshots and legacy root discovery.
-- Per-run instruction isolation, deletion, and protected `legacy-root`.
+- Empty manager snapshots and root-level protocol-file ignoring.
+- Per-run instruction isolation and deletion.
 - Instruction-before-status write ordering.
 - Blank and unsafe instruction/run rejection.
-- Legacy status normalization.
-- Session history append and legacy migration.
+- Session history append.
 - Upload validation, file size limits, attachment deletion, and image previews.
 - Watched protocol file audit logging.
 - SSE snapshot delivery after watched changes.
@@ -420,7 +384,7 @@ The test suite covers:
 - Sidebar collapse persistence, outlines, protocol file preview, attachment mentions, and gallery controls.
 - Stop, clear-history, delete-run, and destructive confirmation flows.
 - Profile menu, teammates, settings, and construction popups.
-- Helper script behavior for request review, consume instruction, and wait-for-instruction.
+- Helper script behavior for session creation, request review, and wait-for-instruction.
 
 Run all tests:
 
