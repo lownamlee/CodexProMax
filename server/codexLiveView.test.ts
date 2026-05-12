@@ -30,6 +30,28 @@ describe('Codex live view JSONL parser', () => {
     })
   })
 
+  it('titles wait-for-review commands distinctly', () => {
+    const record = parseCodexLiveRecord(JSON.stringify({
+      timestamp: '2026-05-12T08:15:34.755Z',
+      type: 'response_item',
+      payload: {
+        type: 'function_call',
+        name: 'shell_command',
+        arguments: JSON.stringify({
+          command: "& 'C:\\Users\\ramly\\.codex\\skills\\codex-pro-max\\scripts\\wait_for_review.ps1' -RunDir 'C:\\Users\\ramly\\Desktop\\CodexProMax\\runs\\run-a'",
+        }),
+        call_id: 'call_wait',
+      },
+    }), 0)
+
+    expect(record).toMatchObject({
+      kind: 'tool-call',
+      title: 'Wait for review',
+      callId: 'call_wait',
+      status: 'running',
+    })
+  })
+
   it('marks non-zero tool outputs as failed', () => {
     const record = parseCodexLiveRecord(JSON.stringify({
       timestamp: '2026-05-12T08:15:38.032Z',
@@ -164,6 +186,90 @@ describe('Codex live view JSONL parser', () => {
     expect(history.records[0].text).toContain('npm test -- --run')
     expect(history.records[0].text).toContain('Result:')
     expect(history.records[0].text).toContain('Test Files  4 passed')
+  })
+
+  it('keeps timed-out wait-for-review calls in waiting state', async () => {
+    const rootPath = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-live-'))
+    process.env.CODEX_SESSIONS_ROOT = rootPath
+    const relativePath = '2026/05/12/rollout-2026-05-12T09-05-59-session.jsonl'
+    const filePath = path.join(rootPath, ...relativePath.split('/'))
+    await fs.mkdir(path.dirname(filePath), { recursive: true })
+    await fs.writeFile(filePath, [
+      JSON.stringify({
+        timestamp: '2026-05-12T09:05:00.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'function_call',
+          name: 'shell_command',
+          arguments: JSON.stringify({
+            command: "& 'C:\\Users\\ramly\\.codex\\skills\\codex-pro-max\\scripts\\wait_for_review.ps1' -RunDir 'C:\\Users\\ramly\\Desktop\\CodexProMax\\runs\\run-a'",
+          }),
+          call_id: 'call_wait',
+        },
+      }),
+      JSON.stringify({
+        timestamp: '2026-05-12T10:05:00.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'function_call_output',
+          call_id: 'call_wait',
+          output: 'Exit code: 124\nWall time: 3600 seconds\nOutput:\ncommand timed out after 3600012 milliseconds',
+        },
+      }),
+    ].join('\n'))
+
+    const id = Buffer.from(relativePath, 'utf8').toString('base64url')
+    const history = await readCodexLiveHistory(id)
+
+    expect(history.records).toHaveLength(1)
+    expect(history.records[0]).toMatchObject({
+      kind: 'tool-call',
+      title: 'Wait for review',
+      status: 'waiting',
+      callId: 'call_wait',
+    })
+  })
+
+  it('keeps clean idle wait-for-review returns in waiting state', async () => {
+    const rootPath = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-live-'))
+    process.env.CODEX_SESSIONS_ROOT = rootPath
+    const relativePath = '2026/05/12/rollout-2026-05-12T09-06-19-session.jsonl'
+    const filePath = path.join(rootPath, ...relativePath.split('/'))
+    await fs.mkdir(path.dirname(filePath), { recursive: true })
+    await fs.writeFile(filePath, [
+      JSON.stringify({
+        timestamp: '2026-05-12T09:06:00.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'function_call',
+          name: 'shell_command',
+          arguments: JSON.stringify({
+            command: "& 'C:\\Users\\ramly\\.codex\\skills\\codex-pro-max\\scripts\\wait_for_review.ps1' -RunDir 'C:\\Users\\ramly\\Desktop\\CodexProMax\\runs\\run-a'",
+          }),
+          call_id: 'call_wait_idle',
+        },
+      }),
+      JSON.stringify({
+        timestamp: '2026-05-12T09:59:00.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'function_call_output',
+          call_id: 'call_wait_idle',
+          output: 'Exit code: 0\nWall time: 3300 seconds\nOutput:\n{"ok":true,"status":"WAITING_FOR_REVIEW","instruction":"","shouldFinish":false,"idleTimeout":true}',
+        },
+      }),
+    ].join('\n'))
+
+    const id = Buffer.from(relativePath, 'utf8').toString('base64url')
+    const history = await readCodexLiveHistory(id)
+
+    expect(history.records).toHaveLength(1)
+    expect(history.records[0]).toMatchObject({
+      kind: 'tool-call',
+      title: 'Wait for review',
+      status: 'waiting',
+      callId: 'call_wait_idle',
+    })
   })
 
   it('groups consecutive actions without a message between them', async () => {

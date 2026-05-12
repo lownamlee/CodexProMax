@@ -399,7 +399,9 @@ function enrichToolOutput(record: CodexLiveRecord, call: CodexLiveRecord): Codex
 }
 
 function mergeToolOutputIntoCall(call: CodexLiveRecord, output: CodexLiveRecord) {
-  call.status = output.status
+  call.status = isWaitForReviewTimeout(call, output) || isWaitForReviewIdleReturn(call, output)
+    ? 'waiting'
+    : output.status
   call.text = `${call.text.trim()}\n\nResult:\n${output.text.trim()}`
 }
 
@@ -446,6 +448,7 @@ function isActionRecord(record: CodexLiveRecord) {
 function actionGroupStatus(actions: CodexLiveRecord[]): CodexLiveRecord['status'] {
   if (actions.some((action) => action.status === 'failed')) return 'failed'
   if (actions.some((action) => action.status === 'running')) return 'running'
+  if (actions.some((action) => action.status === 'waiting')) return 'waiting'
   if (actions.every((action) => action.status === 'completed')) return 'completed'
   return 'unknown'
 }
@@ -517,6 +520,7 @@ function pluralize(singular: string, count: number) {
 
 function shellCommandTitle(command: string) {
   const normalized = command.trim().toLowerCase()
+  if (normalized.includes('wait_for_review.ps1')) return 'Wait for review'
   if (normalized.startsWith('npm test')) return 'Run tests'
   if (normalized.startsWith('npm run build')) return 'Build app'
   if (normalized.startsWith('git ')) return 'Git command'
@@ -532,6 +536,28 @@ function shellCommandTitle(command: string) {
     return 'Manage server'
   }
   return 'Shell command'
+}
+
+function isWaitForReviewCommand(record: CodexLiveRecord) {
+  return record.kind === 'tool-call' && /wait_for_review\.ps1/i.test(record.text)
+}
+
+function isWaitForReviewTimeout(call: CodexLiveRecord, output: CodexLiveRecord) {
+  return isWaitForReviewCommand(call)
+    && /Exit code:\s*124/i.test(output.text)
+    && /command timed out after/i.test(output.text)
+}
+
+function isWaitForReviewIdleReturn(call: CodexLiveRecord, output: CodexLiveRecord) {
+  if (!isWaitForReviewCommand(call)) return false
+  const body = outputBody(output.text)
+  const parsed = safeJson(body.trim())
+  return parsed?.idleTimeout === true
+}
+
+function outputBody(value: string) {
+  const marker = value.match(/Output:\s*\n([\s\S]*)/i)
+  return marker ? marker[1] : value
 }
 
 function responseMessageText(content: unknown) {

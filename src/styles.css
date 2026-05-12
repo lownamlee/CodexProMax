@@ -3448,6 +3448,11 @@ code,
   color: var(--warning);
 }
 
+.codex-live-status-waiting {
+  background: #e0f2fe;
+  color: var(--primary-hover);
+}
+
 .codex-live-action-group-details {
   min-width: 0;
 }

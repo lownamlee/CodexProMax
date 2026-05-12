@@ -240,7 +240,7 @@ export interface CodexLiveRecord {
   title: string
   text: string
   callId: string
-  status: 'completed' | 'failed' | 'running' | 'unknown'
+  status: 'completed' | 'failed' | 'running' | 'waiting' | 'unknown'
   children?: CodexLiveRecord[]
 }
 

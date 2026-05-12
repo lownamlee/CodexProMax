@@ -150,6 +150,37 @@ describe('Codex Pro Max skill scripts', () => {
     })
   })
 
+  it('returns cleanly after idle wait timeout before host shell timeout', async () => {
+    const root = await createTempRoot()
+    const runDir = path.join(root, 'runs', 'target-run')
+    await mkdir(runDir, { recursive: true })
+    await writeFile(path.join(runDir, 'status.txt'), 'WAITING_FOR_REVIEW')
+    await writeFile(path.join(runDir, 'instruction.txt'), '')
+
+    const result = await runPowerShellScript(
+      WAIT_SCRIPT,
+      ['-RunDir', runDir],
+      {
+        CODEX_PRO_MAX_POLL_SECONDS: '1',
+        CODEX_PRO_MAX_MAX_WAIT_SECONDS: '1',
+      },
+    )
+    const payload = JSON.parse(result.stdout) as {
+      instruction: string
+      status: string
+      shouldFinish: boolean
+      idleTimeout: boolean
+    }
+
+    expect(result.code).toBe(0)
+    expect(payload).toMatchObject({
+      instruction: '',
+      status: 'WAITING_FOR_REVIEW',
+      shouldFinish: false,
+      idleTimeout: true,
+    })
+  })
+
   it('setup writes portable global instructions and skill scripts', async () => {
     const codexHome = await createTempRoot()
     const skillRoot = path.join(codexHome, 'skills', 'codex-pro-max')

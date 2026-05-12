@@ -3902,6 +3902,7 @@ function codexLiveStatusLabel(record: CodexLiveRecord) {
   if (record.status === 'completed') return 'Finished'
   if (record.status === 'failed') return 'Failed'
   if (record.status === 'running') return 'Running'
+  if (record.status === 'waiting') return 'Waiting'
   return ''
 }
 
@@ -3949,6 +3950,7 @@ function isCodexLiveShellCommandTitle(title: string) {
     'Read file',
     'Check API',
     'Manage server',
+    'Wait for review',
   ].includes(title)
 }
 
@@ -3976,6 +3978,7 @@ function summarizeToolCall(record: CodexLiveRecord) {
   const { command, result } = splitToolResult(record.text)
   if (!command) return record.status === 'completed' ? 'Completed' : 'Running'
   if (record.title === 'Edit files') return summarizePatchFiles(command) || 'Editing files'
+  if (record.title === 'Wait for review' && result) return 'Still waiting for review'
   if (!result) return firstMeaningfulLine(command, 260)
 
   const resultSummary = record.status === 'failed'

@@ -92,6 +92,20 @@ function Read-StoppedSession([string]$Path) {
   } | ConvertTo-Json -Compress
 }
 
+function Read-WaitingSession([string]$Path, [string]$Status) {
+  $sessionPath = Join-Path $Path "session.md"
+
+  [ordered]@{
+    ok = $true
+    runDir = $Path
+    status = $Status
+    instruction = ""
+    sessionPath = $sessionPath
+    shouldFinish = $false
+    idleTimeout = $true
+  } | ConvertTo-Json -Compress
+}
+
 $resolvedRunDir = [System.IO.Path]::GetFullPath($RunDir)
 New-Item -ItemType Directory -Path $resolvedRunDir -Force | Out-Null
 
@@ -104,6 +118,15 @@ if (-not [string]::IsNullOrWhiteSpace($env:CODEX_PRO_MAX_POLL_SECONDS)) {
   }
 }
 
+$maxWaitSeconds = 3300
+if (-not [string]::IsNullOrWhiteSpace($env:CODEX_PRO_MAX_MAX_WAIT_SECONDS)) {
+  $parsedMaxWaitSeconds = 0
+  if ([int]::TryParse($env:CODEX_PRO_MAX_MAX_WAIT_SECONDS, [ref]$parsedMaxWaitSeconds) -and $parsedMaxWaitSeconds -gt 0) {
+    $maxWaitSeconds = $parsedMaxWaitSeconds
+  }
+}
+
+$startedAt = [System.Diagnostics.Stopwatch]::StartNew()
 while ($true) {
   try {
     $current = (Read-TextUtf8NoBom $statusPath).Trim()
@@ -113,6 +136,10 @@ while ($true) {
     }
     if ($current -eq "STOPPED") {
       Read-StoppedSession $resolvedRunDir
+      exit 0
+    }
+    if ($startedAt.Elapsed.TotalSeconds -ge $maxWaitSeconds) {
+      Read-WaitingSession $resolvedRunDir $current
       exit 0
     }
   } catch {

@@ -83,6 +83,7 @@ Normal users should not set session environment variables. Codex gets a run fold
 | `CODEX_PRO_MAX_ROOT` | Optional manager root for the API and session creation. |
 | `CODEX_PRO_MAX_API_PORT` | Optional API port. Defaults to `53127`. |
 | `CODEX_PRO_MAX_POLL_SECONDS` | Optional wait script polling interval. |
+| `CODEX_PRO_MAX_MAX_WAIT_SECONDS` | Optional wait script idle timeout. Defaults to `3300` seconds so host shells with one-hour ceilings do not kill the wait command. |
 
 If Codex provides `CODEX_THREAD_ID`, `create_session.ps1` can use it internally for a stable run folder. Users do not need to set it.
 
@@ -322,9 +323,9 @@ Helper scripts:
 | --- | --- |
 | `create_session.ps1` | Creates or reopens a run folder, initializes protocol files, writes `run.json`, and returns JSON with `runDir`. |
 | `request_review.ps1` | Writes `output.md`, appends assistant history to `session.md`, clears stale progress, and sets `WAITING_FOR_REVIEW`. |
-| `wait_for_review.ps1` | Blocks until `status.txt` becomes `INSTRUCTION_RECEIVED`, then reads and clears `instruction.txt`, appends user history, sets `RUNNING`, and returns JSON. |
+| `wait_for_review.ps1` | Blocks until `status.txt` becomes `INSTRUCTION_RECEIVED`, then reads and clears `instruction.txt`, appends user history, sets `RUNNING`, and returns JSON. If no instruction arrives before the idle timeout, it returns `idleTimeout=true` with `shouldFinish=false` so Codex can call it again without the host shell marking the command failed. |
 
-The wait script is intentionally blocking. When it exits normally, use the returned JSON instruction and continue. It returns `shouldFinish=true` only when the UI stop button has set the run status to `STOPPED`.
+The wait script is intentionally blocking. When it exits with an instruction, use the returned JSON instruction and continue. When it exits with `idleTimeout=true`, call it again. It returns `shouldFinish=true` only when the UI stop button has set the run status to `STOPPED`.
 
 ## Audit Events
 
