@@ -250,7 +250,9 @@ export function parseCodexLiveRecord(line: string, index: number): CodexLiveReco
   }
 
   if (record.type === 'event_msg') {
-    if (payload.type === 'agent_message' || payload.type === 'token_count') return null
+    if (payload.type === 'agent_message' || payload.type === 'token_count' || payload.type === 'patch_apply_end') {
+      return null
+    }
     if (payload.type === 'user_message') {
       return makeRecord({
         id,

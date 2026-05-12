@@ -79,6 +79,28 @@ describe('Codex live view JSONL parser', () => {
     expect(record).toBeNull()
   })
 
+  it('hides patch apply end events because apply_patch output is summarized separately', () => {
+    const record = parseCodexLiveRecord(JSON.stringify({
+      timestamp: '2026-05-12T14:51:33.712Z',
+      type: 'event_msg',
+      payload: {
+        type: 'patch_apply_end',
+        call_id: 'call_patch',
+        stdout: 'Success. Updated the following files:\nM server/codexLiveView.test.ts\n',
+        success: true,
+        changes: {
+          'server/codexLiveView.test.ts': {
+            type: 'update',
+            unified_diff: '@@ -1 +1 @@',
+          },
+        },
+        status: 'completed',
+      },
+    }), 4)
+
+    expect(record).toBeNull()
+  })
+
   it('unwraps custom tool output status', () => {
     const record = parseCodexLiveRecord(JSON.stringify({
       timestamp: '2026-05-12T14:51:33.712Z',
