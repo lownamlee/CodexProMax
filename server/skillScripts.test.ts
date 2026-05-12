@@ -202,6 +202,13 @@ describe('Codex Pro Max skill scripts', () => {
     expect(agents).toContain('codex-pro-max')
     expect(agents).toContain('create_session.ps1')
     expect(agents).toContain('wait_for_review.ps1 -RunDir "<runDir>"')
+    expect(agents).toContain('idleTimeout=true')
+    expect(agents).toContain('exit code `124`')
+    expect(agents).toContain('The only valid reason to leave the loop is returned JSON with `shouldFinish=true`')
+    const skill = await readFile(path.join(codexHome, 'skills', 'codex-pro-max', 'SKILL.md'), 'utf8')
+    expect(skill).toContain('idleTimeout=true')
+    expect(skill).toContain('Do not send a final answer')
+    expect(skill).toContain('The only valid reason to leave the loop is returned JSON with `shouldFinish=true`')
     const installation = JSON.parse(
       await readFile(path.join(codexHome, 'skills', 'codex-pro-max', 'INSTALLATION.json'), 'utf8'),
     ) as { projectRoot: string; codexHome: string; skillRoot: string }

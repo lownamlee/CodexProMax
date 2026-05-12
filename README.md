@@ -325,7 +325,7 @@ Helper scripts:
 | `request_review.ps1` | Writes `output.md`, appends assistant history to `session.md`, clears stale progress, and sets `WAITING_FOR_REVIEW`. |
 | `wait_for_review.ps1` | Blocks until `status.txt` becomes `INSTRUCTION_RECEIVED`, then reads and clears `instruction.txt`, appends user history, sets `RUNNING`, and returns JSON. If no instruction arrives before the idle timeout, it returns `idleTimeout=true` with `shouldFinish=false` so Codex can call it again without the host shell marking the command failed. |
 
-The wait script is intentionally blocking. When it exits with an instruction, use the returned JSON instruction and continue. When it exits with `idleTimeout=true`, call it again. It returns `shouldFinish=true` only when the UI stop button has set the run status to `STOPPED`.
+The wait script is intentionally blocking. When it exits with an instruction, use the returned JSON instruction and continue. When it exits with `idleTimeout=true`, no instruction, or `WAITING_FOR_REVIEW`, call it again immediately with the same `runDir`. A host shell exit code `124` while running `wait_for_review.ps1` is also a wait timeout, not a completion or failure. Do not stop after repeated idle waits; the only valid reason to leave the loop is returned JSON with `shouldFinish=true`.
 
 ## Audit Events
 
