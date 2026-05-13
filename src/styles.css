@@ -1669,18 +1669,6 @@ code,
   transition: all 0.3s var(--ease-spring);
 }
 
-.composer::before {
-  content: "";
-  position: absolute;
-  inset: 4px 0 -4px;
-  z-index: -1;
-  border-radius: 20px;
-  background: linear-gradient(90deg, #4dc9ff 0%, #ff84b5 35%, #ffae68 70%, #46ebcd 100%);
-  filter: blur(14px);
-  opacity: 0;
-  transition: opacity 0.24s var(--ease-out);
-}
-
 .mention-menu {
   width: min(800px, 100%);
   max-height: 220px;
@@ -1963,15 +1951,14 @@ code,
 
 .composer:focus-within {
   background:
-    linear-gradient(var(--bg-surface), var(--bg-surface)) padding-box,
+    linear-gradient(#ffffff, #ffffff) padding-box,
     linear-gradient(90deg, #4dc9ff 0%, #ff84b5 35%, #ffae68 70%, #46ebcd 100%) border-box;
   box-shadow:
     0 8px 24px rgba(2, 132, 199, 0.1),
-    0 0 0 1px rgba(255, 255, 255, 0.78);
-}
-
-.composer:focus-within::before {
-  opacity: 0.6;
+    0 6px 18px rgba(77, 201, 255, 0.22),
+    0 8px 22px rgba(255, 132, 181, 0.18),
+    0 8px 20px rgba(255, 174, 104, 0.16),
+    0 8px 20px rgba(70, 235, 205, 0.18);
 }
 
 .composer-btn {
