@@ -1122,6 +1122,16 @@ code,
   opacity: 0.6;
 }
 
+@keyframes liquidGaugeFlow {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: 0 0;
+  }
+}
+
 .chat-scroll {
   flex: 1 1 auto;
   min-height: 0;
