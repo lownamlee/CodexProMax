@@ -470,9 +470,19 @@ describe('App', () => {
             sizeBytes: 4096,
           },
           records: [
+            {
+              id: 'old-assistant-before-user',
+              index: 0,
+              timestamp: '2026-05-07T00:00:00.500Z',
+              kind: 'message',
+              title: 'Assistant',
+              text: 'Old assistant message before the latest user request.',
+              callId: '',
+              status: 'completed',
+            },
             ...Array.from({ length: 31 }, (_, index) => ({
               id: `assistant-message-${index + 1}`,
-              index,
+              index: index + 1,
               timestamp: `2026-05-07T00:02:${String(index).padStart(2, '0')}.000Z`,
               kind: 'message',
               title: 'Assistant',
@@ -486,7 +496,7 @@ describe('App', () => {
             })),
             {
               id: 'reasoning-1',
-              index: 31,
+              index: 33,
               timestamp: '2026-05-07T00:02:30.000Z',
               kind: 'reasoning',
               title: 'Thinking',
@@ -496,7 +506,7 @@ describe('App', () => {
             },
             {
               id: 'tool-1',
-              index: 32,
+              index: 34,
               timestamp: '2026-05-07T00:03:00.000Z',
               kind: 'tool-call',
               title: 'Shell command',
@@ -521,6 +531,7 @@ describe('App', () => {
     expect(thinking.querySelectorAll('.ai-thinking-label-dots span')).toHaveLength(3)
     await waitFor(() => expect(thinking).toHaveTextContent('Checking the implementation path.'))
     expect(thinking).toHaveTextContent('Assistant update 2')
+    expect(thinking).not.toHaveTextContent('Old assistant message before the latest user request')
     expect(thinking).not.toHaveTextContent('Dropped assistant update')
     expect(thinking).not.toHaveTextContent('Raw reasoning should stay hidden')
     expect(thinking).not.toHaveTextContent('Tool output should stay hidden')

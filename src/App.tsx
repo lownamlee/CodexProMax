@@ -219,6 +219,7 @@ function App() {
 
   const runs = managerSnapshot?.runs ?? []
   const selectedRun = runs.find((run) => run.runId === selectedRunId) ?? null
+  const latestRunUserMessageCreatedAtIso = latestUserMessageCreatedAtIso(runSnapshot?.messages)
 
   useEffect(() => {
     selectedRunIdRef.current = selectedRunId
@@ -297,9 +298,7 @@ function App() {
         if (!ignore) {
           setConversationLiveUsage(liveHistory.context)
           setConversationThinkingRecords(
-            liveHistory.records
-              .filter(isConversationThinkingRecord)
-              .slice(-30),
+            conversationThinkingRecordsFromLiveHistory(liveHistory.records, latestRunUserMessageCreatedAtIso),
           )
         }
       } catch {
@@ -318,7 +317,7 @@ function App() {
       ignore = true
       window.clearInterval(timer)
     }
-  }, [selectedRunId])
+  }, [latestRunUserMessageCreatedAtIso, selectedRunId])
 
   useEffect(() => {
     writeStoredBoolean(LEFT_SIDEBAR_COLLAPSED_STORAGE_KEY, leftCollapsed)
@@ -2256,6 +2255,49 @@ function isConversationThinkingRecord(record: CodexLiveRecord) {
   return record.kind === 'message'
     && record.title.toLowerCase() === 'assistant'
     && record.text.trim().length > 0
+}
+
+function isConversationUserRecord(record: CodexLiveRecord) {
+  return record.kind === 'message' && record.title.toLowerCase() === 'user'
+}
+
+function latestUserMessageCreatedAtIso(messages: ChatMessage[] | undefined) {
+  if (!messages) return null
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message.role === 'user') {
+      return message.createdAtIso
+    }
+  }
+
+  return null
+}
+
+function conversationThinkingRecordsFromLiveHistory(
+  records: CodexLiveRecord[],
+  latestUserMessageCreatedAtIsoValue?: string | null,
+) {
+  let lastUserIndex = -1
+  for (let index = records.length - 1; index >= 0; index -= 1) {
+    if (isConversationUserRecord(records[index])) {
+      lastUserIndex = index
+      break
+    }
+  }
+
+  let currentTurnRecords = lastUserIndex >= 0 ? records.slice(lastUserIndex + 1) : records
+  const latestUserMessageTimeMs = latestUserMessageCreatedAtIsoValue
+    ? Date.parse(latestUserMessageCreatedAtIsoValue)
+    : Number.NaN
+  if (Number.isFinite(latestUserMessageTimeMs)) {
+    currentTurnRecords = currentTurnRecords.filter((record) => {
+      const recordTimeMs = Date.parse(record.timestamp)
+      return !Number.isFinite(recordTimeMs) || recordTimeMs >= latestUserMessageTimeMs
+    })
+  }
+
+  return currentTurnRecords.filter(isConversationThinkingRecord).slice(-30)
 }
 
 const MarkdownPanel = memo(function MarkdownPanel({
