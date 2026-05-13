@@ -8,7 +8,7 @@ afterEach(() => {
   delete process.env.CODEX_SESSIONS_ROOT
 })
 
-describe('Codex live view JSONL parser', () => {
+describe('Codex rollout JSONL parser', () => {
   it('extracts shell command text from function call records', () => {
     const record = parseCodexLiveRecord(JSON.stringify({
       timestamp: '2026-05-12T08:15:34.755Z',
@@ -76,14 +76,14 @@ describe('Codex live view JSONL parser', () => {
       type: 'event_msg',
       payload: {
         type: 'user_message',
-        message: 'Open Codex Live in a new tab.',
+        message: 'Open the rollout log in a new tab.',
       },
     }), 2)
 
     expect(record).toMatchObject({
       kind: 'message',
       title: 'User',
-      text: 'Open Codex Live in a new tab.',
+      text: 'Open the rollout log in a new tab.',
       status: 'completed',
     })
   })

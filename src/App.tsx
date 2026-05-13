@@ -40,7 +40,6 @@ import type {
   CodexLiveRateLimitWindow,
   CodexLiveRecord,
   CodexLiveSessionSummary,
-  CodexLiveSessionsResponse,
   ChatMessage,
   ManagerSnapshot,
   MarkdownSafety,
@@ -145,12 +144,6 @@ type ProtocolFilePreview = {
   size: number | null
 }
 
-function isCodexLiveLocation() {
-  return window.location.pathname === '/codex-live'
-    || window.location.hash === '#codex-live'
-    || new URLSearchParams(window.location.search).get('view') === 'codex-live'
-}
-
 function App() {
   const { snapshot: managerSnapshot, error: streamError } = useSnapshotStream()
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
@@ -168,7 +161,6 @@ function App() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [codexLivePage, setCodexLivePage] = useState(isCodexLiveLocation)
   const [conversationLiveUsage, setConversationLiveUsage] = useState<CodexLiveContextUsage | null>(null)
   const [conversationThinkingRecords, setConversationThinkingRecords] = useState<CodexLiveRecord[]>([])
   const [ctrlEnterConfirmOpen, setCtrlEnterConfirmOpen] = useState(false)
@@ -238,24 +230,6 @@ function App() {
   }, [queuedInstructionsByRun])
 
   useEffect(() => {
-    function syncCodexLiveLocation() {
-      const nextIsLivePage = isCodexLiveLocation()
-      setCodexLivePage(nextIsLivePage)
-      if (nextIsLivePage && window.location.pathname !== '/codex-live') {
-        window.history.replaceState(null, '', '/codex-live')
-      }
-    }
-
-    syncCodexLiveLocation()
-    window.addEventListener('popstate', syncCodexLiveLocation)
-    window.addEventListener('hashchange', syncCodexLiveLocation)
-    return () => {
-      window.removeEventListener('popstate', syncCodexLiveLocation)
-      window.removeEventListener('hashchange', syncCodexLiveLocation)
-    }
-  }, [])
-
-  useEffect(() => {
     if (!managerSnapshot) {
       return
     }
@@ -299,7 +273,7 @@ function App() {
   }, [selectedRunId, managerSnapshot?.health.serverTimeIso])
 
   useEffect(() => {
-    if (!selectedRunId || codexLivePage || !isCodexRolloutRunId(selectedRunId)) {
+    if (!selectedRunId || !isCodexRolloutRunId(selectedRunId)) {
       setConversationLiveUsage(null)
       setConversationThinkingRecords([])
       return
@@ -344,7 +318,7 @@ function App() {
       ignore = true
       window.clearInterval(timer)
     }
-  }, [selectedRunId, codexLivePage])
+  }, [selectedRunId])
 
   useEffect(() => {
     writeStoredBoolean(LEFT_SIDEBAR_COLLAPSED_STORAGE_KEY, leftCollapsed)
@@ -1347,18 +1321,7 @@ function App() {
     }
   }
 
-  function openCodexLivePage() {
-    window.open('/codex-live', '_blank', 'noopener,noreferrer')
-  }
-
-  function closeCodexLivePage() {
-    window.history.pushState(null, '', '/')
-    setCodexLivePage(false)
-  }
-
-  return codexLivePage ? (
-    <CodexLivePage onBack={closeCodexLivePage} />
-  ) : (
+  return (
     <div className={`app ${leftCollapsed ? 'left-collapsed' : ''} ${rightCollapsed ? 'right-collapsed' : ''}`}>
       <RunInbox
         runs={runs}
@@ -1403,16 +1366,6 @@ function App() {
           </div>
 
           <div className="header-right">
-            <button
-              type="button"
-              className="icon-btn codex-live-open-button"
-              onClick={openCodexLivePage}
-              aria-label="Open Codex live view"
-              title="Codex live view"
-            >
-              <i className="ri-pulse-line" aria-hidden="true" />
-              <span>Codex Live</span>
-            </button>
             <button
               type="button"
               className="icon-btn danger"
@@ -3741,551 +3694,6 @@ function codexRateLimitGauges(usage: CodexLiveContextUsage) {
   ].filter(Boolean) as Array<{ key: string; label: string; percent: number; value: string; detail: string }>
 }
 
-function CodexLivePage({ onBack }: { onBack: () => void }) {
-  const [sessionsData, setSessionsData] = useState<CodexLiveSessionsResponse | null>(null)
-  const [selectedSessionId, setSelectedSessionId] = useState('')
-  const [history, setHistory] = useState<CodexLiveHistoryResponse | null>(null)
-  const [recordLimit, setRecordLimit] = useState(200)
-  const [filter, setFilter] = useState('')
-  const [loadingSessions, setLoadingSessions] = useState(false)
-  const [loadingHistory, setLoadingHistory] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const threadRef = useRef<HTMLDivElement | null>(null)
-
-  const sessions = sessionsData?.sessions ?? []
-  const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? sessions[0] ?? null
-  const filteredSessions = useMemo(() => {
-    const needle = filter.trim().toLowerCase()
-    if (!needle) return sessions
-    return sessions.filter((session) =>
-      [session.fileName, session.relativePath, session.updatedAtIso].join(' ').toLowerCase().includes(needle),
-    )
-  }, [filter, sessions])
-
-  const refreshSessions = useCallback(async () => {
-    setLoadingSessions(true)
-    try {
-      const nextSessions = await fetchCodexLiveSessions()
-      setSessionsData(nextSessions)
-      setSelectedSessionId((current) => {
-        if (current && nextSessions.sessions.some((session) => session.id === current)) {
-          return current
-        }
-        return nextSessions.sessions[0]?.id ?? ''
-      })
-      setError(null)
-    } catch (refreshError) {
-      setError(refreshError instanceof Error ? refreshError.message : 'Codex live sessions request failed')
-    } finally {
-      setLoadingSessions(false)
-    }
-  }, [])
-
-  const refreshHistory = useCallback(async (sessionId: string, limit: number) => {
-    if (!sessionId) return
-    setLoadingHistory(true)
-    try {
-      const nextHistory = await fetchCodexLiveHistory(sessionId, limit)
-      setHistory(nextHistory)
-      setError(null)
-    } catch (refreshError) {
-      setError(refreshError instanceof Error ? refreshError.message : 'Codex live history request failed')
-    } finally {
-      setLoadingHistory(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function load() {
-      if (cancelled) return
-      await refreshSessions()
-    }
-
-    void load()
-    const timer = window.setInterval(() => void load(), 15_000)
-    return () => {
-      cancelled = true
-      window.clearInterval(timer)
-    }
-  }, [refreshSessions])
-
-  useEffect(() => {
-    if (!selectedSession?.id) return
-    let cancelled = false
-
-    async function load() {
-      if (cancelled || !selectedSession?.id) return
-      await refreshHistory(selectedSession.id, recordLimit)
-    }
-
-    void load()
-    const timer = window.setInterval(() => void load(), 5_000)
-    return () => {
-      cancelled = true
-      window.clearInterval(timer)
-    }
-  }, [recordLimit, refreshHistory, selectedSession?.id])
-
-  const records = history?.records ?? []
-  const selectedSessionTitle = selectedSession ? formatLiveSessionTitle(selectedSession) : 'Codex Live'
-  const contextUsage = history?.context ?? null
-
-  useEffect(() => {
-    const thread = threadRef.current
-    if (!thread) return
-    thread.scrollTop = thread.scrollHeight
-  }, [records.length, selectedSessionId])
-
-  return (
-    <div className="codex-live-page">
-      <aside className="codex-live-sidebar">
-        <div className="codex-live-sidebar-header">
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={onBack}
-            aria-label="Back to Codex Pro Max"
-            title="Back to Codex Pro Max"
-          >
-            <i className="ri-arrow-left-line" aria-hidden="true" />
-          </button>
-          <div>
-            <strong>Codex Live</strong>
-            <span>Live conversation</span>
-          </div>
-          <div className="codex-live-header-actions">
-            <button
-              type="button"
-              className="icon-btn"
-              onClick={() => void refreshSessions()}
-              aria-label="Refresh Codex sessions"
-              title="Refresh Codex sessions"
-            >
-              <i className={loadingSessions ? 'ri-loader-4-line' : 'ri-refresh-line'} aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-
-        <label className="codex-live-search">
-          <i className="ri-search-line" aria-hidden="true" />
-          <input
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-            placeholder="Filter conversations"
-            aria-label="Filter Codex conversations"
-          />
-        </label>
-
-        <div className="codex-live-session-list">
-          {filteredSessions.length > 0 ? (
-            filteredSessions.map((session) => (
-              <CodexLiveSessionButton
-                key={session.id}
-                session={session}
-                active={session.id === selectedSession?.id}
-                onClick={() => setSelectedSessionId(session.id)}
-              />
-            ))
-          ) : (
-            <div className="codex-live-empty">
-              <i className="ri-chat-history-line" aria-hidden="true" />
-              <span>{sessions.length > 0 ? 'No matching conversations' : 'No conversations'}</span>
-            </div>
-          )}
-        </div>
-      </aside>
-
-      <main className="codex-live-chat" aria-label="Codex live conversation">
-        <header className="codex-live-chat-header">
-          <div className="codex-live-chat-title">
-            <strong>{selectedSessionTitle}</strong>
-            <span>{selectedSession ? `${formatMessageTime(selectedSession.updatedAtIso)} - ${records.length} events` : 'Select a conversation'}</span>
-          </div>
-          {contextUsage && <CodexLiveContextMeter usage={contextUsage} />}
-          <div className="codex-live-controls">
-            <select
-              value={recordLimit}
-              onChange={(event) => setRecordLimit(Number(event.target.value))}
-              aria-label="Codex live record count"
-            >
-              {[100, 200, 400].map((count) => <option key={count} value={count}>{count} events</option>)}
-            </select>
-            <button
-              type="button"
-              className="icon-btn"
-              disabled={!selectedSession}
-              onClick={() => selectedSession && void refreshHistory(selectedSession.id, recordLimit)}
-              aria-label="Refresh Codex live history"
-              title="Refresh Codex live history"
-            >
-              <i className={loadingHistory ? 'ri-loader-4-line' : 'ri-refresh-line'} aria-hidden="true" />
-            </button>
-          </div>
-        </header>
-
-        {error && <div className="codex-live-error">{error}</div>}
-
-        <div className="codex-live-thread" data-testid="codex-live-thread" ref={threadRef}>
-          {records.length > 0 ? (
-            records.map((record) => <CodexLiveRecordItem key={record.id} record={record} />)
-          ) : (
-            <div className="codex-live-empty large">
-              <i className="ri-pulse-line" aria-hidden="true" />
-              <span>{loadingHistory ? 'Loading' : 'No conversation yet'}</span>
-            </div>
-          )}
-        </div>
-      </main>
-    </div>
-  )
-}
-
-function CodexLiveSessionButton({
-  session,
-  active,
-  onClick,
-}: {
-  session: CodexLiveSessionSummary
-  active: boolean
-  onClick: () => void
-}) {
-  return (
-    <button type="button" className={`codex-live-session ${active ? 'active' : ''}`} onClick={onClick}>
-      <span>
-        <strong>{formatLiveSessionTitle(session)}</strong>
-        <small>Updated {formatMessageTime(session.updatedAtIso)}</small>
-      </span>
-      <span className="codex-live-session-meta">
-        <b>{formatBytes(session.sizeBytes)}</b>
-      </span>
-    </button>
-  )
-}
-
-function CodexLiveContextMeter({ usage }: { usage: CodexLiveContextUsage }) {
-  const percent = Math.max(0, Math.min(100, usage.percentUsed))
-  const planType = usage.rateLimits?.planType || ''
-  const totalTokens = usage.totalUsage?.totalTokens ?? 0
-  const gauges = [
-    {
-      key: 'context',
-      tone: 'context',
-      label: 'Context limit',
-      percent,
-      value: `${formatPercent(percent)} used`,
-      detail: `${formatTokenCount(usage.usedTokens)} of ${formatTokenCount(usage.contextWindow)} used`,
-    },
-    ...codexRateLimitGauges(usage).map((limit) => ({ ...limit, tone: 'rate' })),
-  ]
-
-  return (
-    <div className="codex-live-context" aria-label="Context limit">
-      <div className="codex-live-gauge-list">
-        {gauges.map((gauge) => (
-          <div className={`codex-live-gauge codex-live-gauge-${gauge.tone}`} key={gauge.key}>
-            <div className="codex-live-gauge-heading">
-              <span>{gauge.label}</span>
-              <strong>{gauge.value}</strong>
-            </div>
-            <div className="codex-live-gauge-bar" aria-hidden="true">
-              <span
-                className="liquid-bar"
-                style={{ width: `${Math.max(0, Math.min(100, gauge.percent))}%`, animationDuration: '2.5s' }}
-              />
-            </div>
-            {gauge.detail && <small>{gauge.detail}</small>}
-          </div>
-        ))}
-      </div>
-      <div className="codex-live-context-meta">
-        {totalTokens > 0 && <span>Total {formatTokenCount(totalTokens)}</span>}
-        {planType && <span>{humanizePlanType(planType)}</span>}
-      </div>
-    </div>
-  )
-}
-
-function CodexLiveRecordItem({ record }: { record: CodexLiveRecord }) {
-  if (record.kind === 'action-group') return <CodexLiveActionGroup record={record} />
-
-  const visibleText = codexLiveVisibleText(record)
-  const detailsText = codexLiveDetailsText(record)
-  const commandDetails = codexLiveShellCommandDetails(record)
-  const fromUser = record.kind === 'message' && record.title.toLowerCase() === 'user'
-
-  return (
-    <article className={`codex-live-message codex-live-${record.kind} ${fromUser ? 'codex-live-from-user' : ''}`}>
-      <div className="codex-live-avatar" aria-hidden="true">
-        <i className={codexLiveKindIcon(record.kind)} />
-      </div>
-      <div className="codex-live-bubble">
-        <div className="codex-live-message-heading">
-          <div>
-            <strong>{codexLiveRecordTitle(record)}</strong>
-            <span>{formatMessageTime(record.timestamp)}</span>
-          </div>
-          {codexLiveStatusLabel(record) && (
-            <span className={`codex-live-status codex-live-status-${record.status}`}>
-              {codexLiveStatusLabel(record)}
-            </span>
-          )}
-        </div>
-        {commandDetails ? (
-          <details className="codex-live-command-details">
-            <summary>
-              <i className="ri-arrow-right-s-line" aria-hidden="true" />
-              <span>{commandDetails.preview}</span>
-            </summary>
-            <div className="codex-live-command-expanded">
-              <strong>Command</strong>
-              <pre>{trimLiveRecordText(commandDetails.command)}</pre>
-              {commandDetails.result && (
-                <>
-                  <strong>Result</strong>
-                  <pre>{trimLiveRecordText(commandDetails.result)}</pre>
-                </>
-              )}
-            </div>
-          </details>
-        ) : visibleText && <p>{visibleText}</p>}
-        {!commandDetails && detailsText && (
-          <details className="codex-live-details">
-            <summary>Details</summary>
-            <pre>{trimLiveRecordText(detailsText)}</pre>
-          </details>
-        )}
-      </div>
-    </article>
-  )
-}
-
-function CodexLiveActionGroup({ record }: { record: CodexLiveRecord }) {
-  const children = record.children ?? []
-  const groupTitle = codexLiveActionGroupTitle(children)
-
-  return (
-    <article className="codex-live-message codex-live-action-group">
-      <div className="codex-live-avatar" aria-hidden="true">
-        <i className={codexLiveKindIcon(record.kind)} />
-      </div>
-      <div className="codex-live-bubble">
-        <details className="codex-live-action-group-details">
-          <summary>
-            <span>
-              <strong>{groupTitle}</strong>
-              <small>{formatMessageTime(record.timestamp)}</small>
-            </span>
-            {codexLiveStatusLabel(record) && (
-              <span className={`codex-live-status codex-live-status-${record.status}`}>
-                {codexLiveStatusLabel(record)}
-              </span>
-            )}
-          </summary>
-          <div className="codex-live-group-items">
-            {children.map((child) => <CodexLiveRecordItem key={child.id} record={child} />)}
-          </div>
-        </details>
-      </div>
-    </article>
-  )
-}
-
-function codexLiveRecordTitle(record: CodexLiveRecord) {
-  if (record.kind === 'reasoning') return 'Thinking'
-  if (record.kind === 'tool-output' && record.title === 'Tool output') {
-    return record.status === 'failed' ? 'Tool failed' : 'Tool finished'
-  }
-  return record.title
-}
-
-function codexLiveVisibleText(record: CodexLiveRecord) {
-  if (record.kind === 'action-group') return ''
-  if (record.kind === 'message' || record.kind === 'reasoning') {
-    return record.text.trim() || (record.kind === 'reasoning' ? 'Thinking' : '')
-  }
-
-  if (record.kind === 'tool-output') {
-    return summarizeToolOutput(record)
-  }
-
-  if (record.kind === 'tool-call') {
-    return summarizeToolCall(record)
-  }
-
-  return record.title
-}
-
-function codexLiveDetailsText(record: CodexLiveRecord) {
-  if (record.kind === 'action-group') return ''
-  if (record.kind === 'message' || record.kind === 'reasoning') return ''
-  if (codexLiveShellCommandDetails(record)) return ''
-  if (record.kind === 'tool-call' && !record.text.includes('\n') && record.text.length <= 260) return ''
-  return record.text.trim()
-}
-
-function codexLiveStatusLabel(record: CodexLiveRecord) {
-  if (record.kind !== 'tool-call' && record.kind !== 'tool-output' && record.kind !== 'action-group') return ''
-  if (record.status === 'completed') return 'Finished'
-  if (record.status === 'failed') return 'Failed'
-  if (record.status === 'running') return 'Running'
-  if (record.status === 'waiting') return 'Waiting'
-  return ''
-}
-
-function codexLiveKindIcon(kind: CodexLiveRecord['kind']) {
-  if (kind === 'action-group') return 'ri-stack-line'
-  if (kind === 'tool-call') return 'ri-terminal-box-line'
-  if (kind === 'tool-output') return 'ri-checkbox-circle-line'
-  if (kind === 'reasoning') return 'ri-loader-4-line'
-  if (kind === 'message') return 'ri-message-3-line'
-  return 'ri-information-line'
-}
-
-function trimLiveRecordText(value: string) {
-  return value.length > 12_000 ? `${value.slice(0, 12_000)}\n... truncated in live view ...` : value
-}
-
-function codexLiveActionGroupTitle(children: CodexLiveRecord[]) {
-  const commandCount = children.filter((child) => codexLiveShellCommandDetails(child)).length
-  if (commandCount > 0 && commandCount === children.length) {
-    return `Ran ${commandCount} command${commandCount === 1 ? '' : 's'}`
-  }
-  return `${children.length} action${children.length === 1 ? '' : 's'}`
-}
-
-function codexLiveShellCommandDetails(record: CodexLiveRecord) {
-  if (record.kind !== 'tool-call' || !isCodexLiveShellCommandTitle(record.title)) return null
-  const { command, result } = splitToolResult(record.text)
-  const trimmedCommand = command.trim()
-  if (!trimmedCommand) return null
-
-  return {
-    command: trimmedCommand,
-    result: result.trim(),
-    preview: compactCommandPreview(trimmedCommand, 180),
-  }
-}
-
-function isCodexLiveShellCommandTitle(title: string) {
-  return [
-    'Shell command',
-    'Run tests',
-    'Build app',
-    'Git command',
-    'Search code',
-    'Read file',
-    'Check API',
-    'Manage server',
-    'Wait for review',
-  ].includes(title)
-}
-
-function compactCommandPreview(value: string, maxLength: number) {
-  const line = value.replace(/\s+/g, ' ').trim()
-  if (!line) return ''
-  return line.length > maxLength ? `${line.slice(0, maxLength - 1)}...` : line
-}
-
-function summarizeFailedOutput(value: string) {
-  if (/apply_patch verification failed|failed to find expected lines/i.test(value)) return 'Patch did not apply'
-  const failedTestMatch = value.match(/Test Files\s+(\d+)\s+failed[\s\S]*?Tests\s+(\d+)\s+failed/i)
-  if (failedTestMatch) return `Tests failed: ${failedTestMatch[1]} files, ${failedTestMatch[2]} tests`
-
-  const lines = value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .filter((line) => !/^Exit code:/i.test(line) && !/^Wall time:/i.test(line) && line !== 'Output:')
-
-  return lines.at(-1) || 'Failed'
-}
-
-function summarizeToolCall(record: CodexLiveRecord) {
-  const { command, result } = splitToolResult(record.text)
-  if (!command) return record.status === 'completed' ? 'Completed' : 'Running'
-  if (record.title === 'Edit files') return summarizePatchFiles(command) || 'Editing files'
-  if (record.title === 'Wait for review' && result) return 'Still waiting for review'
-  if (!result) return firstMeaningfulLine(command, 260)
-
-  const resultSummary = record.status === 'failed'
-    ? summarizeFailedOutput(result)
-    : summarizeToolOutput({ ...record, kind: 'tool-output', text: result })
-  return [firstMeaningfulLine(command, 260), resultSummary].filter(Boolean).join('\n')
-}
-
-function summarizeToolOutput(record: CodexLiveRecord) {
-  if (record.status === 'failed') return summarizeFailedOutput(record.text)
-  if (/^(Edited|Added|Deleted|Changed) file/.test(record.title)) {
-    return summarizePatchFiles(record.text) || 'Files updated'
-  }
-
-  const testMatch = record.text.match(/Test Files\s+(\d+)\s+passed[\s\S]*?Tests\s+(\d+)\s+passed/i)
-  if (testMatch) return `Tests passed: ${testMatch[1]} files, ${testMatch[2]} tests`
-  if (/built in\s+[\d.]+s/i.test(record.text) && /vite/i.test(record.text)) return 'Build passed'
-  if (/Exit code:\s*0/i.test(record.text)) {
-    const output = outputBody(record.text)
-    return firstMeaningfulLine(output, 220) || 'Completed'
-  }
-
-  return firstMeaningfulLine(record.text, 220) || 'Completed'
-}
-
-function summarizePatchFiles(value: string) {
-  const files = value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith('***') && !line.startsWith('Success.'))
-    .filter((line) => !/^[+-]{3}\s/.test(line) && !/^@@/.test(line))
-    .filter((line) => !/^[+-]/.test(line))
-    .map((line) => line.replace(/^[AMD]\s+/, '').replace(/\\/g, '/'))
-    .map((line) => {
-      const codexIndex = line.lastIndexOf('/CodexProMax/')
-      if (codexIndex >= 0) return line.slice(codexIndex + '/CodexProMax/'.length)
-      const backgroundIndex = line.lastIndexOf('/Background Checker/')
-      if (backgroundIndex >= 0) return line.slice(backgroundIndex + '/Background Checker/'.length)
-      return line
-    })
-
-  return Array.from(new Set(files)).slice(0, 4).join('\n')
-}
-
-function outputBody(value: string) {
-  const marker = value.match(/Output:\s*\n([\s\S]*)/i)
-  return marker ? marker[1] : value
-}
-
-function splitToolResult(value: string) {
-  const marker = '\n\nResult:\n'
-  const index = value.indexOf(marker)
-  if (index < 0) return { command: value.trim(), result: '' }
-  return {
-    command: value.slice(0, index).trim(),
-    result: value.slice(index + marker.length).trim(),
-  }
-}
-
-function firstMeaningfulLine(value: string, maxLength: number) {
-  const line = value
-    .split(/\r?\n/)
-    .map((item) => item.trim())
-    .find((item) =>
-      item
-      && !/^Exit code:/i.test(item)
-      && !/^Wall time:/i.test(item)
-      && item !== 'Output:'
-      && !/^[-\s|]*\d+%/.test(item),
-    )
-
-  if (!line) return ''
-  return line.length > maxLength ? `${line.slice(0, maxLength - 1)}...` : line
-}
-
-function formatLiveSessionTitle(session: CodexLiveSessionSummary) {
-  return formatMessageTime(session.createdAtIso || session.updatedAtIso)
-}
-
 function formatTokenCount(value: number) {
   if (!Number.isFinite(value) || value <= 0) return '0'
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
@@ -4316,10 +3724,6 @@ function formatResetDateTime(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ''
   return `Resets ${dateFormatter.format(date)}`
-}
-
-function humanizePlanType(value: string) {
-  return value.replace(/[-_]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
 function ProtocolFilePreviewDialog({
