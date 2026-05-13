@@ -339,6 +339,12 @@ button:disabled {
   text-align: left;
 }
 
+@media (min-width: 901px) {
+  .left-sidebar:not(.collapsed) .run-select-button {
+    padding-left: 15px;
+  }
+}
+
 .run-icon {
   grid-row: 1 / 4;
   color: currentColor;
