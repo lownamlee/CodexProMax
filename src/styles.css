@@ -1070,11 +1070,11 @@ code,
 .conversation-context-track span {
   background: linear-gradient(
     90deg,
-    #e062ff 0%,
-    #9d4edd 25%,
-    #c77dff 50%,
-    #7b2cbf 75%,
-    #e062ff 100%
+    #00f0ff 0%,
+    #0080ff 25%,
+    #70d6ff 50%,
+    #0059b3 75%,
+    #00f0ff 100%
   );
 }
 
@@ -1119,6 +1119,12 @@ code,
   transition:
     width 0.1s ease-out,
     animation-duration 0.3s ease;
+}
+
+.conversation-context-track span {
+  box-shadow:
+    0 0 10px rgba(0, 240, 255, 0.6),
+    0 0 20px rgba(0, 128, 255, 0.4);
 }
 
 .conversation-context-track span::after,
@@ -3483,11 +3489,11 @@ code,
 .codex-live-gauge-context .codex-live-gauge-bar span {
   background: linear-gradient(
     90deg,
-    #e062ff 0%,
-    #9d4edd 25%,
-    #c77dff 50%,
-    #7b2cbf 75%,
-    #e062ff 100%
+    #00f0ff 0%,
+    #0080ff 25%,
+    #70d6ff 50%,
+    #0059b3 75%,
+    #00f0ff 100%
   );
 }
 
@@ -3513,6 +3519,12 @@ code,
   transition:
     width 0.1s ease-out,
     animation-duration 0.3s ease;
+}
+
+.codex-live-gauge-context .codex-live-gauge-bar span {
+  box-shadow:
+    0 0 10px rgba(0, 240, 255, 0.6),
+    0 0 20px rgba(0, 128, 255, 0.4);
 }
 
 .codex-live-gauge-bar span::after {

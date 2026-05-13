@@ -509,7 +509,7 @@ describe('App', () => {
     const contextLimit = within(usage).getByLabelText('Conversation context limit')
     const rateLimits = within(usage).getByLabelText('5 hour and weekly limits')
 
-    expect(contextLimit).toHaveTextContent('Context')
+    expect(contextLimit).toHaveTextContent('Context limit')
     expect(contextLimit).toHaveTextContent('26% used')
     expect(contextLimit).toHaveTextContent('67.9K of 258.4K used')
     expect(rateLimits.querySelectorAll('.conversation-rate-limit')).toHaveLength(2)
@@ -530,7 +530,7 @@ describe('App', () => {
       "Get-Content -Path 'src\\App.tsx' Select-Object -First 5",
       { selector: '.codex-live-command-details summary span' },
     )).toBeInTheDocument()
-    expect(within(livePage).getByLabelText('Context limit')).toHaveTextContent('Context')
+    expect(within(livePage).getByLabelText('Context limit')).toHaveTextContent('Context limit')
     expect(within(livePage).getByLabelText('Context limit')).toHaveTextContent('26% used')
     expect(within(livePage).getByLabelText('Context limit')).toHaveTextContent('67.9K of 258.4K used')
     expect(within(livePage).getByLabelText('Context limit')).toHaveTextContent('Total 136.1M')

@@ -3555,7 +3555,7 @@ function ConversationUsageStrip({ usage }: { usage: CodexLiveContextUsage }) {
         </div>
         <div className="conversation-context-copy">
           <div className="conversation-usage-heading">
-            <span>Context</span>
+            <span>Context limit</span>
             <strong>{formatPercent(contextPercent)} used</strong>
           </div>
           <div className="conversation-context-track" aria-hidden="true">
@@ -3857,7 +3857,7 @@ function CodexLiveContextMeter({ usage }: { usage: CodexLiveContextUsage }) {
     {
       key: 'context',
       tone: 'context',
-      label: 'Context',
+      label: 'Context limit',
       percent,
       value: `${formatPercent(percent)} used`,
       detail: `${formatTokenCount(usage.usedTokens)} of ${formatTokenCount(usage.contextWindow)} used`,
