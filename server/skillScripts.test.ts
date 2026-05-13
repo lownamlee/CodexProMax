@@ -120,6 +120,52 @@ describe('Codex Pro Max skill scripts', () => {
     })
   })
 
+  it('binds a custom run id to the current Codex conversation', async () => {
+    const root = await createTempRoot()
+    const sessionsRoot = await createTempRoot()
+    const customRunId = 'folder-organize-20260513-154441'
+    const currentRunId = '019e203d-0894-7112-9f0c-7a0d45c74d70'
+    await writeRolloutLog(
+      sessionsRoot,
+      `2026/05/13/rollout-2026-05-13T07-39-51-${currentRunId}.jsonl`,
+      new Date('2026-05-13T07:39:51.000Z'),
+    )
+
+    const runDir = path.join(root, 'runs', customRunId)
+    const result = await runPowerShellScript(CREATE_SCRIPT, ['-Root', root, '-RunId', customRunId], {
+      CODEX_THREAD_ID: '',
+      CODEX_SESSIONS_ROOT: sessionsRoot,
+    })
+    const payload = JSON.parse(result.stdout) as {
+      ok: boolean
+      runId: string
+      runDir: string
+      status: string
+      sessionPath: string
+    }
+    const metadata = JSON.parse(await readFile(path.join(runDir, 'run.json'), 'utf8')) as {
+      runId: string
+      displayName: string
+      workspacePath: string
+      codexThreadId: string
+    }
+
+    expect(result.code).toBe(0)
+    expect(payload).toMatchObject({
+      ok: true,
+      runId: customRunId,
+      runDir,
+      status: 'RUNNING',
+      sessionPath: path.join(runDir, 'session.md'),
+    })
+    expect(metadata).toMatchObject({
+      runId: customRunId,
+      displayName: customRunId,
+      workspacePath: root,
+      codexThreadId: currentRunId,
+    })
+  })
+
   it('exits only when the selected run status changes', async () => {
     const root = await createTempRoot()
     const targetRunDir = path.join(root, 'runs', 'target-run')
@@ -323,11 +369,15 @@ describe('Codex Pro Max skill scripts', () => {
     const agents = await readFile(path.join(codexHome, 'AGENTS.md'), 'utf8')
     expect(agents).toContain('codex-pro-max')
     expect(agents).toContain('create_session.ps1')
+    expect(agents).toContain('bound to the current Codex conversation')
+    expect(agents).toContain('run.json.codexThreadId')
     expect(agents).toContain('wait_for_review.ps1 -RunDir "<runDir>"')
     expect(agents).toContain('idleTimeout=true')
     expect(agents).toContain('exit code `124`')
     expect(agents).toContain('The only valid reason to leave the loop is returned JSON with `shouldFinish=true`')
     const skill = await readFile(path.join(codexHome, 'skills', 'codex-pro-max', 'SKILL.md'), 'utf8')
+    expect(skill).toContain('bound to the current Codex conversation')
+    expect(skill).toContain('run.json.codexThreadId')
     expect(skill).toContain('idleTimeout=true')
     expect(skill).toContain('Do not send a final answer')
     expect(skill).toContain('The only valid reason to leave the loop is returned JSON with `shouldFinish=true`')

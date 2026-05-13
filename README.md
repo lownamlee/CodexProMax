@@ -86,7 +86,7 @@ Normal users should not set session environment variables. Codex gets a run fold
 | `CODEX_PRO_MAX_MAX_WAIT_SECONDS` | Optional wait script idle timeout. Defaults to `3300` seconds so host shells with one-hour ceilings do not kill the wait command. |
 | `CODEX_SESSIONS_ROOT` | Optional Codex rollout-log root for session id discovery. Defaults to `CODEX_HOME\sessions` or `~\.codex\sessions`. |
 
-`create_session.ps1` names the run from an explicit `-RunId`, then `CODEX_THREAD_ID`, then the newest current Codex rollout log such as `rollout-2026-05-12T13-31-37-019e1aab-577b-7741-8889-c683dd299526.jsonl`. Users do not need to set these values manually.
+`create_session.ps1` binds the run to the current Codex conversation from `CODEX_THREAD_ID`, or from the newest current Codex rollout log such as `rollout-2026-05-12T13-31-37-019e1aab-577b-7741-8889-c683dd299526.jsonl`. It names the run from an explicit `-RunId` when provided, otherwise it uses that conversation id. A custom `-RunId` changes the folder name only; `run.json.codexThreadId` still records the active conversation id when one can be resolved. Users do not need to set these values manually.
 
 ## Feature Tour
 

@@ -160,14 +160,11 @@ if ([string]::IsNullOrWhiteSpace($Root)) {
 if ([string]::IsNullOrWhiteSpace($CodexThreadId)) {
   $CodexThreadId = $env:CODEX_THREAD_ID
 }
-if ([string]::IsNullOrWhiteSpace($RunId)) {
-  $RunId = $CodexThreadId
+if ([string]::IsNullOrWhiteSpace($CodexThreadId)) {
+  $CodexThreadId = Find-CurrentCodexConversationRunId
 }
 if ([string]::IsNullOrWhiteSpace($RunId)) {
-  $RunId = Find-CurrentCodexConversationRunId
-  if (-not [string]::IsNullOrWhiteSpace($RunId) -and [string]::IsNullOrWhiteSpace($CodexThreadId)) {
-    $CodexThreadId = $RunId
-  }
+  $RunId = $CodexThreadId
 }
 if ([string]::IsNullOrWhiteSpace($RunId)) {
   $RunId = "run-$(Get-Date -Format 'yyyyMMdd-HHmmss')-$([guid]::NewGuid().ToString('N').Substring(0, 8))"

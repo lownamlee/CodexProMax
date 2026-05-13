@@ -961,8 +961,7 @@ code,
   grid-template-columns: minmax(260px, 1fr) minmax(300px, 0.8fr);
   gap: 10px;
   padding: 10px 20px;
-  border-bottom: 1px solid rgba(224, 239, 248, 0.72);
-  background: #f8fafc;
+  background: #ffffff;
 }
 
 .conversation-context-limit {

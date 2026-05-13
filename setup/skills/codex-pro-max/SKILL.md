@@ -10,7 +10,7 @@ Use this skill only when one of these is true:
 1. `CODEX_PRO_MAX_ROOT` is set.
 2. `http://127.0.0.1:53127/api/snapshot` is reachable.
 
-When active, you MUST run `create_session.ps1` first and use its returned `runDir`. Do not create the run directory yourself.
+When active, you MUST run `create_session.ps1` first and use its returned `runDir`. Do not create the run directory yourself. To start a new session bound to the current Codex conversation, call `create_session.ps1` without `-RunId`, or pass a custom `-RunId` only when the script can still resolve `CODEX_THREAD_ID` or the current rollout log; the script must write that value to `run.json.codexThreadId`.
 
 Use the paths from `INSTALLATION.json` next to this file:
 
