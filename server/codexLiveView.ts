@@ -251,7 +251,7 @@ export function parseCodexLiveRecord(line: string, index: number): CodexLiveReco
 
     if (payload.type === 'reasoning') {
       const text = reasoningText(payload.summary)
-      if (!text.trim() && !hasEncryptedReasoning(payload)) return null
+      if (!text.trim()) return null
       return makeRecord({
         id,
         index,
@@ -574,19 +574,7 @@ function responseMessageText(content: unknown) {
 
 function reasoningText(summary: unknown) {
   if (!Array.isArray(summary)) return ''
-  return summary.map((item) => {
-    if (typeof item === 'string') return item
-    if (item && typeof item === 'object') {
-      const value = item as Record<string, unknown>
-      if (typeof value.text === 'string') return value.text
-      if (typeof value.content === 'string') return value.content
-    }
-    return JSON.stringify(item)
-  }).join('\n')
-}
-
-function hasEncryptedReasoning(payload: Record<string, unknown>) {
-  return typeof payload.encrypted_content === 'string' && payload.encrypted_content.length > 0
+  return summary.map((item) => typeof item === 'string' ? item : JSON.stringify(item)).join('\n')
 }
 
 function safeJson(value: unknown): Record<string, unknown> | null {

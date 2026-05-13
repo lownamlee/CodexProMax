@@ -88,7 +88,7 @@ describe('Codex live view JSONL parser', () => {
     })
   })
 
-  it('hides empty reasoning events without encrypted content', () => {
+  it('hides empty reasoning events', () => {
     const record = parseCodexLiveRecord(JSON.stringify({
       timestamp: '2026-05-12T14:50:22.476Z',
       type: 'response_item',
@@ -99,44 +99,6 @@ describe('Codex live view JSONL parser', () => {
     }), 3)
 
     expect(record).toBeNull()
-  })
-
-  it('keeps encrypted reasoning events as thinking markers', () => {
-    const record = parseCodexLiveRecord(JSON.stringify({
-      timestamp: '2026-05-12T14:50:22.476Z',
-      type: 'response_item',
-      payload: {
-        type: 'reasoning',
-        summary: [],
-        encrypted_content: 'encrypted-reasoning-payload',
-      },
-    }), 4)
-
-    expect(record).toMatchObject({
-      kind: 'reasoning',
-      title: 'Thinking',
-      text: '',
-      status: 'running',
-    })
-  })
-
-  it('extracts text from structured reasoning summaries', () => {
-    const record = parseCodexLiveRecord(JSON.stringify({
-      timestamp: '2026-05-12T14:50:22.476Z',
-      type: 'response_item',
-      payload: {
-        type: 'reasoning',
-        summary: [
-          { type: 'summary_text', text: 'Inspecting the current run.' },
-          { content: 'Checking the matching JSONL file.' },
-        ],
-      },
-    }), 5)
-
-    expect(record).toMatchObject({
-      kind: 'reasoning',
-      text: 'Inspecting the current run.\nChecking the matching JSONL file.',
-    })
   })
 
   it('hides patch apply end events because apply_patch output is summarized separately', () => {
@@ -156,7 +118,7 @@ describe('Codex live view JSONL parser', () => {
         },
         status: 'completed',
       },
-    }), 6)
+    }), 4)
 
     expect(record).toBeNull()
   })

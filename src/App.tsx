@@ -324,7 +324,7 @@ function App() {
           setConversationLiveUsage(liveHistory.context)
           setConversationThinkingRecords(
             liveHistory.records
-              .filter((record) => record.kind === 'reasoning')
+              .filter(isConversationThinkingRecord)
               .slice(-6),
           )
         }
@@ -1480,6 +1480,8 @@ function App() {
                   )}
                 </Fragment>
               ))
+            ) : aiWorking && conversationThinkingRecords.length > 0 ? (
+              <AiThinkingMessage records={conversationThinkingRecords} />
             ) : hasSessionHistoryFile ? (
               <EmptyConversationHistory />
             ) : (
@@ -2238,6 +2240,12 @@ function ProfileAvatar({ type }: { type: 'bot' | 'user' }) {
 
 function isCodexWorking(status: ProtocolStatus) {
   return status === 'RUNNING' || status === 'INSTRUCTION_RECEIVED'
+}
+
+function isConversationThinkingRecord(record: CodexLiveRecord) {
+  return record.kind === 'message'
+    && record.title.toLowerCase() === 'assistant'
+    && record.text.trim().length > 0
 }
 
 const MarkdownPanel = memo(function MarkdownPanel({

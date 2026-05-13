@@ -519,7 +519,7 @@ describe('App', () => {
     expect(rateLimits).toHaveTextContent('59% left')
   })
 
-  it('shows only live reasoning from the matching rollout log while Codex is working', async () => {
+  it('shows live assistant messages as thinking from the matching rollout log while Codex is working', async () => {
     const currentRunId = '019e1aab-577b-7741-8889-c683dd299526'
     vi.mocked(fetch).mockImplementation(async (url: string | URL | Request) => {
       const requestUrl = String(url)
@@ -588,18 +588,28 @@ describe('App', () => {
           },
           records: [
             {
-              id: 'reasoning-1',
+              id: 'assistant-message-1',
               index: 0,
               timestamp: '2026-05-07T00:02:00.000Z',
+              kind: 'message',
+              title: 'Assistant',
+              text: 'Checking the implementation path.',
+              callId: '',
+              status: 'completed',
+            },
+            {
+              id: 'reasoning-1',
+              index: 1,
+              timestamp: '2026-05-07T00:02:30.000Z',
               kind: 'reasoning',
               title: 'Thinking',
-              text: 'Checking the implementation path.',
+              text: 'Raw reasoning should stay hidden from the root thinking bubble.',
               callId: '',
               status: 'running',
             },
             {
               id: 'tool-1',
-              index: 1,
+              index: 2,
               timestamp: '2026-05-07T00:03:00.000Z',
               kind: 'tool-call',
               title: 'Shell command',
@@ -622,6 +632,7 @@ describe('App', () => {
 
     const thinking = await screen.findByTestId('ai-thinking-process')
     expect(thinking).toHaveTextContent('Checking the implementation path.')
+    expect(thinking).not.toHaveTextContent('Raw reasoning should stay hidden')
     expect(thinking).not.toHaveTextContent('Tool output should stay hidden')
     expect(screen.queryByTestId('ai-loading-indicator')).not.toBeInTheDocument()
   })
