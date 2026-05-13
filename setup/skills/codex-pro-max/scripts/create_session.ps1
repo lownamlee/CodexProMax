@@ -53,6 +53,59 @@ function Get-InstalledProjectRoot {
   return ""
 }
 
+function Get-CodexSessionsRoot {
+  if (-not [string]::IsNullOrWhiteSpace($env:CODEX_SESSIONS_ROOT)) {
+    return $env:CODEX_SESSIONS_ROOT
+  }
+  if (-not [string]::IsNullOrWhiteSpace($env:CODEX_HOME)) {
+    return (Join-Path $env:CODEX_HOME "sessions")
+  }
+  if (-not [string]::IsNullOrWhiteSpace($HOME)) {
+    return (Join-Path (Join-Path $HOME ".codex") "sessions")
+  }
+  return ""
+}
+
+function Get-RolloutRunId([string]$Path) {
+  $fileName = [System.IO.Path]::GetFileName($Path)
+  $match = [regex]::Match($fileName, '^rollout-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-(?<id>.+)\.jsonl$')
+  if (-not $match.Success) { return "" }
+  return [string]$match.Groups["id"].Value
+}
+
+function Find-CurrentCodexConversationRunId {
+  $sessionsRoot = Get-CodexSessionsRoot
+  if ([string]::IsNullOrWhiteSpace($sessionsRoot)) { return "" }
+
+  try {
+    $resolvedSessionsRoot = [System.IO.Path]::GetFullPath($sessionsRoot)
+  } catch {
+    return ""
+  }
+  if (-not (Test-Path -LiteralPath $resolvedSessionsRoot)) { return "" }
+
+  try {
+    $latest = Get-ChildItem -LiteralPath $resolvedSessionsRoot -Filter "rollout-*.jsonl" -File -Recurse -ErrorAction SilentlyContinue |
+      ForEach-Object {
+        $rolloutRunId = Get-RolloutRunId $_.FullName
+        if (-not [string]::IsNullOrWhiteSpace($rolloutRunId)) {
+          [pscustomobject]@{
+            RunId = $rolloutRunId
+            LastWriteTimeUtc = $_.LastWriteTimeUtc
+          }
+        }
+      } |
+      Sort-Object LastWriteTimeUtc -Descending |
+      Select-Object -First 1
+
+    if ($latest) {
+      return [string]$latest.RunId
+    }
+  } catch {}
+
+  return ""
+}
+
 if ([string]::IsNullOrWhiteSpace($Root)) {
   $Root = $env:CODEX_PRO_MAX_ROOT
 }
@@ -68,6 +121,12 @@ if ([string]::IsNullOrWhiteSpace($CodexThreadId)) {
 }
 if ([string]::IsNullOrWhiteSpace($RunId)) {
   $RunId = $CodexThreadId
+}
+if ([string]::IsNullOrWhiteSpace($RunId)) {
+  $RunId = Find-CurrentCodexConversationRunId
+  if (-not [string]::IsNullOrWhiteSpace($RunId) -and [string]::IsNullOrWhiteSpace($CodexThreadId)) {
+    $CodexThreadId = $RunId
+  }
 }
 if ([string]::IsNullOrWhiteSpace($RunId)) {
   $RunId = "run-$(Get-Date -Format 'yyyyMMdd-HHmmss')-$([guid]::NewGuid().ToString('N').Substring(0, 8))"

@@ -122,6 +122,7 @@ type QueuedInstruction = {
   id: string
   content: string
 }
+type CodexLiveContextUsage = NonNullable<CodexLiveHistoryResponse['context']>
 type QueuedInstructionsByRun = Record<string, QueuedInstruction[]>
 type QueuedInstructionIdsByRun = Record<string, string>
 type ConfirmDialogTone = 'default' | 'danger'
@@ -168,6 +169,7 @@ function App() {
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [codexLivePage, setCodexLivePage] = useState(isCodexLiveLocation)
+  const [conversationLiveUsage, setConversationLiveUsage] = useState<CodexLiveContextUsage | null>(null)
   const [ctrlEnterConfirmOpen, setCtrlEnterConfirmOpen] = useState(false)
   const [confirmCtrlEnterSend, setConfirmCtrlEnterSend] = useState(() =>
     readStoredBoolean(CTRL_ENTER_CONFIRM_STORAGE_KEY, true),
@@ -294,6 +296,45 @@ function App() {
       ignore = true
     }
   }, [selectedRunId, managerSnapshot?.health.serverTimeIso])
+
+  useEffect(() => {
+    if (!selectedRunId || codexLivePage || !isCodexRolloutRunId(selectedRunId)) {
+      setConversationLiveUsage(null)
+      return
+    }
+
+    let ignore = false
+    const currentRunId = selectedRunId
+
+    async function loadConversationUsage() {
+      try {
+        const liveSessions = await fetchCodexLiveSessions()
+        if (ignore) return
+        const liveSession = findCodexLiveSessionForRun(liveSessions.sessions, currentRunId)
+        if (!liveSession) {
+          setConversationLiveUsage(null)
+          return
+        }
+
+        const liveHistory = await fetchCodexLiveHistory(liveSession.id, 200)
+        if (!ignore) {
+          setConversationLiveUsage(liveHistory.context)
+        }
+      } catch {
+        if (!ignore) {
+          setConversationLiveUsage(null)
+        }
+      }
+    }
+
+    setConversationLiveUsage(null)
+    void loadConversationUsage()
+    const timer = window.setInterval(() => void loadConversationUsage(), 15_000)
+    return () => {
+      ignore = true
+      window.clearInterval(timer)
+    }
+  }, [selectedRunId, codexLivePage])
 
   useEffect(() => {
     writeStoredBoolean(LEFT_SIDEBAR_COLLAPSED_STORAGE_KEY, leftCollapsed)
@@ -1396,6 +1437,8 @@ function App() {
             <span>Drop image to attach</span>
           </div>
         )}
+
+        {conversationLiveUsage && <ConversationUsageStrip usage={conversationLiveUsage} />}
 
         <div className="chat-scroll" ref={chatScrollRef} onScroll={handleChatScroll} data-testid="chat-scroll">
           {runs.length === 0 ? (
@@ -3499,6 +3542,87 @@ function SettingsDialog({
   )
 }
 
+function ConversationUsageStrip({ usage }: { usage: CodexLiveContextUsage }) {
+  const contextPercent = Math.max(0, Math.min(100, usage.percentUsed))
+  const totalTokens = usage.totalUsage?.totalTokens ?? 0
+  const rateLimits = codexRateLimitGauges(usage)
+
+  return (
+    <section className="conversation-usage" aria-label="Conversation usage limits">
+      <div className="conversation-context-limit" aria-label="Conversation context limit">
+        <div className="conversation-context-icon" aria-hidden="true">
+          <i className="ri-expand-left-right-line" />
+        </div>
+        <div className="conversation-context-copy">
+          <div className="conversation-usage-heading">
+            <span>Context</span>
+            <strong>{formatPercent(contextPercent)} used</strong>
+          </div>
+          <div className="conversation-context-track" aria-hidden="true">
+            <span style={{ width: `${contextPercent}%` }} />
+          </div>
+          <small>
+            {formatTokenCount(usage.usedTokens)} of {formatTokenCount(usage.contextWindow)} used
+            {totalTokens > 0 ? ` - Total ${formatTokenCount(totalTokens)}` : ''}
+          </small>
+        </div>
+      </div>
+
+      {rateLimits.length > 0 && (
+        <div className="conversation-rate-limits" aria-label="5 hour and weekly limits">
+          {rateLimits.map((limit) => (
+            <div className="conversation-rate-limit" key={limit.key}>
+              <div className="conversation-usage-heading">
+                <span>{limit.label}</span>
+                <strong>{limit.value}</strong>
+              </div>
+              <div className="conversation-rate-track" aria-hidden="true">
+                <span style={{ width: `${Math.max(0, Math.min(100, limit.percent))}%` }} />
+              </div>
+              {limit.detail && <small>{limit.detail}</small>}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function findCodexLiveSessionForRun(sessions: CodexLiveSessionSummary[], runId: string) {
+  const normalizedRunId = runId.trim()
+  if (!normalizedRunId) return null
+  return sessions.find((session) =>
+    session.fileName === normalizedRunId
+    || session.fileName === `${normalizedRunId}.jsonl`
+    || session.fileName.endsWith(`-${normalizedRunId}.jsonl`),
+  ) ?? null
+}
+
+function isCodexRolloutRunId(runId: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(runId.trim())
+}
+
+function codexRateLimitGauges(usage: CodexLiveContextUsage) {
+  const primaryLimit = usage.rateLimits?.primary ?? null
+  const secondaryLimit = usage.rateLimits?.secondary ?? null
+  return [
+    primaryLimit && {
+      key: 'primary',
+      label: formatLimitName(primaryLimit, '5h limit'),
+      percent: primaryLimit.usedPercent,
+      value: `${formatPercent(primaryLimit.remainingPercent)} left`,
+      detail: formatResetDateTime(primaryLimit.resetsAtIso),
+    },
+    secondaryLimit && {
+      key: 'secondary',
+      label: formatLimitName(secondaryLimit, 'Weekly limit'),
+      percent: secondaryLimit.usedPercent,
+      value: `${formatPercent(secondaryLimit.remainingPercent)} left`,
+      detail: formatResetDateTime(secondaryLimit.resetsAtIso),
+    },
+  ].filter(Boolean) as Array<{ key: string; label: string; percent: number; value: string; detail: string }>
+}
+
 function CodexLivePage({ onBack }: { onBack: () => void }) {
   const [sessionsData, setSessionsData] = useState<CodexLiveSessionsResponse | null>(null)
   const [selectedSessionId, setSelectedSessionId] = useState('')
@@ -3722,10 +3846,8 @@ function CodexLiveSessionButton({
   )
 }
 
-function CodexLiveContextMeter({ usage }: { usage: NonNullable<CodexLiveHistoryResponse['context']> }) {
+function CodexLiveContextMeter({ usage }: { usage: CodexLiveContextUsage }) {
   const percent = Math.max(0, Math.min(100, usage.percentUsed))
-  const primaryLimit = usage.rateLimits?.primary ?? null
-  const secondaryLimit = usage.rateLimits?.secondary ?? null
   const planType = usage.rateLimits?.planType || ''
   const totalTokens = usage.totalUsage?.totalTokens ?? 0
   const gauges = [
@@ -3737,23 +3859,8 @@ function CodexLiveContextMeter({ usage }: { usage: NonNullable<CodexLiveHistoryR
       value: `${formatPercent(percent)} used`,
       detail: `${formatTokenCount(usage.usedTokens)} of ${formatTokenCount(usage.contextWindow)} used`,
     },
-    primaryLimit && {
-      key: 'primary',
-      tone: 'primary',
-      label: formatLimitName(primaryLimit, '5h limit'),
-      percent: primaryLimit.usedPercent,
-      value: `${formatPercent(primaryLimit.remainingPercent)} left`,
-      detail: formatResetDateTime(primaryLimit.resetsAtIso),
-    },
-    secondaryLimit && {
-      key: 'secondary',
-      tone: 'secondary',
-      label: formatLimitName(secondaryLimit, 'Weekly limit'),
-      percent: secondaryLimit.usedPercent,
-      value: `${formatPercent(secondaryLimit.remainingPercent)} left`,
-      detail: formatResetDateTime(secondaryLimit.resetsAtIso),
-    },
-  ].filter(Boolean) as Array<{ key: string; tone: string; label: string; percent: number; value: string; detail: string }>
+    ...codexRateLimitGauges(usage).map((limit) => ({ ...limit, tone: 'rate' })),
+  ]
 
   return (
     <div className="codex-live-context" aria-label="Context limit">

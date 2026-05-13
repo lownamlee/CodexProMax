@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { access, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { access, mkdtemp, mkdir, readFile, readdir, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -67,6 +67,57 @@ describe('Codex Pro Max skill scripts', () => {
     await expect(readFile(path.join(runDir, 'instruction.txt'), 'utf8')).resolves.toBe('')
     await expect(readFile(path.join(runDir, 'output.md'), 'utf8')).resolves.toBe('')
     await expect(readFile(path.join(runDir, 'session.md'), 'utf8')).resolves.toBe('')
+  })
+
+  it('uses the latest Codex rollout id when no explicit run id exists', async () => {
+    const root = await createTempRoot()
+    const sessionsRoot = await createTempRoot()
+    const staleRunId = '019e19b7-fef1-7471-b25b-d9afc25c4311'
+    const currentRunId = '019e1aab-577b-7741-8889-c683dd299526'
+    await writeRolloutLog(
+      sessionsRoot,
+      `2026/05/12/rollout-2026-05-12T09-05-49-${staleRunId}.jsonl`,
+      new Date('2026-05-12T09:05:49.000Z'),
+    )
+    await writeRolloutLog(
+      sessionsRoot,
+      `2026/05/12/rollout-2026-05-12T13-31-37-${currentRunId}.jsonl`,
+      new Date('2026-05-12T13:31:37.000Z'),
+    )
+
+    const runDir = path.join(root, 'runs', currentRunId)
+    const result = await runPowerShellScript(CREATE_SCRIPT, ['-Root', root], {
+      CODEX_THREAD_ID: '',
+      CODEX_SESSIONS_ROOT: sessionsRoot,
+    })
+    const payload = JSON.parse(result.stdout) as {
+      ok: boolean
+      runId: string
+      runDir: string
+      status: string
+      sessionPath: string
+    }
+    const metadata = JSON.parse(await readFile(path.join(runDir, 'run.json'), 'utf8')) as {
+      runId: string
+      displayName: string
+      workspacePath: string
+      codexThreadId: string
+    }
+
+    expect(result.code).toBe(0)
+    expect(payload).toMatchObject({
+      ok: true,
+      runId: currentRunId,
+      runDir,
+      status: 'RUNNING',
+      sessionPath: path.join(runDir, 'session.md'),
+    })
+    expect(metadata).toMatchObject({
+      runId: currentRunId,
+      displayName: currentRunId,
+      workspacePath: root,
+      codexThreadId: currentRunId,
+    })
   })
 
   it('exits only when the selected run status changes', async () => {
@@ -354,6 +405,13 @@ async function createTempRoot() {
   const root = await mkdtemp(path.join(tmpdir(), 'codex-pro-max-skill-'))
   tempRoots.push(root)
   return root
+}
+
+async function writeRolloutLog(root: string, relativePath: string, mtime: Date) {
+  const filePath = path.join(root, ...relativePath.split('/'))
+  await mkdir(path.dirname(filePath), { recursive: true })
+  await writeFile(filePath, '{"type":"session_meta"}\n', 'utf8')
+  await utimes(filePath, mtime, mtime)
 }
 
 function startWaitScript(env: Record<string, string>, args: string[] = []): StartedWaitScript {

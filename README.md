@@ -84,8 +84,9 @@ Normal users should not set session environment variables. Codex gets a run fold
 | `CODEX_PRO_MAX_API_PORT` | Optional API port. Defaults to `53127`. |
 | `CODEX_PRO_MAX_POLL_SECONDS` | Optional wait script polling interval. |
 | `CODEX_PRO_MAX_MAX_WAIT_SECONDS` | Optional wait script idle timeout. Defaults to `3300` seconds so host shells with one-hour ceilings do not kill the wait command. |
+| `CODEX_SESSIONS_ROOT` | Optional Codex rollout-log root for session id discovery. Defaults to `CODEX_HOME\sessions` or `~\.codex\sessions`. |
 
-If Codex provides `CODEX_THREAD_ID`, `create_session.ps1` can use it internally for a stable run folder. Users do not need to set it.
+`create_session.ps1` names the run from an explicit `-RunId`, then `CODEX_THREAD_ID`, then the newest current Codex rollout log such as `rollout-2026-05-12T13-31-37-019e1aab-577b-7741-8889-c683dd299526.jsonl`. Users do not need to set these values manually.
 
 ## Feature Tour
 
@@ -321,7 +322,7 @@ Helper scripts:
 
 | Script | Purpose |
 | --- | --- |
-| `create_session.ps1` | Creates or reopens a run folder, initializes protocol files, writes `run.json`, and returns JSON with `runDir`. |
+| `create_session.ps1` | Creates or reopens a run folder, derives the default run id from Codex conversation metadata or the newest rollout log, initializes protocol files, writes `run.json`, and returns JSON with `runDir`. |
 | `request_review.ps1` | Writes `output.md`, appends assistant history to `session.md`, clears stale progress, and sets `WAITING_FOR_REVIEW`. |
 | `wait_for_review.ps1` | Blocks until `status.txt` becomes `INSTRUCTION_RECEIVED`, then reads and clears `instruction.txt`, appends user history, sets `RUNNING`, and returns JSON. If no instruction arrives before the idle timeout, it returns `idleTimeout=true` with `shouldFinish=false` so Codex can call it again without the host shell marking the command failed. |
 

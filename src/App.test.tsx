@@ -390,6 +390,135 @@ describe('App', () => {
     openSpy.mockRestore()
   })
 
+  it('shows context separately from matching 5h and weekly limits on the root conversation', async () => {
+    const currentRunId = '019e1aab-577b-7741-8889-c683dd299526'
+    vi.mocked(fetch).mockImplementation(async (url: string | URL | Request) => {
+      const requestUrl = String(url)
+      if (requestUrl === '/api/snapshot') {
+        return jsonResponse(managerFactory({
+          selectedRunId: currentRunId,
+          runs: [
+            {
+              runId: currentRunId,
+              displayName: currentRunId,
+              rootPath: `C:\\Users\\ramly\\Desktop\\CodexProMax\\runs\\${currentRunId}`,
+              status: 'WAITING_FOR_REVIEW',
+              owner: 'agent',
+              updatedAtIso: '2026-05-07T00:00:00.000Z',
+              updatedAtMs: 1,
+              outputPreview: 'Ready for review.',
+              attachmentCount: 0,
+              hasInstruction: false,
+            },
+          ],
+        }))
+      }
+      if (requestUrl === `/api/runs/${currentRunId}/snapshot`) {
+        return jsonResponse(snapshotFactory({
+          runId: currentRunId,
+          displayName: currentRunId,
+          rootPath: `C:\\Users\\ramly\\Desktop\\CodexProMax\\runs\\${currentRunId}`,
+          outputMd: '## Draft A\n\nReady for review.',
+        }))
+      }
+      if (requestUrl === '/api/codex-live/sessions?limit=100') {
+        return jsonResponse({
+          ok: true,
+          rootPath: 'C:\\Users\\ramly\\.codex\\sessions',
+          sessions: [
+            {
+              id: 'session-run-a',
+              fileName: `rollout-2026-05-07T00-00-00-${currentRunId}.jsonl`,
+              relativePath: `2026/05/07/rollout-2026-05-07T00-00-00-${currentRunId}.jsonl`,
+              createdAtIso: '2026-05-07T00:00:00.000Z',
+              updatedAtIso: '2026-05-07T00:04:00.000Z',
+              sizeBytes: 4096,
+            },
+          ],
+        })
+      }
+      if (requestUrl.startsWith('/api/codex-live/sessions/session-run-a?')) {
+        return jsonResponse({
+          ok: true,
+          rootPath: 'C:\\Users\\ramly\\.codex\\sessions',
+          session: {
+            id: 'session-run-a',
+            fileName: `rollout-2026-05-07T00-00-00-${currentRunId}.jsonl`,
+            relativePath: `2026/05/07/rollout-2026-05-07T00-00-00-${currentRunId}.jsonl`,
+            createdAtIso: '2026-05-07T00:00:00.000Z',
+            updatedAtIso: '2026-05-07T00:04:00.000Z',
+            sizeBytes: 4096,
+          },
+          records: [],
+          context: {
+            timestamp: '2026-05-07T00:04:00.000Z',
+            contextWindow: 258400,
+            usedTokens: 67869,
+            remainingTokens: 190531,
+            inputTokens: 67688,
+            cachedInputTokens: 66944,
+            outputTokens: 181,
+            reasoningOutputTokens: 164,
+            percentUsed: 26.264318885448918,
+            percentRemaining: 73.73568111455108,
+            totalUsage: {
+              inputTokens: 135721336,
+              cachedInputTokens: 133152896,
+              outputTokens: 346237,
+              reasoningOutputTokens: 117450,
+              totalTokens: 136067573,
+            },
+            rateLimits: {
+              limitId: 'codex',
+              limitName: null,
+              planType: 'team',
+              rateLimitReachedType: null,
+              primary: {
+                usedPercent: 67,
+                remainingPercent: 33,
+                windowMinutes: 300,
+                resetsAt: 1778615464,
+                resetsAtIso: '2026-05-12T19:51:04.000Z',
+              },
+              secondary: {
+                usedPercent: 41,
+                remainingPercent: 59,
+                windowMinutes: 10080,
+                resetsAt: 1779090417,
+                resetsAtIso: '2026-05-18T13:06:57.000Z',
+              },
+              credits: {
+                hasCredits: false,
+                unlimited: false,
+                balance: null,
+              },
+            },
+          },
+          tailBytes: 2048,
+          totalSizeBytes: 4096,
+          truncated: false,
+        })
+      }
+      return jsonResponse({ ok: false, error: `Unhandled request: ${requestUrl}` }, 500)
+    })
+
+    render(<App />)
+    await getEventSource()
+
+    const usage = await screen.findByLabelText('Conversation usage limits')
+    const contextLimit = within(usage).getByLabelText('Conversation context limit')
+    const rateLimits = within(usage).getByLabelText('5 hour and weekly limits')
+
+    expect(contextLimit).toHaveTextContent('Context')
+    expect(contextLimit).toHaveTextContent('26% used')
+    expect(contextLimit).toHaveTextContent('67.9K of 258.4K used')
+    expect(rateLimits.querySelectorAll('.conversation-rate-limit')).toHaveLength(2)
+    expect(rateLimits).toHaveTextContent('5h limit')
+    expect(rateLimits).toHaveTextContent('33% left')
+    expect(rateLimits).toHaveTextContent('Weekly limit')
+    expect(rateLimits).toHaveTextContent('59% left')
+  })
+
   it('renders Codex Live as a page and keeps the latest record at the bottom', async () => {
     window.history.replaceState(null, '', '/codex-live')
 
