@@ -147,7 +147,8 @@ function Read-StoppedSession([string]$Path) {
     status = "STOPPED"
     instruction = ""
     sessionPath = $sessionPath
-    shouldFinish = $true
+    shouldFinish = $false
+    idleTimeout = $true
   } | ConvertTo-Json -Compress
 }
 
@@ -203,10 +204,6 @@ try {
       }
       if ($current -eq "INSTRUCTION_RECEIVED") {
         Read-InstructionAndMarkRunning $resolvedRunDir
-        exit 0
-      }
-      if ($current -eq "STOPPED") {
-        Read-StoppedSession $resolvedRunDir
         exit 0
       }
       if ($observedReviewState -and $current -eq "RUNNING") {

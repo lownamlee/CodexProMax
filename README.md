@@ -54,7 +54,7 @@ Typical loop:
 4. The human writes the next instruction.
 5. The backend writes `instruction.txt` and updates `status.txt`.
 6. Codex's wait script reads the instruction, marks the run as running, and returns JSON.
-7. Codex continues unless the JSON has `shouldFinish=true`.
+7. Codex keeps waiting until the JSON contains a non-empty `instruction`, handles it, writes the answer with `request_review.ps1`, and waits again.
 
 ### 4. Validate a Clone
 
@@ -185,7 +185,7 @@ Normal review flow:
 6. The human sends one instruction from the composer.
 7. The backend writes `instruction.txt` first, then sets `status.txt` to `INSTRUCTION_RECEIVED`.
 8. `wait_for_review.ps1` reads `instruction.txt`, keeps it available for concurrent waiters, sets `status.txt` to `RUNNING`, and returns the instruction plus `sessionPath`.
-9. Codex continues unless the returned JSON has `shouldFinish=true`.
+9. Codex handles only non-empty returned instructions, writes the answer with `request_review.ps1`, and then waits again.
 
 Queued messages use the same `/action` endpoint. The queue is a browser-side convenience layer; the backend still receives one instruction at a time.
 
@@ -326,7 +326,7 @@ Helper scripts:
 | `request_review.ps1` | Writes `output.md`, appends assistant history to `session.md`, clears stale progress and the last instruction, and sets `WAITING_FOR_REVIEW`. |
 | `wait_for_review.ps1` | Blocks until `status.txt` becomes `INSTRUCTION_RECEIVED`, then reads `instruction.txt`, appends user history, keeps the instruction available for concurrent waiters, sets `RUNNING`, and returns JSON. If no instruction arrives before the idle timeout, it returns `idleTimeout=true` with `shouldFinish=false` so Codex can call it again without the host shell marking the command failed. |
 
-The wait script is intentionally blocking. When it exits with an instruction, use the returned JSON instruction and continue. When it exits with `idleTimeout=true`, no instruction, or `WAITING_FOR_REVIEW`, call it again immediately with the same `runDir`. A host shell exit code `124` while running `wait_for_review.ps1` is also a wait timeout, not a completion or failure. Do not stop after repeated idle waits; the only valid reason to leave the loop is returned JSON with `shouldFinish=true`.
+The wait script is intentionally blocking. When it exits with an instruction, use the returned JSON instruction and continue. When it exits with `idleTimeout=true`, no instruction, `WAITING_FOR_REVIEW`, `STOPPED`, or `shouldFinish=true`, call it again immediately with the same `runDir`. A host shell exit code `124` while running `wait_for_review.ps1` is also a wait timeout, not a completion or failure. Do not stop after repeated idle waits, do not call task completion, and do not treat `shouldFinish=true` as permission to stop.
 
 ## Audit Events
 

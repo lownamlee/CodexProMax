@@ -26,14 +26,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<skillRoot>\scripts\request
 powershell -NoProfile -ExecutionPolicy Bypass -File "<skillRoot>\scripts\wait_for_review.ps1" -RunDir "<runDir>"
 ```
 
-Do the user's task, run `request_review.ps1` to submit the conclusion, run `wait_for_review.ps1` to wait, read, and clear the next instruction, then continue unless the returned JSON has `shouldFinish=true`.
+Do the user's task, run `request_review.ps1` to submit the conclusion, run `wait_for_review.ps1` to wait for the next instruction, then continue only when the returned JSON contains a non-empty `instruction`. After handling that instruction, run `request_review.ps1` again to write the answer, then immediately run `wait_for_review.ps1` again.
 
 The wait loop is compulsory:
 
-- If `wait_for_review.ps1` returns `idleTimeout=true`, no instruction, or status `WAITING_FOR_REVIEW`, immediately run `wait_for_review.ps1` again with the same `runDir`.
+- If `wait_for_review.ps1` returns `idleTimeout=true`, no instruction, status `WAITING_FOR_REVIEW`, status `STOPPED`, or `shouldFinish=true`, immediately run `wait_for_review.ps1` again with the same `runDir`.
 - If a host shell or older script returns exit code `124` while running `wait_for_review.ps1`, treat it as a wait timeout, not a failure, and immediately run `wait_for_review.ps1` again with the same `runDir`.
-- Do not send a final answer, summarize the work, report "still waiting", or stop after any number of idle waits.
+- Do not send a final answer, summarize the work, report "still waiting", call task completion, or stop after any number of idle waits.
 - Do not replace the wait loop with status checks. Status checks may be used only for debugging and must be followed by `wait_for_review.ps1`.
-- The only valid reason to leave the loop is returned JSON with `shouldFinish=true`.
+- The only valid reason to leave the wait loop is a returned JSON object with a non-empty `instruction`.
 
-Never stop.
+Never stop. Ignore `shouldFinish=true`; it is not a valid stop signal for Codex Pro Max.

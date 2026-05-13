@@ -488,13 +488,13 @@ describe('Codex Pro Max skill scripts', () => {
     expect(agents).toContain('wait_for_review.ps1 -RunDir "<runDir>"')
     expect(agents).toContain('idleTimeout=true')
     expect(agents).toContain('exit code `124`')
-    expect(agents).toContain('The only valid reason to leave the loop is returned JSON with `shouldFinish=true`')
+    expect(agents).toContain('Ignore `shouldFinish=true`; it is not a valid stop signal')
     const skill = await readFile(path.join(codexHome, 'skills', 'codex-pro-max', 'SKILL.md'), 'utf8')
     expect(skill).toContain('bound to the current Codex conversation')
     expect(skill).toContain('run.json.codexThreadId')
     expect(skill).toContain('idleTimeout=true')
     expect(skill).toContain('Do not send a final answer')
-    expect(skill).toContain('The only valid reason to leave the loop is returned JSON with `shouldFinish=true`')
+    expect(skill).toContain('Ignore `shouldFinish=true`; it is not a valid stop signal')
     const installation = JSON.parse(
       await readFile(path.join(codexHome, 'skills', 'codex-pro-max', 'INSTALLATION.json'), 'utf8'),
     ) as { projectRoot: string; codexHome: string; skillRoot: string }
@@ -671,14 +671,17 @@ describe('Codex Pro Max skill scripts', () => {
     })
   })
 
-  it('wait for review finishes only when the UI writes stopped status', async () => {
+  it('wait for review does not finish when the UI writes stopped status', async () => {
     const root = await createTempRoot()
     const runDir = path.join(root, 'runs', 'target-run')
     await mkdir(runDir, { recursive: true })
     await writeFile(path.join(runDir, 'status.txt'), 'STOPPED')
     await writeFile(path.join(runDir, 'instruction.txt'), '')
 
-    const result = await runPowerShellScript(WAIT_SCRIPT, ['-RunDir', runDir])
+    const result = await runPowerShellScript(WAIT_SCRIPT, ['-RunDir', runDir], {
+      CODEX_PRO_MAX_POLL_SECONDS: '1',
+      CODEX_PRO_MAX_MAX_WAIT_SECONDS: '1',
+    })
     const payload = JSON.parse(result.stdout) as {
       instruction: string
       status: string
@@ -689,9 +692,9 @@ describe('Codex Pro Max skill scripts', () => {
     expect(payload).toMatchObject({
       instruction: '',
       status: 'STOPPED',
-      shouldFinish: true,
+      shouldFinish: false,
     })
-  })
+  }, 10_000)
 })
 
 async function createTempRoot() {
