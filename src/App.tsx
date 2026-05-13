@@ -2549,51 +2549,53 @@ function ReviewComposer({
         onDelete={onQueuedInstructionDelete}
       />
       <div className="composer">
-        <label className="composer-btn" title={pending === 'upload' ? 'Uploading...' : 'Attach review image'}>
-          <i className={pending === 'upload' ? 'ri-loader-4-line' : 'ri-attachment-2'} aria-hidden="true" />
-          <span className="sr-only">{pending === 'upload' ? 'Uploading...' : 'Attach review image'}</span>
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,image/avif"
-            disabled={Boolean(pending)}
-            onChange={(event) => {
-              onUpload(event.target.files?.[0])
-              event.currentTarget.value = ''
-            }}
-          />
-        </label>
+        <div className="composer-inner">
+          <label className="composer-btn" title={pending === 'upload' ? 'Uploading...' : 'Attach review image'}>
+            <i className={pending === 'upload' ? 'ri-loader-4-line' : 'ri-attachment-2'} aria-hidden="true" />
+            <span className="sr-only">{pending === 'upload' ? 'Uploading...' : 'Attach review image'}</span>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,image/avif"
+              disabled={Boolean(pending)}
+              onChange={(event) => {
+                onUpload(event.target.files?.[0])
+                event.currentTarget.value = ''
+              }}
+            />
+          </label>
 
-        <div className="composer-input-shell">
-          <div className="composer-highlight" ref={highlightRef} aria-hidden="true">
-            {renderComposerHighlights(instruction)}
+          <div className="composer-input-shell">
+            <div className="composer-highlight" ref={highlightRef} aria-hidden="true">
+              {renderComposerHighlights(instruction)}
+            </div>
+            <textarea
+              ref={textareaRef}
+              id="instruction"
+              value={instruction}
+              onChange={handleInstructionChange}
+              onClick={handleTextareaCursor}
+              onKeyUp={handleTextareaCursor}
+              onKeyDown={handleTextareaKeyDown}
+              onPaste={(event) => void handleTextareaPaste(event)}
+              onScroll={(event) => syncComposerHighlightScroll(highlightRef.current, event.currentTarget)}
+              onBlur={() => setMentionRange(null)}
+              rows={1}
+              placeholder="Write your instructions to Codex..."
+              spellCheck
+            />
           </div>
-          <textarea
-            ref={textareaRef}
-            id="instruction"
-            value={instruction}
-            onChange={handleInstructionChange}
-            onClick={handleTextareaCursor}
-            onKeyUp={handleTextareaCursor}
-            onKeyDown={handleTextareaKeyDown}
-            onPaste={(event) => void handleTextareaPaste(event)}
-            onScroll={(event) => syncComposerHighlightScroll(highlightRef.current, event.currentTarget)}
-            onBlur={() => setMentionRange(null)}
-            rows={1}
-            placeholder="Write your instructions to Codex..."
-            spellCheck
-          />
-        </div>
 
-        <button
-          type="button"
-          className={`send-btn ${pending === 'send' ? 'running' : ''}`}
-          disabled={!canSend}
-          onClick={onSend}
-          title={sendLabel}
-        >
-          <i className={sendIcon} aria-hidden="true" />
-          <span className="sr-only">{sendLabel}</span>
-        </button>
+          <button
+            type="button"
+            className={`send-btn ${pending === 'send' ? 'running' : ''}`}
+            disabled={!canSend}
+            onClick={onSend}
+            title={sendLabel}
+          >
+            <i className={sendIcon} aria-hidden="true" />
+            <span className="sr-only">{sendLabel}</span>
+          </button>
+        </div>
       </div>
 
       {error && (

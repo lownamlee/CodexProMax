@@ -1654,19 +1654,36 @@ code,
   position: relative;
   max-width: 800px;
   min-height: 60px;
+  margin: 0 auto;
+  padding: 2px;
+  isolation: isolate;
+  border-radius: 20px;
+  background: var(--border);
+  box-shadow: var(--shadow-md);
+  transition: all 0.3s var(--ease-spring);
+}
+
+.composer::before {
+  content: "";
+  position: absolute;
+  inset: 4px 0 -4px;
+  z-index: -1;
+  border-radius: 20px;
+  background: linear-gradient(90deg, #4dc9ff 0%, #ff84b5 35%, #ffae68 70%, #46ebcd 100%);
+  filter: blur(14px);
+  opacity: 0;
+  transition: opacity 0.24s var(--ease-out);
+}
+
+.composer-inner {
+  width: 100%;
+  min-height: 56px;
   display: flex;
   align-items: flex-end;
   gap: 12px;
-  margin: 0 auto;
-  padding: 10px 12px 10px 16px;
-  isolation: isolate;
-  border: 2px solid transparent;
-  border-radius: 20px;
-  background:
-    linear-gradient(var(--bg-surface), var(--bg-surface)) padding-box,
-    linear-gradient(var(--border), var(--border)) border-box;
-  box-shadow: var(--shadow-md);
-  transition: all 0.3s var(--ease-spring);
+  padding: 8px 10px 8px 14px;
+  border-radius: 18px;
+  background: #ffffff;
 }
 
 .mention-menu {
@@ -1950,15 +1967,12 @@ code,
 }
 
 .composer:focus-within {
-  background:
-    linear-gradient(#ffffff, #ffffff) padding-box,
-    linear-gradient(90deg, #4dc9ff 0%, #ff84b5 35%, #ffae68 70%, #46ebcd 100%) border-box;
-  box-shadow:
-    0 8px 24px rgba(2, 132, 199, 0.1),
-    0 6px 18px rgba(77, 201, 255, 0.22),
-    0 8px 22px rgba(255, 132, 181, 0.18),
-    0 8px 20px rgba(255, 174, 104, 0.16),
-    0 8px 20px rgba(70, 235, 205, 0.18);
+  background: linear-gradient(90deg, #4dc9ff 0%, #ff84b5 35%, #ffae68 70%, #46ebcd 100%);
+  box-shadow: var(--shadow-lg);
+}
+
+.composer:focus-within::before {
+  opacity: 0.6;
 }
 
 .composer-btn {
@@ -4355,8 +4369,12 @@ button:focus-visible,
   }
 
   .composer {
+    padding: 2px;
+  }
+
+  .composer-inner {
     gap: 8px;
-    padding: 8px 10px 8px 12px;
+    padding: 6px 8px 6px 10px;
   }
 
   .composer-btn {
