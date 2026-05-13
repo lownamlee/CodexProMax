@@ -91,7 +91,7 @@ const QUEUED_SEND_POLL_INTERVAL_MS = 120
 const QUEUED_SEND_BOTTOM_SETTLE_MS = 900
 const USER_BUBBLE_TOP_ZONE_PX = 160
 const USER_BUBBLE_TOP_TOLERANCE_PX = 24
-const COMPOSER_TEXTAREA_MIN_HEIGHT_PX = 44
+const COMPOSER_TEXTAREA_MIN_HEIGHT_PX = 28
 const COMPOSER_TEXTAREA_MAX_HEIGHT_PX = 180
 const CODEX_PROFILE_IMAGE = '/codex-color.png'
 const USER_PROFILE_IMAGE = '/burger.png'
@@ -3687,26 +3687,28 @@ function CtrlEnterSendDialog({
           <h2>Send with Ctrl+Enter?</h2>
           <p>This shortcut will send now, or queue the message while Codex is working.</p>
         </div>
-        <label className="confirm-checkbox">
-          <input
-            type="checkbox"
-            checked={dontShowAgain}
-            onChange={(event) => setDontShowAgain(event.target.checked)}
-          />
-          <span>Do not show again</span>
-        </label>
-        <div className="confirm-actions">
-          <button type="button" className="confirm-button secondary" onClick={onCancel}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="confirm-button primary"
-            onClick={() => onConfirm(dontShowAgain)}
-            autoFocus
-          >
-            Send
-          </button>
+        <div className="shortcut-confirm-footer">
+          <label className="confirm-checkbox">
+            <input
+              type="checkbox"
+              checked={dontShowAgain}
+              onChange={(event) => setDontShowAgain(event.target.checked)}
+            />
+            <span>Do not show again</span>
+          </label>
+          <div className="confirm-actions">
+            <button type="button" className="confirm-button secondary" onClick={onCancel}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="confirm-button primary"
+              onClick={() => onConfirm(dontShowAgain)}
+              autoFocus
+            >
+              Send
+            </button>
+          </div>
         </div>
       </section>
     </div>
