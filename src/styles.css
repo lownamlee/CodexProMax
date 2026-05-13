@@ -1091,6 +1091,42 @@ code,
   background: linear-gradient(90deg, #34d399, #0f766e);
 }
 
+.conversation-context-track span,
+.conversation-rate-track span {
+  position: relative;
+  overflow: visible;
+  background-size: 200% 100%;
+  animation: liquidGaugeFlow 2.4s linear infinite;
+  transition: width 0.18s ease-out;
+}
+
+.conversation-context-track span {
+  box-shadow:
+    0 0 8px rgba(56, 189, 248, 0.42),
+    0 0 14px rgba(37, 99, 235, 0.24);
+}
+
+.conversation-rate-track span {
+  box-shadow:
+    0 0 8px rgba(52, 211, 153, 0.36),
+    0 0 14px rgba(15, 118, 110, 0.22);
+}
+
+.conversation-context-track span::after,
+.conversation-rate-track span::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 12px;
+  height: 100%;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 4px 0 12px rgba(255, 255, 255, 0.42);
+  filter: blur(3px);
+  opacity: 0.68;
+}
+
 .chat-scroll {
   flex: 1 1 auto;
   min-height: 0;
@@ -3435,6 +3471,50 @@ code,
   background: linear-gradient(90deg, #34d399, #0f766e);
 }
 
+.codex-live-gauge-bar span {
+  position: relative;
+  overflow: visible;
+  background-size: 200% 100%;
+  animation: liquidGaugeFlow 2.4s linear infinite;
+  transition: width 0.18s ease-out;
+}
+
+.codex-live-gauge-context .codex-live-gauge-bar span {
+  box-shadow:
+    0 0 8px rgba(56, 189, 248, 0.42),
+    0 0 14px rgba(37, 99, 235, 0.24);
+}
+
+.codex-live-gauge-rate .codex-live-gauge-bar span {
+  box-shadow:
+    0 0 8px rgba(52, 211, 153, 0.36),
+    0 0 14px rgba(15, 118, 110, 0.22);
+}
+
+.codex-live-gauge-bar span::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 12px;
+  height: 100%;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 4px 0 12px rgba(255, 255, 255, 0.42);
+  filter: blur(3px);
+  opacity: 0.68;
+}
+
+@keyframes liquidGaugeFlow {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: 0 0;
+  }
+}
+
 .codex-live-thread {
   flex: 1;
   min-height: 0;
@@ -4119,6 +4199,18 @@ button:focus-visible,
     opacity: 1;
     transform: none;
     animation: none;
+  }
+
+  .conversation-context-track span,
+  .conversation-rate-track span,
+  .codex-live-gauge-bar span {
+    animation: none;
+  }
+
+  .conversation-context-track span::after,
+  .conversation-rate-track span::after,
+  .codex-live-gauge-bar span::after {
+    display: none;
   }
 }
 
