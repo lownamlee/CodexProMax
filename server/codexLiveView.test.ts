@@ -88,6 +88,23 @@ describe('Codex rollout JSONL parser', () => {
     })
   })
 
+  it('keeps assistant message ids stable when the live window index shifts', () => {
+    const line = JSON.stringify({
+      timestamp: '2026-05-12T14:50:23.000Z',
+      type: 'response_item',
+      payload: {
+        type: 'message',
+        role: 'assistant',
+        content: [{ type: 'output_text', text: 'Keep this Thinking message visible.' }],
+      },
+    })
+
+    const firstRecord = parseCodexLiveRecord(line, 12)
+    const shiftedRecord = parseCodexLiveRecord(line, 84)
+
+    expect(firstRecord?.id).toBe(shiftedRecord?.id)
+  })
+
   it('hides empty reasoning events', () => {
     const record = parseCodexLiveRecord(JSON.stringify({
       timestamp: '2026-05-12T14:50:22.476Z',

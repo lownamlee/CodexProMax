@@ -164,17 +164,18 @@ export function parseCodexLiveRecord(line: string, index: number): CodexLiveReco
 
   const timestamp = String(record.timestamp || record.time || '')
   const payload = record.payload || {}
-  const id = `${timestamp || 'record'}-${index}`
+  const fallbackId = `${timestamp || 'record'}-${index}`
 
   if (record.type === 'response_item') {
     if (payload.type === 'message') {
+      const text = responseMessageText(payload.content)
       return makeRecord({
-        id,
+        id: stableRecordId(record, payload, timestamp, fallbackId, text),
         index,
         timestamp,
         kind: 'message',
         title: humanize(String(payload.role || 'message')),
-        text: responseMessageText(payload.content),
+        text,
         status: 'completed',
       })
     }
@@ -183,7 +184,7 @@ export function parseCodexLiveRecord(line: string, index: number): CodexLiveReco
       const args = safeJson(payload.arguments)
       const command = typeof args?.command === 'string' ? args.command : String(payload.arguments || '')
       return makeRecord({
-        id,
+        id: stableRecordId(record, payload, timestamp, fallbackId, command),
         index,
         timestamp,
         kind: 'tool-call',
@@ -199,7 +200,7 @@ export function parseCodexLiveRecord(line: string, index: number): CodexLiveReco
     if (payload.type === 'function_call_output') {
       const text = String(payload.output || '')
       return makeRecord({
-        id,
+        id: stableRecordId(record, payload, timestamp, fallbackId, text),
         index,
         timestamp,
         kind: 'tool-output',
@@ -213,7 +214,7 @@ export function parseCodexLiveRecord(line: string, index: number): CodexLiveReco
     if (payload.type === 'custom_tool_call') {
       const name = String(payload.name || 'tool call')
       return makeRecord({
-        id,
+        id: stableRecordId(record, payload, timestamp, fallbackId, String(payload.input || '')),
         index,
         timestamp,
         kind: 'tool-call',
@@ -227,7 +228,7 @@ export function parseCodexLiveRecord(line: string, index: number): CodexLiveReco
     if (payload.type === 'custom_tool_call_output') {
       const text = customToolOutputText(payload.output)
       return makeRecord({
-        id,
+        id: stableRecordId(record, payload, timestamp, fallbackId, text),
         index,
         timestamp,
         kind: 'tool-output',
@@ -242,7 +243,7 @@ export function parseCodexLiveRecord(line: string, index: number): CodexLiveReco
       const text = reasoningText(payload.summary)
       if (!text.trim()) return null
       return makeRecord({
-        id,
+        id: stableRecordId(record, payload, timestamp, fallbackId, text),
         index,
         timestamp,
         kind: 'reasoning',
@@ -258,23 +259,25 @@ export function parseCodexLiveRecord(line: string, index: number): CodexLiveReco
       return null
     }
     if (payload.type === 'user_message') {
+      const text = String(payload.message || '')
       return makeRecord({
-        id,
+        id: stableRecordId(record, payload, timestamp, fallbackId, text),
         index,
         timestamp,
         kind: 'message',
         title: 'User',
-        text: String(payload.message || ''),
+        text,
         status: 'completed',
       })
     }
+    const text = JSON.stringify(payload, null, 2)
     return makeRecord({
-      id,
+      id: stableRecordId(record, payload, timestamp, fallbackId, text),
       index,
       timestamp,
       kind: 'event',
       title: humanize(String(payload.type || 'event')),
-      text: JSON.stringify(payload, null, 2),
+      text,
       status: 'completed',
     })
   }
@@ -282,7 +285,7 @@ export function parseCodexLiveRecord(line: string, index: number): CodexLiveReco
   if (record.type === 'session_meta' || record.type === 'turn_context') return null
 
   return makeRecord({
-    id,
+    id: stableRecordId(record, payload, timestamp, fallbackId, JSON.stringify(record)),
     index,
     timestamp,
     kind: 'event',
@@ -444,6 +447,44 @@ function makeRecord(record: Omit<CodexLiveRecord, 'timestamp' | 'callId'> & Part
     callId: '',
     ...record,
   }
+}
+
+function stableRecordId(
+  record: Record<string, unknown>,
+  payload: Record<string, unknown>,
+  timestamp: string,
+  fallbackId: string,
+  text: string,
+) {
+  const nativeId = typeof payload.id === 'string'
+    ? payload.id
+    : typeof record.id === 'string'
+      ? record.id
+      : ''
+  if (nativeId) {
+    return `${timestamp || 'record'}-${nativeId}`
+  }
+
+  const callId = typeof payload.call_id === 'string' ? payload.call_id : ''
+  if (callId) {
+    return `${timestamp || 'record'}-${callId}`
+  }
+
+  const type = typeof payload.type === 'string' ? payload.type : String(record.type || 'record')
+  const role = typeof payload.role === 'string' ? payload.role : ''
+  if ((type === 'message' || type === 'user_message' || type === 'reasoning') && text.trim()) {
+    return `${timestamp || 'record'}-${type}-${role}-${stableTextHash(text)}`
+  }
+
+  return fallbackId
+}
+
+function stableTextHash(value: string) {
+  let hash = 0
+  for (let index = 0; index < value.length; index += 1) {
+    hash = ((hash * 31) + value.charCodeAt(index)) >>> 0
+  }
+  return hash.toString(36)
 }
 
 function isPatchCall(record: CodexLiveRecord) {

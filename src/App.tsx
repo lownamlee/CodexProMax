@@ -2220,6 +2220,13 @@ function AiThinkingMessage({
     .join('|')
   const latestRecord = records.length > 0 ? records[records.length - 1] : null
   const latestRecordText = latestRecord?.text.trim() ?? ''
+  const latestTypingText = latestRecord && typingState && (
+    typingState.id === latestRecord.id
+    || typingState.text === latestRecordText
+    || (typingState.text.length > 0 && latestRecordText.startsWith(typingState.text))
+  )
+    ? typingState.text
+    : ''
   const thinkingMarkdown = records
     .map((record, index) => {
       if (
@@ -2227,7 +2234,7 @@ function AiThinkingMessage({
         && latestRecord
         && record.text.trim() === latestRecordText
       ) {
-        return typingState?.id === latestRecord.id ? typingState.text : ''
+        return latestTypingText
       }
       return record.text.trim()
     })
@@ -2251,18 +2258,27 @@ function AiThinkingMessage({
 
     const latestRecordId = latestRecord.id
     const currentState = typingStateRef.current
-    const currentText = currentState?.id === latestRecordId ? currentState.text : ''
+    const currentText = currentState && (
+      currentState.id === latestRecordId
+      || currentState.text === latestRecordText
+      || (currentState.text.length > 0 && latestRecordText.startsWith(currentState.text))
+    )
+      ? currentState.text
+      : ''
 
-    if (currentState?.id === latestRecordId && currentText === latestRecordText) {
+    if (currentText === latestRecordText) {
+      if (currentState?.id !== latestRecordId) {
+        updateTypingState({ id: latestRecordId, text: latestRecordText })
+      }
       return
     }
 
-    if (currentState?.id === latestRecordId && currentText && !latestRecordText.startsWith(currentText)) {
+    if (currentText && !latestRecordText.startsWith(currentText)) {
       updateTypingState({ id: latestRecordId, text: latestRecordText })
       return
     }
 
-    const startLength = currentState?.id === latestRecordId && latestRecordText.startsWith(currentText)
+    const startLength = currentText && latestRecordText.startsWith(currentText)
       ? currentText.length
       : 0
     if (startLength >= latestRecordText.length) {
