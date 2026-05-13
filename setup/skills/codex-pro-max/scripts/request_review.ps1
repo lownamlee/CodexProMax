@@ -135,6 +135,7 @@ try {
     Remove-Item -LiteralPath $progressPath -Force
   }
 
+  Write-AtomicTextNoBom (Join-Path $resolvedRunDir "instruction.txt") ""
   Write-AtomicTextNoBom (Join-Path $resolvedRunDir "status.txt") "WAITING_FOR_REVIEW"
 } finally {
   Exit-RunStateLock $stateLockStream

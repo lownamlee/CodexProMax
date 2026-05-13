@@ -92,19 +92,37 @@ function Append-SessionMessage([string]$Path, [string]$Role, [string]$Content) {
   Add-TextUtf8NoBom $sessionPath (Format-SessionBlock $Role $trimmed "" "")
 }
 
-function Read-And-ClearInstruction([string]$Path) {
+function Read-LatestSessionUserInstruction([string]$Path) {
+  $sessionPath = Join-Path $Path "session.md"
+  $session = Read-TextUtf8NoBom $sessionPath
+  if (-not $session.Trim()) { return "" }
+
+  $pattern = "(?ms)<!-- codex-pro-max:message (?<metadata>\{[^\r\n]*?`"role`":`"user`"[^\r\n]*?\}) -->\s*## User - [^\r\n]*\r?\n\r?\n(?<content>.*?)(?=\r?\n<!-- codex-pro-max:message|\z)"
+  $matches = [System.Text.RegularExpressions.Regex]::Matches($session, $pattern)
+  for ($i = $matches.Count - 1; $i -ge 0; $i--) {
+    $content = $matches[$i].Groups["content"].Value.Trim()
+    if ($content) { return $content }
+  }
+
+  return ""
+}
+
+function Read-InstructionAndMarkRunning([string]$Path, [string]$FallbackInstruction = "") {
   $statusPath = Join-Path $Path "status.txt"
   $instructionPath = Join-Path $Path "instruction.txt"
   $sessionPath = Join-Path $Path "session.md"
 
   $status = (Read-TextUtf8NoBom $statusPath).Trim()
   $instruction = (Read-TextUtf8NoBom $instructionPath).Trim()
+  if (-not $instruction -and $FallbackInstruction.Trim()) {
+    $instruction = $FallbackInstruction.Trim()
+    Write-AtomicTextNoBom $instructionPath $instruction
+  }
 
-  if ($status -eq "INSTRUCTION_RECEIVED" -and $instruction) {
+  if ($instruction) {
     Append-SessionMessage $Path "user" $instruction
   }
 
-  Write-AtomicTextNoBom $instructionPath ""
   if ($status -eq "INSTRUCTION_RECEIVED") {
     Write-AtomicTextNoBom $statusPath "RUNNING"
     $status = "RUNNING"
@@ -147,55 +165,14 @@ function Read-WaitingSession([string]$Path, [string]$Status) {
   } | ConvertTo-Json -Compress
 }
 
-function Read-ActiveWaiterSession([string]$Path, [string]$Status) {
-  $sessionPath = Join-Path $Path "session.md"
-
-  [ordered]@{
-    ok = $true
-    runDir = $Path
-    status = $Status
-    instruction = ""
-    sessionPath = $sessionPath
-    shouldFinish = $true
-    waiterAlreadyRunning = $true
-    message = "Another wait_for_review.ps1 process is already waiting for this run."
-  } | ConvertTo-Json -Compress
-}
-
-function Read-InstructionConsumedElsewhereSession([string]$Path, [string]$Status) {
-  $sessionPath = Join-Path $Path "session.md"
-
-  [ordered]@{
-    ok = $true
-    runDir = $Path
-    status = $Status
-    instruction = ""
-    sessionPath = $sessionPath
-    shouldFinish = $true
-    instructionConsumedElsewhere = $true
-    message = "This wait_for_review.ps1 process observed the run leave review state without receiving the instruction. Another waiter likely consumed it."
-  } | ConvertTo-Json -Compress
-}
-
 $resolvedRunDir = [System.IO.Path]::GetFullPath($RunDir)
 New-Item -ItemType Directory -Path $resolvedRunDir -Force | Out-Null
 
 $statusPath = Join-Path $resolvedRunDir "status.txt"
 $instructionPath = Join-Path $resolvedRunDir "instruction.txt"
-$lockPath = Join-Path $resolvedRunDir "wait_for_review.lock"
-$lockStream = $null
-try {
-  $lockStream = [System.IO.File]::Open($lockPath, [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
-  $lockStream.SetLength(0)
-  $lockText = "pid=$PID`nstartedAt=$((Get-Date).ToUniversalTime().ToString('o'))`n"
-  $lockBytes = $script:Utf8NoBom.GetBytes($lockText)
-  $lockStream.Write($lockBytes, 0, $lockBytes.Length)
-  $lockStream.Flush()
-} catch [System.IO.IOException] {
-  $current = (Read-TextUtf8NoBom $statusPath).Trim()
-  Read-ActiveWaiterSession $resolvedRunDir $current
-  exit 0
-}
+$waiterId = [guid]::NewGuid().ToString("N")
+$waiterPath = Join-Path (Join-Path $resolvedRunDir "waiters") "$waiterId.txt"
+Write-AtomicTextNoBom $waiterPath "pid=$PID`nstartedAt=$((Get-Date).ToUniversalTime().ToString('o'))`nscript=wait_for_review.ps1`n"
 
 $pollSeconds = 10
 if (-not [string]::IsNullOrWhiteSpace($env:CODEX_PRO_MAX_POLL_SECONDS)) {
@@ -205,7 +182,7 @@ if (-not [string]::IsNullOrWhiteSpace($env:CODEX_PRO_MAX_POLL_SECONDS)) {
   }
 }
 
-$maxWaitSeconds = 3300
+$maxWaitSeconds = 540
 if (-not [string]::IsNullOrWhiteSpace($env:CODEX_PRO_MAX_MAX_WAIT_SECONDS)) {
   $parsedMaxWaitSeconds = 0
   if ([int]::TryParse($env:CODEX_PRO_MAX_MAX_WAIT_SECONDS, [ref]$parsedMaxWaitSeconds) -and $parsedMaxWaitSeconds -gt 0) {
@@ -225,16 +202,23 @@ try {
         $observedReviewState = $true
       }
       if ($current -eq "INSTRUCTION_RECEIVED") {
-        Read-And-ClearInstruction $resolvedRunDir
+        Read-InstructionAndMarkRunning $resolvedRunDir
         exit 0
       }
       if ($current -eq "STOPPED") {
         Read-StoppedSession $resolvedRunDir
         exit 0
       }
-      if ($observedReviewState -and $current -eq "RUNNING" -and -not (Read-TextUtf8NoBom $instructionPath).Trim()) {
-        Read-InstructionConsumedElsewhereSession $resolvedRunDir $current
-        exit 0
+      if ($observedReviewState -and $current -eq "RUNNING") {
+        $runningInstruction = (Read-TextUtf8NoBom $instructionPath).Trim()
+        if (-not $runningInstruction) {
+          $runningInstruction = Read-LatestSessionUserInstruction $resolvedRunDir
+        }
+
+        if ($runningInstruction) {
+          Read-InstructionAndMarkRunning $resolvedRunDir $runningInstruction
+          exit 0
+        }
       }
       if ($startedAt.Elapsed.TotalSeconds -ge $maxWaitSeconds) {
         Read-WaitingSession $resolvedRunDir $current
@@ -249,8 +233,5 @@ try {
     Start-Sleep -Seconds $pollSeconds
   }
 } finally {
-  if ($null -ne $lockStream) {
-    $lockStream.Dispose()
-    Remove-Item -LiteralPath $lockPath -Force -ErrorAction SilentlyContinue
-  }
+  Remove-Item -LiteralPath $waiterPath -Force -ErrorAction SilentlyContinue
 }

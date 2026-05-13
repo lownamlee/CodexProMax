@@ -28,7 +28,7 @@ export const STATUS_DETAILS: Record<
   },
   INSTRUCTION_RECEIVED: {
     owner: 'ui',
-    help: 'UI-owned instruction state. The agent consumes instruction.txt, sets RUNNING, and continues unless told to stop.',
+    help: 'UI-owned instruction state. Waiters read instruction.txt, keep it available for concurrent waiters, set RUNNING, and continue unless told to stop.',
   },
   STOPPED: {
     owner: 'agent',

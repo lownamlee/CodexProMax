@@ -222,8 +222,8 @@ async function writeRunInstruction(
 
   validateInstruction(instruction)
   await ensureRunMetadata(rootPath, runId)
-  await writeInstructionAndStatus(runPath, instruction, 'INSTRUCTION_RECEIVED')
   await appendChatMessage(runPath, 'user', instruction)
+  await writeInstructionAndStatus(runPath, instruction, 'INSTRUCTION_RECEIVED')
   await appendAuditEvent(runPath, 'user.message', {
     status: 'INSTRUCTION_RECEIVED',
     instruction,

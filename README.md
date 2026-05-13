@@ -53,7 +53,7 @@ Typical loop:
 3. The UI shows the latest conclusion.
 4. The human writes the next instruction.
 5. The backend writes `instruction.txt` and updates `status.txt`.
-6. Codex's wait script reads and clears the instruction, then returns JSON.
+6. Codex's wait script reads the instruction, marks the run as running, and returns JSON.
 7. Codex continues unless the JSON has `shouldFinish=true`.
 
 ### 4. Validate a Clone
@@ -83,7 +83,7 @@ Normal users should not set session environment variables. Codex gets a run fold
 | `CODEX_PRO_MAX_ROOT` | Optional manager root for the API and session creation. |
 | `CODEX_PRO_MAX_API_PORT` | Optional API port. Defaults to `53127`. |
 | `CODEX_PRO_MAX_POLL_SECONDS` | Optional wait script polling interval. |
-| `CODEX_PRO_MAX_MAX_WAIT_SECONDS` | Optional wait script idle timeout. Defaults to `3300` seconds so host shells with one-hour ceilings do not kill the wait command. |
+| `CODEX_PRO_MAX_MAX_WAIT_SECONDS` | Optional wait script idle timeout. Defaults to `540` seconds so host shells with ten-minute ceilings do not kill the wait command. |
 | `CODEX_SESSIONS_ROOT` | Optional Codex rollout-log root for session id discovery. Defaults to `CODEX_HOME\sessions` or `~\.codex\sessions`. |
 
 `create_session.ps1` binds the run to the current Codex conversation from `CODEX_THREAD_ID`, or from the newest current Codex rollout log such as `rollout-2026-05-12T13-31-37-019e1aab-577b-7741-8889-c683dd299526.jsonl`. It names the run from an explicit `-RunId` when provided, otherwise it uses that conversation id. A custom `-RunId` changes the folder name only; `run.json.codexThreadId` still records the active conversation id when one can be resolved. Users do not need to set these values manually.
@@ -184,7 +184,7 @@ Normal review flow:
 5. The UI displays the conclusion and waits for the human.
 6. The human sends one instruction from the composer.
 7. The backend writes `instruction.txt` first, then sets `status.txt` to `INSTRUCTION_RECEIVED`.
-8. `wait_for_review.ps1` reads and clears `instruction.txt`, sets `status.txt` to `RUNNING`, and returns the instruction plus `sessionPath`.
+8. `wait_for_review.ps1` reads `instruction.txt`, keeps it available for concurrent waiters, sets `status.txt` to `RUNNING`, and returns the instruction plus `sessionPath`.
 9. Codex continues unless the returned JSON has `shouldFinish=true`.
 
 Queued messages use the same `/action` endpoint. The queue is a browser-side convenience layer; the backend still receives one instruction at a time.
@@ -323,8 +323,8 @@ Helper scripts:
 | Script | Purpose |
 | --- | --- |
 | `create_session.ps1` | Creates or reopens a run folder, derives the default run id from Codex conversation metadata or the newest rollout log, initializes protocol files, writes `run.json`, and returns JSON with `runDir`. |
-| `request_review.ps1` | Writes `output.md`, appends assistant history to `session.md`, clears stale progress, and sets `WAITING_FOR_REVIEW`. |
-| `wait_for_review.ps1` | Blocks until `status.txt` becomes `INSTRUCTION_RECEIVED`, then reads and clears `instruction.txt`, appends user history, sets `RUNNING`, and returns JSON. If no instruction arrives before the idle timeout, it returns `idleTimeout=true` with `shouldFinish=false` so Codex can call it again without the host shell marking the command failed. |
+| `request_review.ps1` | Writes `output.md`, appends assistant history to `session.md`, clears stale progress and the last instruction, and sets `WAITING_FOR_REVIEW`. |
+| `wait_for_review.ps1` | Blocks until `status.txt` becomes `INSTRUCTION_RECEIVED`, then reads `instruction.txt`, appends user history, keeps the instruction available for concurrent waiters, sets `RUNNING`, and returns JSON. If no instruction arrives before the idle timeout, it returns `idleTimeout=true` with `shouldFinish=false` so Codex can call it again without the host shell marking the command failed. |
 
 The wait script is intentionally blocking. When it exits with an instruction, use the returned JSON instruction and continue. When it exits with `idleTimeout=true`, no instruction, or `WAITING_FOR_REVIEW`, call it again immediately with the same `runDir`. A host shell exit code `124` while running `wait_for_review.ps1` is also a wait timeout, not a completion or failure. Do not stop after repeated idle waits; the only valid reason to leave the loop is returned JSON with `shouldFinish=true`.
 
