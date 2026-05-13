@@ -1651,6 +1651,7 @@ code,
 }
 
 .composer {
+  position: relative;
   max-width: 800px;
   min-height: 60px;
   display: flex;
@@ -1658,11 +1659,26 @@ code,
   gap: 12px;
   margin: 0 auto;
   padding: 10px 12px 10px 16px;
-  border: 1px solid var(--border);
+  isolation: isolate;
+  border: 2px solid transparent;
   border-radius: 20px;
-  background: var(--bg-surface);
+  background:
+    linear-gradient(var(--bg-surface), var(--bg-surface)) padding-box,
+    linear-gradient(var(--border), var(--border)) border-box;
   box-shadow: var(--shadow-md);
   transition: all 0.3s var(--ease-spring);
+}
+
+.composer::before {
+  content: "";
+  position: absolute;
+  inset: 4px 0 -4px;
+  z-index: -1;
+  border-radius: 20px;
+  background: linear-gradient(90deg, #4dc9ff 0%, #ff84b5 35%, #ffae68 70%, #46ebcd 100%);
+  filter: blur(14px);
+  opacity: 0;
+  transition: opacity 0.24s var(--ease-out);
 }
 
 .mention-menu {
@@ -1946,8 +1962,16 @@ code,
 }
 
 .composer:focus-within {
-  border-color: var(--primary-soft);
-  box-shadow: var(--shadow-lg);
+  background:
+    linear-gradient(var(--bg-surface), var(--bg-surface)) padding-box,
+    linear-gradient(90deg, #4dc9ff 0%, #ff84b5 35%, #ffae68 70%, #46ebcd 100%) border-box;
+  box-shadow:
+    0 8px 24px rgba(2, 132, 199, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.78);
+}
+
+.composer:focus-within::before {
+  opacity: 0.6;
 }
 
 .composer-btn {
