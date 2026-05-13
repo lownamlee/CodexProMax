@@ -1070,11 +1070,11 @@ code,
 .conversation-context-track span {
   background: linear-gradient(
     90deg,
-    #e062ff 0%,
-    #9d4edd 25%,
-    #c77dff 50%,
-    #7b2cbf 75%,
-    #e062ff 100%
+    #38bdf8 0%,
+    #2563eb 25%,
+    #60a5fa 50%,
+    #1d4ed8 75%,
+    #38bdf8 100%
   );
 }
 
@@ -1098,11 +1098,11 @@ code,
 .conversation-rate-track span {
   background: linear-gradient(
     90deg,
-    #e062ff 0%,
-    #9d4edd 25%,
-    #c77dff 50%,
-    #7b2cbf 75%,
-    #e062ff 100%
+    #fbbf24 0%,
+    #f97316 25%,
+    #fdba74 50%,
+    #ea580c 75%,
+    #fbbf24 100%
   );
 }
 
@@ -1119,6 +1119,48 @@ code,
   transition:
     width 0.1s ease-out,
     animation-duration 0.3s ease;
+}
+
+.conversation-context-track span.liquid-bar-context {
+  background: linear-gradient(
+    90deg,
+    #38bdf8 0%,
+    #2563eb 25%,
+    #60a5fa 50%,
+    #1d4ed8 75%,
+    #38bdf8 100%
+  );
+  box-shadow:
+    0 0 10px rgba(56, 189, 248, 0.58),
+    0 0 20px rgba(37, 99, 235, 0.38);
+}
+
+.conversation-rate-track span.liquid-bar-primary {
+  background: linear-gradient(
+    90deg,
+    #fbbf24 0%,
+    #f97316 25%,
+    #fdba74 50%,
+    #ea580c 75%,
+    #fbbf24 100%
+  );
+  box-shadow:
+    0 0 10px rgba(251, 191, 36, 0.58),
+    0 0 20px rgba(249, 115, 22, 0.36);
+}
+
+.conversation-rate-track span.liquid-bar-secondary {
+  background: linear-gradient(
+    90deg,
+    #34d399 0%,
+    #0f766e 25%,
+    #5eead4 50%,
+    #047857 75%,
+    #34d399 100%
+  );
+  box-shadow:
+    0 0 10px rgba(52, 211, 153, 0.56),
+    0 0 20px rgba(15, 118, 110, 0.36);
 }
 
 .conversation-context-track span::after,
@@ -3472,33 +3514,33 @@ code,
   border-radius: 0 6px 6px 0;
   background: linear-gradient(
     90deg,
-    #e062ff 0%,
-    #9d4edd 25%,
-    #c77dff 50%,
-    #7b2cbf 75%,
-    #e062ff 100%
+    #fbbf24 0%,
+    #f97316 25%,
+    #fdba74 50%,
+    #ea580c 75%,
+    #fbbf24 100%
   );
 }
 
 .codex-live-gauge-context .codex-live-gauge-bar span {
   background: linear-gradient(
     90deg,
-    #e062ff 0%,
-    #9d4edd 25%,
-    #c77dff 50%,
-    #7b2cbf 75%,
-    #e062ff 100%
+    #38bdf8 0%,
+    #2563eb 25%,
+    #60a5fa 50%,
+    #1d4ed8 75%,
+    #38bdf8 100%
   );
 }
 
 .codex-live-gauge-rate .codex-live-gauge-bar span {
   background: linear-gradient(
     90deg,
-    #e062ff 0%,
-    #9d4edd 25%,
-    #c77dff 50%,
-    #7b2cbf 75%,
-    #e062ff 100%
+    #fbbf24 0%,
+    #f97316 25%,
+    #fdba74 50%,
+    #ea580c 75%,
+    #fbbf24 100%
   );
 }
 
@@ -3513,6 +3555,48 @@ code,
   transition:
     width 0.1s ease-out,
     animation-duration 0.3s ease;
+}
+
+.codex-live-gauge-bar span.liquid-bar-context {
+  background: linear-gradient(
+    90deg,
+    #38bdf8 0%,
+    #2563eb 25%,
+    #60a5fa 50%,
+    #1d4ed8 75%,
+    #38bdf8 100%
+  );
+  box-shadow:
+    0 0 10px rgba(56, 189, 248, 0.58),
+    0 0 20px rgba(37, 99, 235, 0.38);
+}
+
+.codex-live-gauge-bar span.liquid-bar-primary {
+  background: linear-gradient(
+    90deg,
+    #fbbf24 0%,
+    #f97316 25%,
+    #fdba74 50%,
+    #ea580c 75%,
+    #fbbf24 100%
+  );
+  box-shadow:
+    0 0 10px rgba(251, 191, 36, 0.58),
+    0 0 20px rgba(249, 115, 22, 0.36);
+}
+
+.codex-live-gauge-bar span.liquid-bar-secondary {
+  background: linear-gradient(
+    90deg,
+    #34d399 0%,
+    #0f766e 25%,
+    #5eead4 50%,
+    #047857 75%,
+    #34d399 100%
+  );
+  box-shadow:
+    0 0 10px rgba(52, 211, 153, 0.56),
+    0 0 20px rgba(15, 118, 110, 0.36);
 }
 
 .codex-live-gauge-bar span::after {
