@@ -123,15 +123,15 @@ Normal users should not set session environment variables. Codex gets a run fold
 
 ### Attachments and Mentions
 
-- Accepts image uploads from the file picker, drag/drop, and pasted clipboard images.
-- Supports PNG, JPEG, GIF, WebP, BMP, and AVIF uploads up to the backend limit.
+- Accepts file attachments from the file picker, drag/drop, and pasted clipboard files.
+- Supports images, PDFs, text/code files, archives, Office-style documents, audio, video, and generic files up to the backend limit.
 - Stores attachments per run under `runs/<runId>/attachments/`.
 - Adds uploaded or selected attachments to the draft tray.
 - Inserts attachment mentions as `@file-name` tokens in the composer.
 - Provides an `@` mention menu with keyboard navigation.
 - Treats completed mention tokens as cursor-aware units.
 - Shows mentioned attachments inline on sent user messages.
-- Provides thumbnail previews, gallery navigation, per-attachment delete, and delete-all with progress.
+- Provides image thumbnails, file-type icons, attachment previews, gallery navigation, per-attachment delete, and delete-all with progress.
 
 ### Protocol Sidebar
 
@@ -264,7 +264,7 @@ Roles are:
 | `GET /api/events` | Server-Sent Events stream for live manager snapshots. |
 | `GET /api/runs/:runId/files/:fileName` | Preview a selected protocol text file. |
 | `POST /api/runs/:runId/action` | Writes one non-empty instruction and sets `INSTRUCTION_RECEIVED`. |
-| `POST /api/runs/:runId/upload` | Uploads one raster image attachment. |
+| `POST /api/runs/:runId/upload` | Uploads one attachment up to the configured size limit. |
 | `GET /api/runs/:runId/attachments/:fileName` | Serves an uploaded attachment. |
 | `DELETE /api/runs/:runId/attachments/:fileName` | Deletes one attachment from the selected run. |
 | `DELETE /api/runs/:runId/messages` | Clears `session.md` for the selected run while keeping the run open. |
@@ -338,7 +338,7 @@ Common event types:
 - `instruction.sent`: instruction preview and byte count.
 - `session.stop.requested`: stop action preview and byte count.
 - `conversation.cleared`: selected run history was cleared.
-- `upload.image`: accepted image upload metadata.
+- `upload.attachment`: accepted attachment metadata.
 - `attachment.deleted`: selected attachment name.
 - `protocol.file.changed`: watched protocol file add/change/unlink with preview when available.
 - `run.metadata.changed`: `run.json` changes.
