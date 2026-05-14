@@ -128,6 +128,7 @@ const RIGHT_SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-collaps
 const OUTLINES_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-outlines-collapsed'
 const PROTOCOL_FILES_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-protocol-files-collapsed:v2'
 const ATTACHMENTS_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-attachments-collapsed'
+const CONVERSATION_USAGE_COLLAPSED_STORAGE_KEY = 'codex-pro-max:conversation-usage-collapsed'
 const QUEUED_INSTRUCTIONS_STORAGE_KEY = 'codex-pro-max:queued-instructions:v1'
 const CTRL_ENTER_CONFIRM_STORAGE_KEY = 'codex-pro-max:confirm-ctrl-enter-send'
 const MARKDOWN_REMARK_PLUGINS = [remarkGfm]
@@ -190,6 +191,9 @@ function App() {
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [conversationLiveUsage, setConversationLiveUsage] = useState<CodexLiveContextUsage | null>(null)
+  const [conversationUsageCollapsed, setConversationUsageCollapsed] = useState(() =>
+    readStoredBoolean(CONVERSATION_USAGE_COLLAPSED_STORAGE_KEY, false),
+  )
   const [conversationThinkingRecords, setConversationThinkingRecords] = useState<CodexLiveRecord[]>([])
   const [ctrlEnterConfirmOpen, setCtrlEnterConfirmOpen] = useState(false)
   const [confirmCtrlEnterSend, setConfirmCtrlEnterSend] = useState(() =>
@@ -356,6 +360,10 @@ function App() {
   useEffect(() => {
     writeStoredBoolean(RIGHT_SIDEBAR_COLLAPSED_STORAGE_KEY, rightCollapsed)
   }, [rightCollapsed])
+
+  useEffect(() => {
+    writeStoredBoolean(CONVERSATION_USAGE_COLLAPSED_STORAGE_KEY, conversationUsageCollapsed)
+  }, [conversationUsageCollapsed])
 
   useEffect(() => {
     writeStoredBoolean(CTRL_ENTER_CONFIRM_STORAGE_KEY, confirmCtrlEnterSend)
@@ -1072,6 +1080,7 @@ function App() {
     lastChatMessage?.createdAtIso ?? 'none',
     lastChatMessage?.content.length ?? 0,
     conversationUsageAnchor,
+    conversationUsageCollapsed ? 'usage-collapsed' : 'usage-expanded',
     conversationThinkingAnchor,
     aiWorking ? 'ai-working' : 'ai-ready',
     pending === 'load' ? 'loading' : 'ready',
@@ -1495,6 +1504,17 @@ function App() {
             </button>
             <button
               type="button"
+              className={`icon-btn ${conversationUsageCollapsed ? 'active' : ''}`}
+              onClick={() => setConversationUsageCollapsed((value) => !value)}
+              disabled={!conversationLiveUsage}
+              aria-label={conversationUsageCollapsed ? 'Expand conversation usage gauges' : 'Collapse conversation usage gauges'}
+              aria-pressed={conversationUsageCollapsed}
+              title={conversationUsageCollapsed ? 'Expand conversation usage gauges' : 'Collapse conversation usage gauges'}
+            >
+              <i className={conversationUsageCollapsed ? 'ri-dashboard-3-line' : 'ri-dashboard-horizontal-line'} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
               className="icon-btn"
               onClick={() => void handleClearConversationHistory()}
               disabled={!selectedRunId || busy}
@@ -1522,7 +1542,9 @@ function App() {
           </div>
         )}
 
-        {conversationLiveUsage && <ConversationUsageStrip usage={conversationLiveUsage} />}
+        {conversationLiveUsage && (
+          <ConversationUsageStrip usage={conversationLiveUsage} collapsed={conversationUsageCollapsed} />
+        )}
 
         <div className="chat-scroll" ref={chatScrollRef} onScroll={handleChatScroll} data-testid="chat-scroll">
           <div className="chat-scroll-content" ref={chatContentRef}>
@@ -4011,15 +4033,16 @@ function SettingsDialog({
   )
 }
 
-function ConversationUsageStrip({ usage }: { usage: CodexLiveContextUsage }) {
+function ConversationUsageStrip({ usage, collapsed }: { usage: CodexLiveContextUsage; collapsed: boolean }) {
   const contextPercent = Math.max(0, Math.min(100, usage.percentUsed))
   const rateLimits = codexRateLimitGauges(usage)
   const columnCount = Math.min(3, Math.max(1, rateLimits.length + 1))
 
   return (
     <section
-      className={`conversation-usage conversation-usage-columns-${columnCount}`}
+      className={`conversation-usage conversation-usage-columns-${columnCount}${collapsed ? ' is-collapsed' : ''}`}
       aria-label="Conversation usage limits"
+      aria-hidden={collapsed || undefined}
     >
       <div className="conversation-context-limit" aria-label="Conversation context limit">
         <div className="conversation-context-copy">

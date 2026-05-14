@@ -438,6 +438,23 @@ describe('App', () => {
     expect(usage).toHaveTextContent('59% left')
     expect(usage).not.toHaveTextContent('5h limit')
     expect(usage).not.toHaveTextContent('Resets')
+
+    const collapseButton = screen.getByRole('button', { name: 'Collapse conversation usage gauges' })
+    expect(collapseButton).toBeEnabled()
+    expect(collapseButton).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(collapseButton)
+
+    expect(usage).toHaveClass('is-collapsed')
+    expect(window.localStorage.getItem('codex-pro-max:conversation-usage-collapsed')).toBe('true')
+
+    const expandButton = screen.getByRole('button', { name: 'Expand conversation usage gauges' })
+    expect(expandButton).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(expandButton)
+
+    expect(usage).not.toHaveClass('is-collapsed')
+    expect(window.localStorage.getItem('codex-pro-max:conversation-usage-collapsed')).toBe('false')
   })
 
   it('shows live assistant messages as thinking from the matching rollout log while Codex is working', async () => {
