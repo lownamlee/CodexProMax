@@ -1080,7 +1080,6 @@ function App() {
     lastChatMessage?.createdAtIso ?? 'none',
     lastChatMessage?.content.length ?? 0,
     conversationUsageAnchor,
-    conversationUsageCollapsed ? 'usage-collapsed' : 'usage-expanded',
     conversationThinkingAnchor,
     aiWorking ? 'ai-working' : 'ai-ready',
     pending === 'load' ? 'loading' : 'ready',

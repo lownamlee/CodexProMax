@@ -1082,21 +1082,18 @@ code,
   grid-template-columns: minmax(0, 1fr);
   gap: 6px;
   overflow: hidden;
-  max-height: 72px;
   margin: 0 auto;
   padding: 5px 10px;
   background: #ffffff;
-  opacity: 1;
-  transition:
-    max-height 0.2s var(--ease-out),
-    padding 0.2s var(--ease-out),
-    opacity 0.16s var(--ease-out);
+  transition: background 0.16s var(--ease-out);
 }
 
 .conversation-usage.is-collapsed {
-  max-height: 0;
-  padding-top: 0;
-  padding-bottom: 0;
+  background: transparent;
+}
+
+.conversation-usage.is-collapsed > * {
+  visibility: hidden;
   opacity: 0;
   pointer-events: none;
 }
