@@ -2058,7 +2058,7 @@ code,
 }
 
 .queued-instructions {
-  width: min(800px, 100%);
+  width: min(755px, 100%);
   display: flex;
   flex-direction: column;
   gap: 8px;
