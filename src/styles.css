@@ -1075,9 +1075,12 @@ code,
 }
 
 .conversation-usage {
+  position: absolute;
+  top: 52px;
+  left: 0;
+  right: 0;
+  z-index: 15;
   width: min(100%, var(--chat-column-width));
-  align-self: center;
-  flex: 0 0 auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 6px;
@@ -3873,6 +3876,7 @@ button:focus-visible,
   }
 
   .conversation-usage {
+    top: 60px;
     padding: 6px 8px;
   }
 
