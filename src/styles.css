@@ -2524,16 +2524,15 @@ code,
 }
 
 .attachments-group .meta-group-content {
-  min-height: 0;
+  height: 100%;
   display: flex;
-  flex: 1 1 auto;
   overflow: hidden;
+  justify-content: center;
 }
 
 .attachments-group .attachment-list,
 .attachments-group .empty-state.compact {
   min-height: 0;
-  flex: 1 1 auto;
 }
 
 .attachment-list {
