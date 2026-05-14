@@ -1842,6 +1842,26 @@ describe('App', () => {
     expect(within(dialog).getByRole('link', { name: 'Download' })).toHaveAttribute('download', 'archive.zip')
   })
 
+  it('opens video attachments in a native media preview', async () => {
+    const attachments = [attachmentFactory('clip.mp4')]
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(jsonResponse(managerFactory()))
+      .mockResolvedValueOnce(jsonResponse(snapshotFactory({ attachments })))
+
+    render(<App />)
+    await getEventSource()
+
+    const sidebar = screen.getByLabelText('Protocol details')
+    fireEvent.click(await within(sidebar).findByRole('button', { name: /preview clip\.mp4/i }))
+
+    const dialog = screen.getByRole('dialog', { name: 'clip.mp4' })
+    const video = dialog.querySelector('video')
+    expect(video).not.toBeNull()
+    expect(video).toHaveAttribute('src', '/api/runs/run-a/attachments/clip.mp4')
+    expect(video).toHaveAttribute('controls')
+    expect(within(dialog).queryByText('Video')).not.toBeInTheDocument()
+  })
+
   it('shows attachment image previews in the right sidebar', async () => {
     render(<App />)
     await getEventSource()
@@ -2470,14 +2490,22 @@ function attachmentFactory(name: string, overrides: Partial<AttachmentMeta> = {}
       ? 'pdf'
       : lowerName.endsWith('.txt')
         ? 'text'
-        : 'image'
+        : lowerName.endsWith('.mp4')
+          ? 'video'
+          : lowerName.endsWith('.mp3')
+            ? 'audio'
+            : 'image'
   const mimeType = kind === 'archive'
     ? 'application/zip'
     : kind === 'pdf'
       ? 'application/pdf'
       : kind === 'text'
         ? 'text/plain'
-        : 'image/png'
+        : kind === 'video'
+          ? 'video/mp4'
+          : kind === 'audio'
+            ? 'audio/mpeg'
+            : 'image/png'
 
   return {
     name,

@@ -3028,6 +3028,16 @@ function attachmentFileExtension(mimeType: string): string {
       return 'docx'
     case 'application/zip':
       return 'zip'
+    case 'audio/mpeg':
+      return 'mp3'
+    case 'audio/wav':
+      return 'wav'
+    case 'video/mp4':
+      return 'mp4'
+    case 'video/quicktime':
+      return 'mov'
+    case 'video/webm':
+      return 'webm'
     case 'text/csv':
       return 'csv'
     case 'text/markdown':
@@ -3074,6 +3084,10 @@ function inferAttachmentMimeType(fileName: string): string {
       return 'application/json'
     case '.md':
       return 'text/markdown'
+    case '.m4a':
+      return 'audio/mp4'
+    case '.mov':
+      return 'video/quicktime'
     case '.mp3':
       return 'audio/mpeg'
     case '.mp4':
@@ -4234,6 +4248,8 @@ function AttachmentPreview({
   const showGalleryControls = attachments.length > 1 && currentIndex >= 0
   const attachmentKind = getAttachmentKind(attachment)
   const imageAttachment = attachmentKind === 'image'
+  const videoAttachment = attachmentKind === 'video'
+  const audioAttachment = attachmentKind === 'audio'
   const inlinePreview = canInlinePreviewAttachment(attachment)
   const previewClassName = [
     'attachment-preview',
@@ -4303,6 +4319,10 @@ function AttachmentPreview({
           <div className="preview-stage" onClick={keepPreviewOpen}>
             {imageAttachment ? (
               <img src={attachment.url} alt={attachment.name} />
+            ) : videoAttachment ? (
+              <video src={attachment.url} controls playsInline preload="metadata" />
+            ) : audioAttachment ? (
+              <audio src={attachment.url} controls preload="metadata" />
             ) : inlinePreview ? (
               <iframe src={attachment.url} title={`Preview ${attachment.name}`} />
             ) : (
