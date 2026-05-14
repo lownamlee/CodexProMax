@@ -3037,7 +3037,7 @@ code,
 }
 
 .shortcut-confirm-dialog {
-  width: min(300px, 100%);
+  width: min(280px, 100%);
   min-height: 235px;
   display: flex;
   flex-direction: column;
