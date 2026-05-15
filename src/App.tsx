@@ -2148,13 +2148,12 @@ function RunStatusIcon({ status }: { status: ProtocolStatus }) {
   const statusClass = `run-${statusClassName(status)}`
   if (status === 'RUNNING') {
     return (
-      <svg
-        className={`run-icon run-status-icon run-status-spinner ${statusClass}`}
-        viewBox="0 0 50 50"
+      <span
+        className={`run-icon run-status-icon run-status-thinking-avatar ${statusClass}`}
         aria-hidden="true"
       >
-        <circle cx="25" cy="25" r="20" />
-      </svg>
+        <img src={CODEX_THINKING_IMAGE} alt="" />
+      </span>
     )
   }
 

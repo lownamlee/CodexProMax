@@ -380,21 +380,21 @@ button:disabled {
   color: var(--danger);
 }
 
-.run-status-spinner {
+.run-status-thinking-avatar {
   width: 18px;
-  height: 18px;
+  height: 24px;
   display: block;
-  animation: runSpinnerRotate 2s linear infinite;
+  overflow: hidden;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
-.run-status-spinner circle {
-  fill: none;
-  stroke: var(--status-running);
-  stroke-width: 5;
-  stroke-linecap: round;
-  stroke-dasharray: 1, 200;
-  stroke-dashoffset: 0;
-  animation: runSpinnerStretch 1.5s ease-in-out infinite;
+.run-status-thinking-avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
 }
 
 .sidebar-profile-area {
@@ -638,7 +638,7 @@ button:disabled {
     line-height: 1;
   }
 
-  .left-sidebar.collapsed .run-status-spinner,
+  .left-sidebar.collapsed .run-status-thinking-avatar,
   .left-sidebar.collapsed .run-status-success-wrapper {
     width: 18px;
     height: 18px;
@@ -654,29 +654,6 @@ button:disabled {
 
 .run-item:hover .run-icon {
   transform: scale(1.1);
-}
-
-@keyframes runSpinnerRotate {
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes runSpinnerStretch {
-  0% {
-    stroke-dasharray: 1, 200;
-    stroke-dashoffset: 0;
-  }
-
-  50% {
-    stroke-dasharray: 90, 200;
-    stroke-dashoffset: -35px;
-  }
-
-  100% {
-    stroke-dasharray: 90, 200;
-    stroke-dashoffset: -124px;
-  }
 }
 
 @keyframes spin {

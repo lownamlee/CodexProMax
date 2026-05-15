@@ -268,7 +268,7 @@ describe('App', () => {
     })
   })
 
-  it('uses the smooth svg spinner for running runs', async () => {
+  it('uses the animated thinking image for running runs', async () => {
     const manager = managerFactory()
     manager.runs[0] = {
       ...manager.runs[0],
@@ -283,9 +283,9 @@ describe('App', () => {
     await getEventSource()
 
     const runButton = await screen.findByRole('button', { name: /Run A/i })
-    const spinner = runButton.querySelector('svg.run-status-spinner')
-    expect(spinner).toBeInTheDocument()
-    expect(spinner?.querySelector('circle')).toHaveAttribute('r', '20')
+    const thinkingImage = runButton.querySelector('.run-status-thinking-avatar img')
+    expect(thinkingImage).toHaveAttribute('src', '/codex-thinking.webp')
+    expect(runButton.querySelector('svg.run-status-spinner')).not.toBeInTheDocument()
     expect(runButton.querySelector('.ri-loader-4-line')).not.toBeInTheDocument()
   })
 
