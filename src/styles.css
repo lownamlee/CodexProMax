@@ -245,7 +245,7 @@ button:disabled {
 .left-sidebar.collapsed .run-list {
   width: 56px;
   align-items: center;
-  padding: 6px 8px;
+  padding: 4px 8px;
 }
 
 .left-sidebar.collapsed .run-item {
@@ -259,7 +259,7 @@ button:disabled {
   min-width: 40px;
   height: 46px;
   min-height: 46px;
-  flex: 0 0 46px;
+  flex: 0 0 40px;
   display: grid;
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;
