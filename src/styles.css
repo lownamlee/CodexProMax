@@ -647,17 +647,28 @@ button:disabled {
     line-height: 1;
   }
 
-  .left-sidebar.collapsed .run-status-thinking-avatar,
-  .left-sidebar.collapsed .run-status-stopped-avatar {
+  .left-sidebar.collapsed .run-status-thinking-avatar {
     width: 31px;
     height: 41px;
     display: block;
     overflow: hidden;
   }
 
-  .left-sidebar.collapsed .run-status-thinking-avatar img,
-  .left-sidebar.collapsed .run-status-stopped-avatar img {
+  .left-sidebar.collapsed .run-status-thinking-avatar img {
     left: calc(50% + 2px);
+    width: 31px;
+    height: 41px;
+  }
+
+  .left-sidebar.collapsed .run-status-stopped-avatar {
+    width: 18px;
+    height: 18px;
+    display: block;
+    overflow: visible;
+  }
+
+  .left-sidebar.collapsed .run-status-stopped-avatar img {
+    left: 50%;
     width: 31px;
     height: 41px;
   }
