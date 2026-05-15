@@ -4,72 +4,63 @@
   <img src="./assets/readme/banner.png" alt="Codex Pro Max banner" width="980" />
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license" />
-  <img src="https://img.shields.io/badge/React-19-61dafb" alt="React 19" />
-  <img src="https://img.shields.io/badge/TypeScript-5.9-3178c6" alt="TypeScript 5.9" />
-  <img src="https://img.shields.io/badge/Vite-7.3-646cff" alt="Vite 7.3" />
-  <img src="https://img.shields.io/badge/local--first-file%20protocol-0f766e" alt="Local first file protocol" />
-  <img src="https://img.shields.io/badge/platform-Windows-0078d4" alt="Windows" />
-</p>
+Codex Pro Max helps you keep working with Codex without interrupting the same conversation.
 
-Codex Pro Max is a local browser inbox for Codex runs.
+I built this so Codex can do the work, send its conclusion to Codex Pro Max, wait there for your next prompt, and then continue from the same Codex chat. You do not need to steer the original Codex thread with another message just to keep it moving, and you do not need to start a new conversation.
 
-I built this so I can chat with Codex directly from Codex Pro Max without interrupting the same conversation. Codex can do the work, send the answer to the browser, wait there for my next instruction, and then continue the same run again.
-
-That makes the workflow simple: review the answer, type the next instruction, and keep going. Have fun.
+The workflow is simple: ask Codex to work, review the conclusion in Codex Pro Max, reply there, and let Codex continue from where it stopped.
 
 <p align="center">
-  <img src="https://media.tenor.com/l6oja987EwIAAAAi/tkthao219-quby.gif" alt="Have fun sticker" width="120" />
+  <img src="./public/codex-stopped.webp" alt="Codex waiting for the next instruction" width="320" />
 </p>
 
-## What It Does
+## What It Helps With
+
+Codex Pro Max helps when you want Codex to keep working step by step without losing the same conversation.
+
+- Read Codex's latest conclusion in a browser.
+- Send the next prompt from Codex Pro Max.
+- Keep the same Codex session going after every reply.
+- Type ahead while Codex is busy.
+- Keep run files locally in the `runs/` folder.
 
 <p align="center">
   <img src="./assets/readme/why-it-exists.png" alt="Why Codex Pro Max exists" width="900" />
 </p>
 
-Codex Pro Max gives you:
-
-- A browser inbox for Codex runs.
-- One selected run view with the latest answer.
-- A composer for sending the next instruction.
-- A queue so you can keep writing while Codex is busy.
-- Attachments and previews for run context.
-- Protocol file previews for debugging.
-- Live local updates through Server-Sent Events.
-- A file-backed protocol, so there is no database to set up.
-
-Use it when you want Codex to pause after a task, show you the result in a separate UI, and then resume the same conversation after you reply.
-
-## Tags
-
-`codex` `human-in-the-loop` `review-inbox` `local-first` `file-protocol` `server-sent-events` `react` `vite` `typescript` `express` `windows` `automation`
-
-## Quick Start
-
-<p align="center">
-  <img src="./assets/readme/quick-start.png" alt="Codex Pro Max quick start" width="900" />
-</p>
-
-### Requirements
+## Requirements
 
 - Windows.
+- Codex installed.
 - Node.js 20 or newer. Node.js 24 is recommended.
 - npm.
 - PowerShell.
 
-### Install The Codex Skill
+## How To Install
 
-From the project folder, run:
+### 1. Run Setup
+
+From the project folder, double-click `setup.cmd` or run:
 
 ```bat
 .\setup.cmd
 ```
 
-The setup script copies the Codex Pro Max skill into your Codex home folder and updates Codex configuration so Codex can use the review scripts.
+`setup.cmd` installs three things for Codex:
 
-### Start The App
+| Installed item | Where it goes | Why it matters |
+| --- | --- | --- |
+| Codex Pro Max skill | `%USERPROFILE%\.codex\skills\codex-pro-max` | Gives Codex the scripts it needs to create sessions, submit conclusions, and wait for your next prompt. |
+| System instruction file | `%USERPROFILE%\.codex\AGENTS.md` | Tells Codex when and how to use Codex Pro Max. |
+| Codex config entry | `%USERPROFILE%\.codex\config.toml` | Enables the installed skill for Codex. |
+
+If Codex was already open, restart it after running setup so it can load the new skill and instructions.
+
+<p align="center">
+  <img src="./assets/readme/setup-cmd-success.png" alt="setup.cmd completed successfully" width="900" />
+</p>
+
+### 2. Start Codex Pro Max
 
 Run:
 
@@ -77,47 +68,85 @@ Run:
 .\start-project.cmd
 ```
 
-Then open:
+This command checks dependencies, installs missing packages if needed, and starts the local project.
+
+When it is running, open:
 
 ```text
 http://127.0.0.1:5173
 ```
 
-The local API runs on:
+Codex Pro Max also uses this helper address in the background:
 
 ```text
 http://127.0.0.1:53127
 ```
 
-## Demo Media
+Keep the command window open while you use Codex Pro Max. Closing it stops the project.
 
-<!-- Add the project screenshot and workflow GIF here later. -->
+<p align="center">
+  <img src="./assets/readme/start-project-running.png" alt="start-project.cmd running Codex Pro Max" width="900" />
+</p>
 
-## Daily Workflow
+<p align="center">
+  <img src="./public/codex-thinking.webp" alt="Codex working on a request" width="320" />
+</p>
+
+## How To Use
+
+### 1. Open Codex And Chat
+
+Open Codex and start a normal chat.
+
+Because `setup.cmd` installed the skill, `AGENTS.md`, and Codex config, Codex knows what to do:
+
+1. Start a new Codex Pro Max session.
+2. Do your requested work.
+3. Write the conclusion into Codex Pro Max.
+4. Wait for your next prompt.
+
+You do not need to manually create a run folder or run the PowerShell scripts yourself. Codex uses the installed skill and instructions.
+
+### 2. Continue From Codex Pro Max
+
+After Codex finishes a task, Codex Pro Max shows the conclusion in the browser.
+
+Type your next prompt in Codex Pro Max. Once Codex receives it, it continues the same Codex session, works until the next conclusion, writes that conclusion back into Codex Pro Max, and waits again.
+
+That is the main loop:
+
+```text
+Codex chat -> Codex does work -> conclusion appears in Codex Pro Max
+Codex Pro Max prompt -> Codex continues -> next conclusion appears
+```
 
 <p align="center">
   <img src="./assets/readme/review-loop.png" alt="Codex Pro Max review loop" width="900" />
 </p>
 
-The normal loop is:
+## Daily Workflow
 
-1. Codex calls `create_session.ps1` to create or reopen a run.
-2. Codex does the requested work.
-3. Codex calls `request_review.ps1` with its answer.
-4. Codex Pro Max shows that answer in the browser.
-5. You send the next instruction from the UI.
-6. `wait_for_review.ps1` returns the instruction to Codex.
-7. Codex continues the same conversation.
+1. Run `start-project.cmd`.
+2. Open `http://127.0.0.1:5173`.
+3. Open Codex.
+4. Send your first prompt in Codex.
+5. Read the conclusion in Codex Pro Max.
+6. Send follow-up prompts from Codex Pro Max.
+7. Close the `start-project.cmd` window when you are done.
 
-The important rule is that Codex keeps waiting with the same `runDir` until an instruction exists.
+<p align="center"><strong>[daily-workflow.png]</strong></p>
 
-## Instruction Queue
+## What You Should See
 
-<p align="center">
-  <img src="./assets/readme/instruction-queue.png" alt="Codex Pro Max instruction queue" width="900" />
-</p>
+When everything is working:
 
-You can type ahead while Codex is busy. Queued instructions are stored in the browser by run id. When the selected run reaches `WAITING_FOR_REVIEW`, the next queued instruction can be sent without losing your draft.
+- Codex Pro Max shows a run in the left sidebar.
+- The selected run shows Codex's latest conclusion.
+- The run status changes to `WAITING_FOR_REVIEW` when Codex is waiting for you.
+- The prompt box lets you send the next instruction.
+- Codex continues after receiving that instruction.
+
+<p align="center"><strong>[waiting-for-review-screen.png]</strong></p>
 
 ## Project Layout
 
@@ -126,17 +155,20 @@ CodexProMax/
   src/                         React + Vite browser UI
   server/                      Express API and file protocol logic
   setup/skills/codex-pro-max/  Installable Codex skill
-  public/                      Static app images
-  assets/readme/               README raster figures
+  public/                      Static app files
+  assets/readme/               README images and GIFs
   runs/                        Local runtime state, ignored by git
+  AGENTS.md                    System instructions installed by setup.cmd
+  setup.cmd                    Installs the Codex skill and config
+  start-project.cmd            Starts Codex Pro Max
 ```
 
-## Scripts
+## Commands
 
 | Command | Purpose |
 | --- | --- |
-| `.\setup.cmd` | Installs the Codex Pro Max Codex skill into your Codex home folder. |
-| `.\start-project.cmd` | Installs missing dependencies if needed, then starts the dev app. |
+| `.\setup.cmd` | Installs the Codex Pro Max skill, `AGENTS.md`, and Codex config entry. |
+| `.\start-project.cmd` | Installs missing dependencies if needed, then starts the app. |
 | `npm run dev` | Starts the Express API and Vite UI together. |
 | `npm test` | Runs backend, frontend, and skill-script tests. |
 | `npm run build` | Type-checks the project and builds the production UI. |
@@ -147,7 +179,7 @@ CodexProMax/
 ### System Architecture
 
 <p align="center">
-  <img src="./assets/readme/system-paper-figure.png" alt="Codex Pro Max paper-style system architecture figure" width="980" />
+  <img src="./assets/readme/system-paper-figure.png" alt="Codex Pro Max system architecture" width="980" />
 </p>
 
 ```mermaid
@@ -242,19 +274,13 @@ stateDiagram-v2
 
 ## Codex Skill Contract
 
-The installed skill lives in:
-
-```text
-C:\Users\ramly\.codex\skills\codex-pro-max
-```
-
 Codex should use these scripts instead of creating run folders by hand:
 
 | Script | Purpose |
 | --- | --- |
 | `create_session.ps1` | Creates or reopens a run and returns `runDir`. |
 | `request_review.ps1` | Writes the latest answer and sets `WAITING_FOR_REVIEW`. |
-| `wait_for_review.ps1` | Waits until a human instruction exists, then returns it as JSON. |
+| `wait_for_review.ps1` | Waits until your next prompt exists, then returns it as JSON. |
 
 ## Validate Changes
 
@@ -270,11 +296,3 @@ npm run build
 Codex Pro Max is licensed under the MIT License. See [`LICENSE`](LICENSE).
 
 Use this project only in lawful, authorized, and responsible environments. Do not use it to abuse services, bypass access controls, violate platform terms, compromise systems, exfiltrate data, harass people, or automate activity you are not authorized to perform.
-
-<p align="center">
-  <img src="https://media.tenor.com/RsEw4m8_9m0AAAAi/rexx.gif" alt="Broke sticker" width="120" />
-</p>
-
-<p align="center">
-  Thank you for reading this boring README. If you'd like to chip in, just let me know!
-</p>
