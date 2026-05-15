@@ -250,14 +250,16 @@ button:disabled {
 
 .left-sidebar.collapsed .run-item {
   width: 40px;
+  min-height: 46px;
+  overflow: hidden;
 }
 
 .left-sidebar.collapsed .run-select-button {
   width: 40px;
   min-width: 40px;
-  height: 32px;
-  min-height: 32px;
-  flex: 0 0 40px;
+  height: 46px;
+  min-height: 46px;
+  flex: 0 0 46px;
   display: grid;
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;
@@ -643,7 +645,18 @@ button:disabled {
     line-height: 1;
   }
 
-  .left-sidebar.collapsed .run-status-thinking-avatar,
+  .left-sidebar.collapsed .run-status-thinking-avatar {
+    width: 31px;
+    height: 41px;
+    display: block;
+    overflow: hidden;
+  }
+
+  .left-sidebar.collapsed .run-status-thinking-avatar img {
+    width: 31px;
+    height: 41px;
+  }
+
   .left-sidebar.collapsed .run-status-success-wrapper {
     width: 18px;
     height: 18px;
