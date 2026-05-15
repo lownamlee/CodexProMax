@@ -382,7 +382,8 @@ button:disabled {
   color: var(--danger);
 }
 
-.run-status-thinking-avatar {
+.run-status-thinking-avatar,
+.run-status-stopped-avatar {
   width: 18px;
   height: 18px;
   display: block;
@@ -393,7 +394,8 @@ button:disabled {
   box-shadow: none;
 }
 
-.run-status-thinking-avatar img {
+.run-status-thinking-avatar img,
+.run-status-stopped-avatar img {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -645,14 +647,16 @@ button:disabled {
     line-height: 1;
   }
 
-  .left-sidebar.collapsed .run-status-thinking-avatar {
+  .left-sidebar.collapsed .run-status-thinking-avatar,
+  .left-sidebar.collapsed .run-status-stopped-avatar {
     width: 31px;
     height: 41px;
     display: block;
     overflow: hidden;
   }
 
-  .left-sidebar.collapsed .run-status-thinking-avatar img {
+  .left-sidebar.collapsed .run-status-thinking-avatar img,
+  .left-sidebar.collapsed .run-status-stopped-avatar img {
     left: calc(50% + 2px);
     width: 31px;
     height: 41px;

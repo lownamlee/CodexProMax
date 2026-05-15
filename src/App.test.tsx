@@ -289,6 +289,25 @@ describe('App', () => {
     expect(runButton.querySelector('.ri-loader-4-line')).not.toBeInTheDocument()
   })
 
+  it('uses the animated stopped image for stopped runs', async () => {
+    const manager = managerFactory()
+    manager.runs[0] = {
+      ...manager.runs[0],
+      status: 'STOPPED',
+    }
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(jsonResponse(manager))
+      .mockResolvedValueOnce(jsonResponse(snapshotFactory({ status: 'STOPPED' })))
+
+    render(<App />)
+    await getEventSource()
+
+    const runButton = await screen.findByRole('button', { name: /Run A/i })
+    const stoppedImage = runButton.querySelector('.run-status-stopped-avatar img')
+    expect(stoppedImage).toHaveAttribute('src', '/codex-stopped.webp')
+    expect(runButton.querySelector('.ri-stop-circle-line')).not.toBeInTheDocument()
+  })
+
   it('persists collapsed sidebar state across remounts', async () => {
     const { unmount } = render(<App />)
     await getEventSource()
@@ -1470,7 +1489,7 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'No conversation history' })).toBeInTheDocument()
     expect(screen.getByLabelText('Empty conversation history').querySelector('.bot-avatar img')).toHaveAttribute(
       'src',
-      '/codex-idle.webp',
+      '/codex-stopped.webp',
     )
     expect(screen.queryByRole('heading', { name: 'Draft A' })).not.toBeInTheDocument()
   })
