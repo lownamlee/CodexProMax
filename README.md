@@ -4,6 +4,15 @@
   <img src="./assets/readme/banner.png" alt="Codex Pro Max banner" width="980" />
 </p>
 
+<p align="center">
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license" />
+  <img src="https://img.shields.io/badge/React-19-61dafb" alt="React 19" />
+  <img src="https://img.shields.io/badge/TypeScript-5.9-3178c6" alt="TypeScript 5.9" />
+  <img src="https://img.shields.io/badge/Vite-7.3-646cff" alt="Vite 7.3" />
+  <img src="https://img.shields.io/badge/local--first-file%20protocol-0f766e" alt="Local first file protocol" />
+  <img src="https://img.shields.io/badge/platform-Windows-0078d4" alt="Windows" />
+</p>
+
 Codex Pro Max is a local browser inbox for Codex runs.
 
 I built this so I can chat with Codex directly from Codex Pro Max without interrupting the same conversation. Codex can do the work, send the answer to the browser, wait there for my next instruction, and then continue the same run again.
@@ -32,6 +41,10 @@ Codex Pro Max gives you:
 - A file-backed protocol, so there is no database to set up.
 
 Use it when you want Codex to pause after a task, show you the result in a separate UI, and then resume the same conversation after you reply.
+
+## Tags
+
+`codex` `human-in-the-loop` `review-inbox` `local-first` `file-protocol` `server-sent-events` `react` `vite` `typescript` `express` `windows` `automation`
 
 ## Quick Start
 
