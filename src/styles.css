@@ -655,7 +655,8 @@ button:disabled {
   }
 
   .left-sidebar.collapsed .run-status-thinking-avatar img {
-    left: calc(50% + 2px);
+    top: calc(50% - 2px);
+    left: 50%;
     width: 31px;
     height: 41px;
   }
