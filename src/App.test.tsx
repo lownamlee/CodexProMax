@@ -1,8 +1,12 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import type { AttachmentMeta, ManagerSnapshot, Snapshot, Teammate } from './shared/protocol'
 import { DEFAULT_TEAMMATES, TEAMMATE_AVATAR_URLS } from './shared/protocol'
+
+const appStyles = readFileSync(join(process.cwd(), 'src', 'styles.css'), 'utf-8')
 
 class MockEventSource {
   static instances: MockEventSource[] = []
@@ -446,6 +450,7 @@ describe('App', () => {
     fireEvent.click(collapseButton)
 
     expect(usage).toHaveClass('is-collapsed')
+    expect(appStyles).toMatch(/\.conversation-usage\.is-collapsed\s*\{[^}]*pointer-events:\s*none;/)
     expect(window.localStorage.getItem('codex-pro-max:conversation-usage-collapsed')).toBe('true')
 
     const expandButton = screen.getByRole('button', { name: 'Expand conversation usage gauges' })

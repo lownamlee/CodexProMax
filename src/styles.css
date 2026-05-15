@@ -1093,6 +1093,7 @@ code,
 
 .conversation-usage.is-collapsed {
   background: transparent;
+  pointer-events: none;
 }
 
 .conversation-usage.is-collapsed > * {
