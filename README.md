@@ -1,411 +1,251 @@
 # Codex Pro Max
 
-![Codex Pro Max banner](public/codex-pro-max-banner.png)
+<p align="center">
+  <img src="./assets/readme/banner.png" alt="Codex Pro Max banner" width="980" />
+</p>
 
-Codex Pro Max is a local human-in-the-loop inbox for Codex-style agents. It gives each Codex session its own run folder, displays the agent's latest conclusion, and lets a human send the next instruction from a focused desktop-style UI.
+Codex Pro Max is a local browser inbox for Codex runs.
 
-The app is intentionally file-first. Codex and the browser coordinate through plain protocol files under `runs/<runId>/`, while the Express API watches those files and broadcasts live UI updates.
+I built this so I can chat with Codex directly from Codex Pro Max without interrupting the same conversation. Codex can do the work, send the answer to the browser, wait there for my next instruction, and then continue the same run again.
 
-## Setup
+That makes the workflow simple: review the answer, type the next instruction, and keep going. Have fun.
+
+## What It Does
+
+<p align="center">
+  <img src="./assets/readme/why-it-exists.png" alt="Why Codex Pro Max exists" width="900" />
+</p>
+
+Codex Pro Max gives you:
+
+- A browser inbox for Codex runs.
+- One selected run view with the latest answer.
+- A composer for sending the next instruction.
+- A queue so you can keep writing while Codex is busy.
+- Attachments and previews for run context.
+- Protocol file previews for debugging.
+- Live local updates through Server-Sent Events.
+- A file-backed protocol, so there is no database to set up.
+
+Use it when you want Codex to pause after a task, show you the result in a separate UI, and then resume the same conversation after you reply.
+
+## Quick Start
+
+<p align="center">
+  <img src="./assets/readme/quick-start.png" alt="Codex Pro Max quick start" width="900" />
+</p>
 
 ### Requirements
 
-- Node.js 24 or newer.
-- npm 11 or newer.
-- Windows PowerShell. `setup.cmd` uses it internally, and the helper scripts are still `.ps1` files.
+- Windows.
+- Node.js 20 or newer. Node.js 24 is recommended.
+- npm.
+- PowerShell.
 
-The default API port is `53127`. The default Vite UI port is `5173`.
+### Install The Codex Skill
 
-### 1. Run Setup
-
-Double-click `setup.cmd` from this repository. From a terminal, you can run:
+From the project folder, run:
 
 ```bat
 .\setup.cmd
 ```
 
-The setup command copies root `AGENTS.md`, copies the checked-in skill files under `setup/`, and writes:
+The setup script copies the Codex Pro Max skill into your Codex home folder and updates Codex configuration so Codex can use the review scripts.
 
-- Global instructions at `C:\Users\ramly\.codex\AGENTS.md`.
-- The skill at `C:\Users\ramly\.codex\skills\codex-pro-max`.
-- Helper scripts for request, wait, and consume operations.
-- Installation metadata at `C:\Users\ramly\.codex\skills\codex-pro-max\INSTALLATION.json`.
+### Start The App
 
-The generated instructions point to this clone, so the repository can live outside `Desktop`.
+Run:
 
-### 2. Start the App
-
-Double-click `start-project.cmd`.
-
-It checks whether dependencies are installed, runs `npm install` when packages are missing or out of sync, then starts both services with `npm run dev`:
-
-- API: `http://127.0.0.1:53127/`
-- UI: `http://127.0.0.1:5173/`
-
-### 3. Use the Inbox
-
-Open the UI and select a run from the left sidebar. A Codex run appears when a session writes protocol files under `runs/<runId>/`.
-
-Typical loop:
-
-1. Codex calls `create_session.ps1` to get `runDir`.
-2. Codex finishes work and calls `request_review.ps1`.
-3. The UI shows the latest conclusion.
-4. The human writes the next instruction.
-5. The backend writes `instruction.txt` and updates `status.txt`.
-6. Codex's wait script reads the instruction, marks the run as running, and returns JSON.
-7. Codex keeps waiting until the JSON contains a non-empty `instruction`, handles it, writes the answer with `request_review.ps1`, and waits again.
-
-### 4. Validate a Clone
-
-```bash
-npm test
-npm run build
+```bat
+.\start-project.cmd
 ```
 
-`npm test` runs backend, UI, and helper-script tests. `npm run build` type-checks the project and creates the production UI in `dist/`.
+Then open:
+
+```text
+http://127.0.0.1:5173
+```
+
+The local API runs on:
+
+```text
+http://127.0.0.1:53127
+```
+
+## Demo Media
+
+<!-- Add the project screenshot and workflow GIF here later. -->
+
+## Daily Workflow
+
+<p align="center">
+  <img src="./assets/readme/review-loop.png" alt="Codex Pro Max review loop" width="900" />
+</p>
+
+The normal loop is:
+
+1. Codex calls `create_session.ps1` to create or reopen a run.
+2. Codex does the requested work.
+3. Codex calls `request_review.ps1` with its answer.
+4. Codex Pro Max shows that answer in the browser.
+5. You send the next instruction from the UI.
+6. `wait_for_review.ps1` returns the instruction to Codex.
+7. Codex continues the same conversation.
+
+The important rule is that Codex keeps waiting with the same `runDir` until an instruction exists.
+
+## Instruction Queue
+
+<p align="center">
+  <img src="./assets/readme/instruction-queue.png" alt="Codex Pro Max instruction queue" width="900" />
+</p>
+
+You can type ahead while Codex is busy. Queued instructions are stored in the browser by run id. When the selected run reaches `WAITING_FOR_REVIEW`, the next queued instruction can be sent without losing your draft.
+
+## Project Layout
+
+```text
+CodexProMax/
+  src/                         React + Vite browser UI
+  server/                      Express API and file protocol logic
+  setup/skills/codex-pro-max/  Installable Codex skill
+  public/                      Static app images
+  assets/readme/               README raster figures
+  runs/                        Local runtime state, ignored by git
+```
 
 ## Scripts
 
 | Command | Purpose |
 | --- | --- |
-| `npm run dev` | Starts the Express API and Vite UI together with `concurrently`. |
-| `npm test` | Runs Vitest backend, UI, and helper-script tests. |
-| `npm run build` | Runs TypeScript checks and builds the production UI in `dist/`. |
-| `npm run preview` | Serves the production build with Vite preview. |
+| `.\setup.cmd` | Installs the Codex Pro Max Codex skill into your Codex home folder. |
+| `.\start-project.cmd` | Installs missing dependencies if needed, then starts the dev app. |
+| `npm run dev` | Starts the Express API and Vite UI together. |
+| `npm test` | Runs backend, frontend, and skill-script tests. |
+| `npm run build` | Type-checks the project and builds the production UI. |
+| `npm run preview` | Serves the production build locally. |
 
-## Environment Variables
+## Technical Reference
 
-Normal users should not set session environment variables. Codex gets a run folder by calling `create_session.ps1`.
+### System Architecture
 
-| Variable | Purpose |
-| --- | --- |
-| `CODEX_PRO_MAX_ROOT` | Optional manager root for the API and session creation. |
-| `CODEX_PRO_MAX_API_PORT` | Optional API port. Defaults to `53127`. |
-| `CODEX_PRO_MAX_POLL_SECONDS` | Optional wait script polling interval. |
-| `CODEX_PRO_MAX_MAX_WAIT_SECONDS` | Optional wait script idle timeout. Defaults to `540` seconds so host shells with ten-minute ceilings do not kill the wait command. |
-| `CODEX_SESSIONS_ROOT` | Optional Codex rollout-log root for session id discovery. Defaults to `CODEX_HOME\sessions` or `~\.codex\sessions`. |
-
-`create_session.ps1` binds the run to the current Codex conversation from `CODEX_THREAD_ID`, or from the newest current Codex rollout log such as `rollout-2026-05-12T13-31-37-019e1aab-577b-7741-8889-c683dd299526.jsonl`. It names the run from an explicit `-RunId` when provided, otherwise it uses that conversation id. A custom `-RunId` changes the folder name only; `run.json.codexThreadId` still records the active conversation id when one can be resolved. Users do not need to set these values manually.
-
-## Feature Tour
-
-### Multi-Run Inbox
-
-- Lists every run folder under `runs/`.
-- Shows display name, run id, status icon, attachment count, and latest output preview.
-- Sorts runs by latest protocol-file or attachment activity.
-- Supports selecting a run without mixing instructions between sessions.
-- Supports deleting run folders from the inbox.
-- Preserves left-sidebar collapsed state across reloads.
-
-### Conversation View
-
-- Renders `session.md` as a chronological chat between Codex and the human.
-- Falls back to `output.md` when a run has no session history yet.
-- Shows an inline Codex working indicator below the latest user message while a run is active.
-- Keeps the chat pinned to the bottom only when the user was already near the bottom.
-- Shows a floating scroll-to-bottom button when the user scrolls away.
-- Provides copy buttons on user and Codex messages.
-- Detects oversized Markdown and warns before rendering large content.
-
-### Instruction Composer and Queue
-
-- Sends the current message to the selected run with `Send to Codex`.
-- Queues messages when Codex is working, when another queued message exists, or when a queued send is already in flight.
-- Stores queued messages in `localStorage`, keyed by run id, so refreshes do not lose drafts.
-- Lets queued messages be edited, deleted, and requeued.
-- Automatically sends the next queued message when that run returns to review.
-- Sends queued messages for non-selected runs in the background.
-- Waits for the selected chat to settle at the bottom before auto-sending when the chat was pinned.
-- Supports `Ctrl+Enter` sending, with an optional confirmation setting.
-- Auto-grows the text area up to a fixed maximum height.
-
-### Attachments and Mentions
-
-- Accepts file attachments from the file picker, drag/drop, and pasted clipboard files.
-- Supports images, PDFs, text/code files, archives, Office-style documents, audio, video, and generic files up to the backend limit.
-- Stores attachments per run under `runs/<runId>/attachments/`.
-- Adds uploaded or selected attachments to the draft tray.
-- Inserts attachment mentions as `@file-name` tokens in the composer.
-- Provides an `@` mention menu with keyboard navigation.
-- Treats completed mention tokens as cursor-aware units.
-- Shows mentioned attachments inline on sent user messages.
-- Provides image thumbnails, file-type icons, attachment previews, gallery navigation, per-attachment delete, and delete-all with progress.
-
-### Protocol Sidebar
-
-- Shows user-message outlines and tracks the active message while scrolling.
-- Lets the user jump from an outline item to the corresponding message.
-- Shows protocol file presence and metadata for each text protocol file.
-- Opens protocol files in a document preview with wrapping, copy, and lightweight syntax highlighting.
-- Shows current run attachments with preview, mention, and delete actions.
-- Persists collapse state for outlines, protocol files, attachments, and sidebars.
-
-### Session Controls
-
-- Header controls can stop a session, clear conversation history, and toggle sidebars.
-- Stop is only available while the selected run is waiting for review.
-- Clear history truncates `session.md` without deleting the run, output, instruction, attachments, or metadata.
-- Destructive actions use confirmation dialogs and support Escape or backdrop cancel.
-
-### Profile and Settings
-
-- The profile menu exposes teammates, workspace settings, skills, settings, help, and logout actions.
-- The teammates dialog reads/writes `teammates.json`, starts with five default teammates, and caps the table at seven seats.
-- Workspace settings and skills show under-construction popups with their configured stickers.
-- Settings currently controls whether `Ctrl+Enter` asks for confirmation before sending or queueing.
-- The logout menu item shows the local error popup instead of attempting external auth.
-
-### Live Updates and Audit Trail
-
-- The browser receives manager snapshots over Server-Sent Events from `/api/events`.
-- The backend watches protocol files, run metadata, and attachments with Chokidar.
-- File changes are debounced before broadcasting snapshots.
-- Every run has append-only `events.ndjson` audit records for user messages, instructions, uploads, deletes, metadata changes, protocol file changes, and attachment changes.
-- `events.ndjson` changes are ignored by the watcher to avoid audit loops.
-
-## System Overview
-
-The app has three moving parts:
-
-| Layer | Purpose |
-| --- | --- |
-| React/Vite UI | Shows the run inbox, selected conversation, composer, attachments, protocol files, profile dialogs, and local UI state. |
-| Express API | Reads/writes run folders, validates requests, serves attachments, manages teammate data, and exposes JSON + SSE endpoints. |
-| File protocol | Uses plain files under `runs/<runId>/` so Codex and the UI can coordinate without a database. |
-
-Normal review flow:
-
-1. Codex calls `create_session.ps1` and uses the returned `runDir`.
-2. Codex completes a unit of work.
-3. Codex calls `request_review.ps1 -RunDir "<runDir>" -Output "<normal conclusion>"`.
-4. The script writes `output.md`, appends the assistant message to `session.md`, removes stale progress, and sets `status.txt` to `WAITING_FOR_REVIEW`.
-5. The UI displays the conclusion and waits for the human.
-6. The human sends one instruction from the composer.
-7. The backend writes `instruction.txt` first, then sets `status.txt` to `INSTRUCTION_RECEIVED`.
-8. `wait_for_review.ps1` reads `instruction.txt`, keeps it available for concurrent waiters, sets `status.txt` to `RUNNING`, and returns the instruction plus `sessionPath`.
-9. Codex handles only non-empty returned instructions, writes the answer with `request_review.ps1`, and then waits again.
-
-Queued messages use the same `/action` endpoint. The queue is a browser-side convenience layer; the backend still receives one instruction at a time.
-
-## File Protocol
-
-Each active Codex session is isolated under `runs/<runId>/`:
-
-```text
-<manager-root>/
-  runs/
-    <runId>/
-      status.txt
-      output.md
-      instruction.txt
-      session.md
-      events.ndjson
-      run.json
-      attachments/
+```mermaid
+flowchart LR
+    UI["React + Vite UI"] <--> API["Express API"]
+    API <--> Store["File protocol<br/>runs/&lt;runId&gt;"]
+    Store --> Hub["Snapshot hub<br/>Chokidar + SSE"]
+    Hub --> UI
+    Skill["Codex skill scripts"] <--> Store
+    Codex["Codex"] <--> Skill
 ```
 
-Only files under `runs/<runId>/` are protocol state. Root-level protocol files are ignored.
+### Review Loop
 
-### Core Files
+```mermaid
+sequenceDiagram
+    participant C as Codex
+    participant S as Skill scripts
+    participant F as runs/<runId>
+    participant A as Express API
+    participant U as Browser UI
 
-| Path | Owner | Purpose |
-| --- | --- | --- |
-| `status.txt` | Agent + UI | Single state token for coordination. |
-| `output.md` | Agent | Latest Codex conclusion shown to the human. |
-| `instruction.txt` | UI then agent | Current instruction waiting for Codex. Cleared after consumption. |
-| `session.md` | Agent + UI | Complete session history of assistant conclusions and user instructions. |
-| `events.ndjson` | Backend | Append-only audit log for backend/user/watcher events. |
-| `run.json` | Agent/backend | Run metadata shown in the inbox. |
-| `attachments/` | UI | Uploaded review images for that run. |
+    C->>S: create_session.ps1
+    S->>F: initialize protocol files
+    C->>S: request_review.ps1 -Output
+    S->>F: write output.md and WAITING_FOR_REVIEW
+    F-->>A: watched file change
+    A-->>U: SSE snapshot
+    U->>A: send instruction
+    A->>F: write instruction.txt and INSTRUCTION_RECEIVED
+    S->>F: wait_for_review.ps1 reads instruction
+    S-->>C: return instruction JSON
+```
+
+### File Protocol
+
+```mermaid
+flowchart TD
+    Root["runs/"] --> Run["&lt;runId&gt;/"]
+    Run --> Status["status.txt<br/>current state"]
+    Run --> Instruction["instruction.txt<br/>next human instruction"]
+    Run --> Output["output.md<br/>latest Codex answer"]
+    Run --> Session["session.md<br/>readable conversation history"]
+    Run --> Metadata["run.json<br/>metadata + Codex thread id"]
+    Run --> Events["events.ndjson<br/>append-only audit log"]
+    Run --> Attachments["attachments/<br/>uploaded context files"]
+```
 
 ### Status Model
 
-Normal statuses:
-
-| Status | Owner | Meaning |
-| --- | --- | --- |
-| `RUNNING` | Agent | Codex has consumed any instruction and is working or ready to continue. |
-| `WAITING_FOR_REVIEW` | Agent | Codex has paused and the human can send the next instruction. |
-| `INSTRUCTION_RECEIVED` | UI | The UI wrote a human instruction and Codex should consume it. |
-
-Exceptional statuses:
-
-| Status | Owner | Meaning |
-| --- | --- | --- |
-| `BLOCKED` | Agent | Codex is waiting on an external dependency or cannot proceed. |
-| `ERROR` | Agent | Codex hit a failure and needs human input. |
-
-### Session History
-
-`session.md` is the source of truth for conversation history. It is intentionally readable by both humans and agents.
-
-Each message is stored as a Markdown block with a metadata comment:
-
-```markdown
-<!-- codex-pro-max:message {"id":"...","role":"assistant","createdAtIso":"..."} -->
-## Codex - 2026-05-10T00:00:00.000Z
-
-Implemented the requested change.
+```mermaid
+stateDiagram-v2
+    [*] --> RUNNING
+    RUNNING --> WAITING_FOR_REVIEW: request_review.ps1
+    WAITING_FOR_REVIEW --> INSTRUCTION_RECEIVED: browser sends instruction
+    INSTRUCTION_RECEIVED --> RUNNING: wait_for_review.ps1 consumes instruction
+    RUNNING --> BLOCKED: external input needed
+    RUNNING --> ERROR: failure needs review
+    WAITING_FOR_REVIEW --> STOPPED: stop requested
+    STOPPED --> INSTRUCTION_RECEIVED: resume instruction
 ```
 
-Roles are:
+### Key Modules
 
-- `assistant`: Codex conclusions written by `request_review.ps1` or watcher fallback.
-- `user`: human instructions sent through the UI and read by `wait_for_review.ps1`.
+| Path | Role |
+| --- | --- |
+| `src/App.tsx` | Main browser inbox, run view, composer, queue, attachments, and dialogs. |
+| `src/api.ts` | Frontend API client for snapshots, actions, uploads, teammates, and Codex live history. |
+| `src/hooks/useSnapshotStream.ts` | Subscribes to live manager snapshots over SSE. |
+| `src/shared/protocol.ts` | Shared protocol types, status names, file names, and response shapes. |
+| `server/app.ts` | Express routes, request validation, upload handling, and run actions. |
+| `server/protocolStore.ts` | Safe path handling, run metadata, protocol files, session parsing, attachments, and audit events. |
+| `server/snapshotHub.ts` | Chokidar watcher and Server-Sent Events broadcasting. |
+| `setup/skills/codex-pro-max/scripts/*.ps1` | Scripts used by Codex to create sessions, request review, and wait for instructions. |
 
-## Backend API
+### API Surface
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/snapshot` | Manager snapshot with all runs and server health. |
-| `GET /api/runs/:runId/snapshot` | Full selected-run snapshot with status, output, files, attachments, and messages. |
-| `GET /api/events` | Server-Sent Events stream for live manager snapshots. |
-| `GET /api/runs/:runId/files/:fileName` | Preview a selected protocol text file. |
-| `POST /api/runs/:runId/action` | Writes one non-empty instruction and sets `INSTRUCTION_RECEIVED`. |
-| `POST /api/runs/:runId/upload` | Uploads one attachment up to the configured size limit. |
-| `GET /api/runs/:runId/attachments/:fileName` | Serves an uploaded attachment. |
-| `DELETE /api/runs/:runId/attachments/:fileName` | Deletes one attachment from the selected run. |
-| `DELETE /api/runs/:runId/messages` | Clears `session.md` for the selected run while keeping the run open. |
-| `POST /api/runs/:runId/stop` | Closes the selected run from the UI stop action. |
+| `GET /api/snapshot` | Reads the manager inbox snapshot. |
+| `GET /api/events` | Streams live snapshots over SSE. |
+| `GET /api/runs/:runId/snapshot` | Reads one run. |
+| `GET /api/runs/:runId/files/:fileName` | Reads a protocol file preview. |
+| `POST /api/runs/:runId/action` | Writes the next instruction. |
+| `POST /api/runs/:runId/upload` | Uploads one attachment. |
+| `DELETE /api/runs/:runId/attachments/:fileName` | Deletes one attachment. |
+| `DELETE /api/runs/:runId/messages` | Clears `session.md`. |
+| `POST /api/runs/:runId/stop` | Requests the run to stop. |
 | `DELETE /api/runs/:runId` | Deletes a run folder. |
-| `GET /api/teammates` | Reads teammate rows from `teammates.json` or returns defaults. |
-| `POST /api/teammates` | Adds one teammate invite if capacity and email validation pass. |
+| `GET /api/codex-live/sessions` | Lists local Codex live session logs. |
+| `GET /api/codex-live/sessions/:sessionId` | Reads one Codex live session history. |
 
-Instruction requests use this payload:
+## Codex Skill Contract
 
-```json
-{
-  "instruction": "Continue with the next task."
-}
-```
-
-The backend writes `instruction.txt` before `status.txt` so a waiting agent never observes `INSTRUCTION_RECEIVED` without the matching instruction.
-
-## Backend Internals
-
-### Snapshot Hub
-
-`server/snapshotHub.ts` owns:
-
-- Chokidar file watching.
-- SSE client management and heartbeat cleanup.
-- Debounced manager snapshot broadcasts.
-- Audit logging for watched protocol files, metadata, and attachments.
-- Assistant history fallback when a status file changes to `WAITING_FOR_REVIEW`.
-
-### Protocol Store
-
-`server/protocolStore.ts` owns:
-
-- Safe run id validation and path resolution.
-- Manager and run snapshot construction.
-- Markdown size warnings and render truncation metadata.
-- Attachment validation, safe filenames, and atomic writes.
-- `session.md` parsing, writing, and cache invalidation.
-- Conversation-history clearing by truncating only `session.md`.
-
-Run ids must match the safe-name rules and cannot escape `<manager-root>/runs`.
-
-## Codex Skill Runtime
-
-The global skill lives at:
+The installed skill lives in:
 
 ```text
 C:\Users\ramly\.codex\skills\codex-pro-max
 ```
 
-Codex should not construct run folders itself. It should call `create_session.ps1` once, parse the returned JSON, and reuse `runDir` for the other scripts.
-
-Helper scripts:
+Codex should use these scripts instead of creating run folders by hand:
 
 | Script | Purpose |
 | --- | --- |
-| `create_session.ps1` | Creates or reopens a run folder, derives the default run id from Codex conversation metadata or the newest rollout log, initializes protocol files, writes `run.json`, and returns JSON with `runDir`. |
-| `request_review.ps1` | Writes `output.md`, appends assistant history to `session.md`, clears stale progress and the last instruction, and sets `WAITING_FOR_REVIEW`. |
-| `wait_for_review.ps1` | Blocks until `status.txt` becomes `INSTRUCTION_RECEIVED`, then reads `instruction.txt`, appends user history, keeps the instruction available for concurrent waiters, sets `RUNNING`, and returns JSON. If no instruction arrives before the idle timeout, it returns `idleTimeout=true` with `shouldFinish=false` so Codex can call it again without the host shell marking the command failed. |
+| `create_session.ps1` | Creates or reopens a run and returns `runDir`. |
+| `request_review.ps1` | Writes the latest answer and sets `WAITING_FOR_REVIEW`. |
+| `wait_for_review.ps1` | Waits until a human instruction exists, then returns it as JSON. |
 
-The wait script is intentionally blocking. When it exits with an instruction, use the returned JSON instruction and continue. When it exits with `idleTimeout=true`, no instruction, `WAITING_FOR_REVIEW`, `STOPPED`, or `shouldFinish=true`, call it again immediately with the same `runDir`. A host shell exit code `124` while running `wait_for_review.ps1` is also a wait timeout, not a completion or failure. Do not stop after repeated idle waits, do not call task completion, and do not treat `shouldFinish=true` as permission to stop.
+## Validate Changes
 
-## Audit Events
-
-Every run has an append-only `events.ndjson`.
-
-Common event types:
-
-- `user.message`: full submitted instruction and target status.
-- `instruction.sent`: instruction preview and byte count.
-- `session.stop.requested`: stop action preview and byte count.
-- `conversation.cleared`: selected run history was cleared.
-- `upload.attachment`: accepted attachment metadata.
-- `attachment.deleted`: selected attachment name.
-- `protocol.file.changed`: watched protocol file add/change/unlink with preview when available.
-- `run.metadata.changed`: `run.json` changes.
-- `attachment.changed`: attachment additions, changes, and removals.
-
-Audit events are for traceability. `session.md` is the conversational history that agents should read.
-
-## Project Structure
-
-```text
-server/
-  app.ts              Express routes, teammate endpoints, uploads, and middleware.
-  protocolStore.ts    File protocol reads, writes, safety checks, session parsing, uploads.
-  snapshotHub.ts      Chokidar watcher and SSE broadcast hub.
-
-src/
-  App.tsx             Inbox dashboard UI, queueing, dialogs, previews, and composer behavior.
-  api.ts              Browser API helpers.
-  hooks/              SSE manager snapshot stream hook.
-  shared/             Protocol types shared by backend and frontend.
-
-public/
-  codex-pro-max-banner.png
-  burger.png
-  codex-color.png
-
-runs/
-  <runId>/            Local runtime state. Ignored by git.
-```
-
-## Testing
-
-The test suite covers:
-
-- Empty manager snapshots and root-level protocol-file ignoring.
-- Per-run instruction isolation and deletion.
-- Instruction-before-status write ordering.
-- Blank and unsafe instruction/run rejection.
-- Session history append.
-- Upload validation, file size limits, attachment deletion, and image previews.
-- Watched protocol file audit logging.
-- SSE snapshot delivery after watched changes.
-- Markdown warning and truncation behavior.
-- UI run selection, sending, queueing, auto-send timing, and queued message persistence.
-- Sidebar collapse persistence, outlines, protocol file preview, attachment mentions, and gallery controls.
-- Stop, clear-history, delete-run, and destructive confirmation flows.
-- Profile menu, teammates, settings, and construction popups.
-- Helper script behavior for session creation, request review, and wait-for-instruction.
-
-Run all tests:
+Run:
 
 ```bash
 npm test
-```
-
-Build and type-check:
-
-```bash
 npm run build
 ```
 
-## Educational Purpose, License, and Responsible Use
+## License And Responsible Use
 
-This project is provided for educational and research purposes. Use it only in lawful, authorized, and responsible environments.
+Codex Pro Max is licensed under the MIT License. See [`LICENSE`](LICENSE).
 
-Codex Pro Max is licensed under the MIT License. See [`LICENSE`](LICENSE) for the full license text.
-
-Do not use this project to abuse services, bypass access controls, violate platform terms, compromise systems, exfiltrate data, harass people, or automate activity you are not authorized to perform. Users are solely responsible for how they configure, deploy, modify, and operate this software.
-
-The author and contributors are not responsible for misuse, abuse, damage, data loss, service violations, illegal activity, or other consequences caused by anyone using this project.
+Use this project only in lawful, authorized, and responsible environments. Do not use it to abuse services, bypass access controls, violate platform terms, compromise systems, exfiltrate data, harass people, or automate activity you are not authorized to perform.
