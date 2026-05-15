@@ -343,7 +343,7 @@ button:disabled {
 
 @media (min-width: 901px) {
   .left-sidebar:not(.collapsed) .run-select-button {
-    padding-left: 13px;
+    padding-left: 15px;
   }
 }
 
@@ -653,6 +653,7 @@ button:disabled {
   }
 
   .left-sidebar.collapsed .run-status-thinking-avatar img {
+    left: calc(50% + 2px);
     width: 31px;
     height: 41px;
   }
