@@ -1613,9 +1613,9 @@ code,
   width: 33px;
   height: 44px;
   overflow: hidden;
-  border: 1px solid rgba(129, 140, 248, 0.3);
-  border-radius: 12px;
-  background: #151b31;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .thinking-avatar-sprite {
