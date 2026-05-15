@@ -122,7 +122,7 @@ const USER_BUBBLE_TOP_TOLERANCE_PX = 24
 const COMPOSER_TEXTAREA_MIN_HEIGHT_PX = 28
 const COMPOSER_TEXTAREA_MAX_HEIGHT_PX = 180
 const CODEX_PROFILE_IMAGE = '/codex-color.png'
-const CODEX_THINKING_SPRITE_IMAGE = '/codex-thinking-sprite.png'
+const CODEX_THINKING_IMAGE = '/codex-thinking.webp'
 const USER_PROFILE_IMAGE = '/burger.png'
 const LEFT_SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-pro-max:left-sidebar-collapsed'
 const RIGHT_SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-collapsed'
@@ -2441,10 +2441,7 @@ function AiThinkingMessage({
 function ThinkingAvatar() {
   return (
     <div className="avatar thinking-avatar" aria-hidden="true">
-      <span
-        className="thinking-avatar-sprite"
-        style={{ backgroundImage: `url(${CODEX_THINKING_SPRITE_IMAGE})` }}
-      />
+      <img className="thinking-avatar-image" src={CODEX_THINKING_IMAGE} alt="" />
     </div>
   )
 }

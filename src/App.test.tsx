@@ -589,8 +589,7 @@ describe('App', () => {
 
     const thinking = await screen.findByTestId('ai-thinking-process')
     expect(thinking.querySelectorAll('.ai-thinking-label-dots span')).toHaveLength(3)
-    expect((thinking.querySelector('.thinking-avatar-sprite') as HTMLElement).style.backgroundImage)
-      .toContain('/codex-thinking-sprite.png')
+    expect(thinking.querySelector('.thinking-avatar-image')).toHaveAttribute('src', '/codex-thinking.webp')
     await waitFor(() => expect(thinking).toHaveTextContent('Checking the implementation path.'))
     expect(thinking).toHaveTextContent('Assistant update 2')
     expect(thinking).not.toHaveTextContent('Old assistant message before the latest user request')
