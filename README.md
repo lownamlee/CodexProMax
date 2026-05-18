@@ -65,6 +65,14 @@ From the project folder, double-click `setup.cmd` or run:
 
 If Codex was already open, restart it after running setup so it can load the new skill and instructions.
 
+To remove these installed Codex files later, run:
+
+```bat
+.\uninstall.cmd
+```
+
+The uninstaller removes the Codex Pro Max skill directory and its Codex config entry. It also removes `%USERPROFILE%\.codex\AGENTS.md` when that file still matches this project's installed instructions; if you edited that file, the uninstaller preserves it unless you run `.\uninstall.cmd -ForceAgents`.
+
 <p align="center">
   <img src="./assets/readme/setup-cmd-success.png" alt="setup.cmd completed successfully" width="900" />
 </p>
@@ -169,6 +177,7 @@ CodexProMax/
   runs/                        Local runtime state, ignored by git
   AGENTS.md                    System instructions installed by setup.cmd
   setup.cmd                    Installs the Codex skill and config
+  uninstall.cmd                Removes the installed Codex skill and config entry
   start-project.cmd            Starts Codex Pro Max
 ```
 
@@ -177,6 +186,7 @@ CodexProMax/
 | Command | Purpose |
 | --- | --- |
 | `.\setup.cmd` | Installs the Codex Pro Max skill, `AGENTS.md`, and Codex config entry. |
+| `.\uninstall.cmd` | Removes the installed Codex Pro Max skill, matching `AGENTS.md`, and Codex config entry. |
 | `.\start-project.cmd` | Installs missing dependencies if needed, then starts the app. |
 | `npm run dev` | Starts the Express API and Vite UI together. |
 | `npm test` | Runs backend, frontend, and skill-script tests. |

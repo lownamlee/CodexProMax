@@ -9,6 +9,7 @@ const CREATE_SCRIPT = path.join(SKILL_SCRIPT_DIR, 'create_session.ps1')
 const WAIT_SCRIPT = path.join(SKILL_SCRIPT_DIR, 'wait_for_review.ps1')
 const REQUEST_SCRIPT = path.join(SKILL_SCRIPT_DIR, 'request_review.ps1')
 const SETUP_SCRIPT = path.resolve('setup.cmd')
+const UNINSTALL_SCRIPT = path.resolve('uninstall.cmd')
 
 interface StartedWaitScript {
   child: ReturnType<typeof spawn>
@@ -509,6 +510,36 @@ describe('Codex Pro Max skill scripts', () => {
     expect(installedFiles.some((fileName) => String(fileName).includes('stale-copy.tmp'))).toBe(false)
   })
 
+  it('uninstall removes installed skill, global instructions, and config entry', async () => {
+    const codexHome = await createTempRoot()
+    await writeFile(path.join(codexHome, 'config.toml'), 'model = "gpt-5"\n\n')
+
+    const setupResult = await runCmdScript(SETUP_SCRIPT, ['-CodexHome', codexHome])
+    const uninstallResult = await runCmdScript(UNINSTALL_SCRIPT, ['-CodexHome', codexHome])
+
+    expect(setupResult.code).toBe(0)
+    expect(uninstallResult.code).toBe(0)
+    await expect(fileExists(path.join(codexHome, 'skills', 'codex-pro-max'))).resolves.toBe(false)
+    await expect(fileExists(path.join(codexHome, 'AGENTS.md'))).resolves.toBe(false)
+    const config = await readFile(path.join(codexHome, 'config.toml'), 'utf8')
+    expect(config).toContain('model = "gpt-5"')
+    expect(config).not.toContain('codex-pro-max')
+  })
+
+  it('uninstall preserves modified global instructions unless forced', async () => {
+    const codexHome = await createTempRoot()
+    const customAgents = 'custom global instructions\n'
+
+    const setupResult = await runCmdScript(SETUP_SCRIPT, ['-CodexHome', codexHome])
+    await writeFile(path.join(codexHome, 'AGENTS.md'), customAgents)
+    const uninstallResult = await runCmdScript(UNINSTALL_SCRIPT, ['-CodexHome', codexHome])
+
+    expect(setupResult.code).toBe(0)
+    expect(uninstallResult.code).toBe(0)
+    await expect(readFile(path.join(codexHome, 'AGENTS.md'), 'utf8')).resolves.toBe(customAgents)
+    await expect(fileExists(path.join(codexHome, 'skills', 'codex-pro-max'))).resolves.toBe(false)
+  })
+
   it('request review writes output and session while deleting progress', async () => {
     const root = await createTempRoot()
     const runDir = path.join(root, 'runs', 'target-run')
@@ -740,7 +771,11 @@ async function runPowerShellScript(scriptPath: string, args: string[], env: Reco
 async function runCmdScript(scriptPath: string, args: string[]) {
   const output = { stdout: '', stderr: '' }
   const child = spawn('cmd', ['/d', '/c', scriptPath, ...args], {
-    env: { ...process.env, CODEX_PRO_MAX_SETUP_NO_PAUSE: '1' },
+    env: {
+      ...process.env,
+      CODEX_PRO_MAX_SETUP_NO_PAUSE: '1',
+      CODEX_PRO_MAX_UNINSTALL_NO_PAUSE: '1',
+    },
     windowsHide: true,
   })
 
