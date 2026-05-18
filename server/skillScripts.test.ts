@@ -433,6 +433,106 @@ describe('Codex Pro Max skill scripts', () => {
     await expect(readFile(path.join(runDir, 'instruction.txt'), 'utf8')).resolves.toBe(instruction)
   })
 
+  it('captures an already received instruction when wait starts after the run is marked running', async () => {
+    const root = await createTempRoot()
+    const runDir = path.join(root, 'runs', 'target-run')
+    await mkdir(runDir, { recursive: true })
+    await writeFile(path.join(runDir, 'status.txt'), 'RUNNING')
+    await writeFile(path.join(runDir, 'instruction.txt'), 'Already sent before wait started.')
+
+    const result = await runPowerShellScript(WAIT_SCRIPT, ['-RunDir', runDir])
+    const payload = JSON.parse(result.stdout) as {
+      shouldFinish: boolean
+      instruction: string
+      status: string
+    }
+
+    expect(result.code).toBe(0)
+    expect(payload).toMatchObject({
+      shouldFinish: false,
+      instruction: 'Already sent before wait started.',
+      status: 'RUNNING',
+    })
+    await expect(readFile(path.join(runDir, 'session.md'), 'utf8')).resolves.toContain(
+      'Already sent before wait started.',
+    )
+  })
+
+  it('captures the latest queued user message from session history when wait starts late', async () => {
+    const root = await createTempRoot()
+    const runDir = path.join(root, 'runs', 'target-run')
+    const instruction = 'Use the message that arrived before the waiter.'
+    const sessionBlock = [
+      '<!-- codex-pro-max:message {"id":"assistant-1","role":"assistant","createdAtIso":"2026-05-10T00:00:00.000Z"} -->',
+      '## Codex - 2026-05-10T00:00:00.000Z',
+      '',
+      'Ready for review.',
+      '',
+      '<!-- codex-pro-max:message {"id":"user-1","role":"user","createdAtIso":"2026-05-10T00:00:01.000Z"} -->',
+      '## User - 2026-05-10T00:00:01.000Z',
+      '',
+      instruction,
+      '',
+      '',
+    ].join('\n')
+    await mkdir(runDir, { recursive: true })
+    await writeFile(path.join(runDir, 'status.txt'), 'RUNNING')
+    await writeFile(path.join(runDir, 'instruction.txt'), '')
+    await writeFile(path.join(runDir, 'session.md'), sessionBlock, 'utf8')
+
+    const result = await runPowerShellScript(WAIT_SCRIPT, ['-RunDir', runDir])
+    const payload = JSON.parse(result.stdout) as {
+      instruction: string
+      status: string
+    }
+
+    expect(result.code).toBe(0)
+    expect(payload).toMatchObject({
+      instruction,
+      status: 'RUNNING',
+    })
+    await expect(readFile(path.join(runDir, 'instruction.txt'), 'utf8')).resolves.toBe(instruction)
+  })
+
+  it('does not replay stale user history when the latest session message is from Codex', async () => {
+    const root = await createTempRoot()
+    const runDir = path.join(root, 'runs', 'target-run')
+    const sessionBlock = [
+      '<!-- codex-pro-max:message {"id":"user-1","role":"user","createdAtIso":"2026-05-10T00:00:00.000Z"} -->',
+      '## User - 2026-05-10T00:00:00.000Z',
+      '',
+      'Old instruction.',
+      '',
+      '<!-- codex-pro-max:message {"id":"assistant-1","role":"assistant","createdAtIso":"2026-05-10T00:00:01.000Z"} -->',
+      '## Codex - 2026-05-10T00:00:01.000Z',
+      '',
+      'Already answered.',
+      '',
+      '',
+    ].join('\n')
+    await mkdir(runDir, { recursive: true })
+    await writeFile(path.join(runDir, 'status.txt'), 'RUNNING')
+    await writeFile(path.join(runDir, 'instruction.txt'), '')
+    await writeFile(path.join(runDir, 'session.md'), sessionBlock, 'utf8')
+
+    const result = await runPowerShellScript(WAIT_SCRIPT, ['-RunDir', runDir], {
+      CODEX_PRO_MAX_POLL_SECONDS: '1',
+      CODEX_PRO_MAX_MAX_WAIT_SECONDS: '1',
+    })
+    const payload = JSON.parse(result.stdout) as {
+      idleTimeout: boolean
+      instruction: string
+      status: string
+    }
+
+    expect(result.code).toBe(0)
+    expect(payload).toMatchObject({
+      idleTimeout: true,
+      instruction: '',
+      status: 'RUNNING',
+    })
+  }, 10_000)
+
   it('returns cleanly after idle wait timeout before host shell timeout', async () => {
     const root = await createTempRoot()
     const runDir = path.join(root, 'runs', 'target-run')

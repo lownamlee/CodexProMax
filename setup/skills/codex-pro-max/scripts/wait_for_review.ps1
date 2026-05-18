@@ -97,11 +97,14 @@ function Read-LatestSessionUserInstruction([string]$Path) {
   $session = Read-TextUtf8NoBom $sessionPath
   if (-not $session.Trim()) { return "" }
 
-  $pattern = "(?ms)<!-- codex-pro-max:message (?<metadata>\{[^\r\n]*?`"role`":`"user`"[^\r\n]*?\}) -->\s*## User - [^\r\n]*\r?\n\r?\n(?<content>.*?)(?=\r?\n<!-- codex-pro-max:message|\z)"
+  $pattern = "(?ms)<!-- codex-pro-max:message (?<metadata>\{[^\r\n]*?`"role`":`"(?<role>user|assistant)`"[^\r\n]*?\}) -->\s*## (?:User|Codex) - [^\r\n]*\r?\n\r?\n(?<content>.*?)(?=\r?\n<!-- codex-pro-max:message|\z)"
   $matches = [System.Text.RegularExpressions.Regex]::Matches($session, $pattern)
   for ($i = $matches.Count - 1; $i -ge 0; $i--) {
     $content = $matches[$i].Groups["content"].Value.Trim()
-    if ($content) { return $content }
+    if ($content) {
+      if ($matches[$i].Groups["role"].Value -eq "user") { return $content }
+      return ""
+    }
   }
 
   return ""
@@ -206,7 +209,7 @@ try {
         Read-InstructionAndMarkRunning $resolvedRunDir
         exit 0
       }
-      if ($observedReviewState -and $current -eq "RUNNING") {
+      if ($current -eq "RUNNING") {
         $runningInstruction = (Read-TextUtf8NoBom $instructionPath).Trim()
         if (-not $runningInstruction) {
           $runningInstruction = Read-LatestSessionUserInstruction $resolvedRunDir

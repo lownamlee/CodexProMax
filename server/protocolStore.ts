@@ -575,7 +575,7 @@ async function listRunIds(rootPath: string): Promise<string[]> {
   try {
     const entries = await fs.readdir(runsPath, { withFileTypes: true })
     for (const entry of entries) {
-      if (entry.isDirectory() && isSafeRunId(entry.name)) {
+      if (entry.isDirectory() && isSafeRunId(entry.name) && await isProtocolRunDirectory(rootPath, entry.name)) {
         runIds.add(entry.name)
       }
     }
@@ -586,6 +586,30 @@ async function listRunIds(rootPath: string): Promise<string[]> {
   }
 
   return [...runIds]
+}
+
+async function isProtocolRunDirectory(rootPath: string, runId: string): Promise<boolean> {
+  const runPath = getRunPath(rootPath, runId)
+  const runFiles = [RUN_METADATA_FILE, ...PROTOCOL_TEXT_FILES]
+
+  for (const fileName of runFiles) {
+    if (await isFile(path.join(runPath, fileName))) {
+      return true
+    }
+  }
+
+  return false
+}
+
+async function isFile(filePath: string): Promise<boolean> {
+  try {
+    return (await fs.stat(filePath)).isFile()
+  } catch (error) {
+    if (isNodeError(error) && error.code === 'ENOENT') {
+      return false
+    }
+    throw error
+  }
 }
 
 async function getRunSummary(

@@ -105,6 +105,22 @@ describe('Codex Pro Max multi-run API', () => {
     expect(response.body.runs).toEqual([])
   })
 
+  it('ignores non-run folders inside the runs directory', async () => {
+    const logsPath = path.join(rootPath, 'runs', 'logs')
+    const runA = getRunPath(rootPath, 'run-a')
+    await fs.mkdir(logsPath, { recursive: true })
+    await fs.mkdir(runA, { recursive: true })
+    await fs.writeFile(path.join(logsPath, 'codex-pro-max-dev.out.log'), 'server output\n', 'utf8')
+    await fs.writeFile(path.join(logsPath, 'codex-pro-max-dev.err.log'), '', 'utf8')
+    await fs.writeFile(path.join(runA, 'status.txt'), 'WAITING_FOR_REVIEW\n', 'utf8')
+    appHandle = createApp({ rootPath, startWatcher: false })
+
+    const response = await request(appHandle.app).get('/api/snapshot').expect(200)
+
+    expect(response.body.runs.map((run: { runId: string }) => run.runId)).toEqual(['run-a'])
+    expect(response.body.selectedRunId).toBe('run-a')
+  })
+
   it('keeps two runs isolated when actions are sent to one run', async () => {
     const runA = getRunPath(rootPath, 'run-a')
     const runB = getRunPath(rootPath, 'run-b')
