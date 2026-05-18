@@ -409,6 +409,10 @@ button:disabled {
   transform: translate(-50%, -50%);
 }
 
+.left-sidebar .run-status-stopped-avatar img {
+  filter: grayscale(1);
+}
+
 .sidebar-profile-area {
   position: relative;
   flex: 0 0 auto;

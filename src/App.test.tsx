@@ -306,6 +306,7 @@ describe('App', () => {
     const stoppedImage = runButton.querySelector('.run-status-stopped-avatar img')
     expect(stoppedImage).toHaveAttribute('src', '/codex-stopped.webp')
     expect(runButton.querySelector('.ri-stop-circle-line')).not.toBeInTheDocument()
+    expect(appStyles).toMatch(/\.left-sidebar \.run-status-stopped-avatar img\s*\{[^}]*filter:\s*grayscale\(1\);/)
   })
 
   it('persists collapsed sidebar state across remounts', async () => {
