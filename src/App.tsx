@@ -2221,9 +2221,11 @@ function RunStatusIcon({ status }: { status: ProtocolStatus }) {
   if (status === 'WAITING_FOR_REVIEW') {
     return (
       <span
-        className={`run-icon run-status-icon run-status-review-orb ${statusClass}`}
+        className={`run-icon run-status-icon run-status-thinking-avatar run-status-review-avatar ${statusClass}`}
         aria-hidden="true"
-      />
+      >
+        <img src={CODEX_THINKING_IMAGE} alt="" />
+      </span>
     )
   }
 
