@@ -569,6 +569,7 @@ describe('Codex Pro Max skill scripts', () => {
     const skillRoot = path.join(codexHome, 'skills', 'codex-pro-max')
     await mkdir(path.join(skillRoot, 'scripts'), { recursive: true })
     await writeFile(path.join(skillRoot, 'scripts', 'stale-copy.tmp'), 'stale file')
+    await writeFile(path.join(codexHome, 'config.toml'), 'model = "gpt-5"\nmodel_instructions_file = "../soul.md"\n\n')
 
     const result = await runCmdScript(SETUP_SCRIPT, ['-CodexHome', codexHome])
 
@@ -603,6 +604,9 @@ describe('Codex Pro Max skill scripts', () => {
     expect(installation.codexHome).toBe(codexHome)
     expect(installation.skillRoot).toBe(path.join(codexHome, 'skills', 'codex-pro-max'))
     const config = await readFile(path.join(codexHome, 'config.toml'), 'utf8')
+    expect(config).toContain('model = "gpt-5"')
+    expect(config).toContain('model_instructions_file = "AGENTS.md"')
+    expect(config).not.toContain('../soul.md')
     expect(config).toContain(path.join(codexHome, 'skills', 'codex-pro-max', 'SKILL.md').replaceAll('\\', '\\\\'))
     const scriptFiles = await readdir(path.join(skillRoot, 'scripts'))
     expect([...scriptFiles].sort()).toEqual(['create_session.ps1', 'request_review.ps1', 'wait_for_review.ps1'])
@@ -624,6 +628,7 @@ describe('Codex Pro Max skill scripts', () => {
     const config = await readFile(path.join(codexHome, 'config.toml'), 'utf8')
     expect(config).toContain('model = "gpt-5"')
     expect(config).not.toContain('codex-pro-max')
+    expect(config).not.toContain('model_instructions_file')
   })
 
   it('uninstall preserves modified global instructions unless forced', async () => {

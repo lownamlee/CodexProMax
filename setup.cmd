@@ -81,6 +81,7 @@ function Install-CopiedFile([string]$Source, [string]$Destination) {
 
 function Update-CodexConfig([string]$Path, [string]$SkillFile) {
   $tomlSkillPath = $SkillFile.Replace("\", "\\")
+  $instructionsEntry = 'model_instructions_file = "AGENTS.md"'
   $entry = "[[skills.config]]`npath = `"$tomlSkillPath`"`nenabled = true`n"
   $text = ""
   if (Test-Path -LiteralPath $Path) {
@@ -88,6 +89,19 @@ function Update-CodexConfig([string]$Path, [string]$SkillFile) {
   }
 
   $updated = $text
+
+  if ([System.Text.RegularExpressions.Regex]::IsMatch($updated, '(?m)^\s*model_instructions_file\s*=')) {
+    $updated = [System.Text.RegularExpressions.Regex]::Replace(
+      $updated,
+      '(?m)^\s*model_instructions_file\s*=.*$',
+      $instructionsEntry,
+      1
+    )
+  } elseif ($updated.Trim()) {
+    $updated = $instructionsEntry + "`n" + $updated.TrimStart()
+  } else {
+    $updated = $instructionsEntry + "`n"
+  }
 
   if (-not $updated.Contains($tomlSkillPath)) {
     if ($updated.Trim()) {

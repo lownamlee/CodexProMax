@@ -136,6 +136,41 @@ function Remove-CodexConfigEntry([string]$Path, [string]$SkillFile) {
   return $true
 }
 
+function Remove-CodexInstructionsConfig([string]$Path, [string]$AgentsFile) {
+  if (-not (Test-Path -LiteralPath $Path)) {
+    return $false
+  }
+
+  $text = [System.IO.File]::ReadAllText($Path, $script:Utf8NoBom)
+  $tomlAgentsPath = $AgentsFile.Replace("\", "\\")
+  $candidatePaths = @("AGENTS.md", $tomlAgentsPath, $AgentsFile) | Select-Object -Unique
+  $updated = $text
+
+  foreach ($candidatePath in $candidatePaths) {
+    $linePattern = '(?m)^\s*model_instructions_file\s*=\s*"' + [System.Text.RegularExpressions.Regex]::Escape($candidatePath) + '"\s*(?:#.*)?\r?\n?'
+    $next = [System.Text.RegularExpressions.Regex]::Replace($updated, $linePattern, "")
+    if ($next -ne $updated) {
+      $updated = $next
+      break
+    }
+  }
+
+  if ($updated -eq $text) {
+    return $false
+  }
+
+  $updated = $updated -replace "(\r?\n){3,}", ([Environment]::NewLine + [Environment]::NewLine)
+  $updated = $updated.Trim()
+
+  if ([string]::IsNullOrWhiteSpace($updated)) {
+    Remove-Item -LiteralPath $Path -Force
+  } else {
+    Write-AtomicTextNoBom $Path ($updated + [Environment]::NewLine)
+  }
+
+  return $true
+}
+
 $skillsRoot = Join-Path $CodexHome "skills"
 $skillRoot = Join-Path $skillsRoot "codex-pro-max"
 $agentsPath = Join-Path $CodexHome "AGENTS.md"
@@ -159,6 +194,12 @@ if (Remove-CodexConfigEntry $configPath $skillPath) {
   Write-Host "Removed Codex config entry: $configPath"
 } else {
   Write-Host "Codex config entry was not present: $configPath"
+}
+
+if (Remove-CodexInstructionsConfig $configPath $agentsPath) {
+  Write-Host "Removed Codex instructions config: $configPath"
+} else {
+  Write-Host "Codex instructions config was not present: $configPath"
 }
 
 if (Test-Path -LiteralPath $agentsPath) {
