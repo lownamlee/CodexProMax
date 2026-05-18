@@ -125,6 +125,9 @@ const CODEX_LOGO_IMAGE = '/codex-color.png'
 const CODEX_STOPPED_IMAGE = '/codex-stopped.webp'
 const CODEX_THINKING_IMAGE = '/codex-thinking.webp'
 const USER_PROFILE_IMAGE = '/burger.png'
+const MAX_COLLAPSED_RUN_ITEMS = 10
+const COLLAPSED_RUN_ITEM_HEIGHT_PX = 46
+const COLLAPSED_RUN_ITEM_GAP_PX = 3
 const LEFT_SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-pro-max:left-sidebar-collapsed'
 const RIGHT_SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-collapsed'
 const OUTLINES_COLLAPSED_STORAGE_KEY = 'codex-pro-max:right-sidebar-outlines-collapsed'
@@ -1718,6 +1721,29 @@ function RunInbox({
   const [workspaceSettingsDialogOpen, setWorkspaceSettingsDialogOpen] = useState(false)
   const [skillsDialogOpen, setSkillsDialogOpen] = useState(false)
   const profileAreaRef = useRef<HTMLDivElement | null>(null)
+  const runListRef = useRef<HTMLDivElement | null>(null)
+  const [collapsedRunLimit, setCollapsedRunLimit] = useState(MAX_COLLAPSED_RUN_ITEMS)
+
+  const updateCollapsedRunLimit = useCallback(() => {
+    const runList = runListRef.current
+    if (!runList) {
+      setCollapsedRunLimit(MAX_COLLAPSED_RUN_ITEMS)
+      return
+    }
+
+    const height = runList.clientHeight || runList.getBoundingClientRect().height
+    if (height <= 0) {
+      setCollapsedRunLimit(MAX_COLLAPSED_RUN_ITEMS)
+      return
+    }
+
+    const styles = window.getComputedStyle(runList)
+    const paddingY = parseFloat(styles.paddingTop || '0') + parseFloat(styles.paddingBottom || '0')
+    const rowGap = parseFloat(styles.rowGap || styles.gap || '') || COLLAPSED_RUN_ITEM_GAP_PX
+    const availableHeight = Math.max(0, height - paddingY)
+    const visibleByHeight = Math.floor((availableHeight + rowGap) / (COLLAPSED_RUN_ITEM_HEIGHT_PX + rowGap))
+    setCollapsedRunLimit(Math.max(0, Math.min(MAX_COLLAPSED_RUN_ITEMS, visibleByHeight)))
+  }, [])
 
   useEffect(() => {
     if (!profileMenuOpen) {
@@ -1738,6 +1764,29 @@ function RunInbox({
     return () => document.removeEventListener('pointerdown', handlePointerDown)
   }, [profileMenuOpen])
 
+  useLayoutEffect(() => {
+    if (!collapsed) {
+      setCollapsedRunLimit(MAX_COLLAPSED_RUN_ITEMS)
+      return
+    }
+
+    updateCollapsedRunLimit()
+
+    const runList = runListRef.current
+    if (!runList) return
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(updateCollapsedRunLimit)
+      observer.observe(runList)
+      return () => observer.disconnect()
+    }
+
+    window.addEventListener('resize', updateCollapsedRunLimit)
+    return () => window.removeEventListener('resize', updateCollapsedRunLimit)
+  }, [collapsed, runs.length, updateCollapsedRunLimit])
+
+  const visibleRuns = collapsed ? runs.slice(0, collapsedRunLimit) : runs
+
   return (
     <aside id="left-sidebar" className={`sidebar left-sidebar ${collapsed ? 'collapsed' : ''}`} aria-label="Run inbox">
       <div className="sidebar-inner">
@@ -1755,8 +1804,8 @@ function RunInbox({
             <code>runs/&lt;runId&gt;/</code>
           </div>
         ) : (
-          <div className="run-list">
-            {runs.map((run) => (
+          <div className="run-list" ref={runListRef}>
+            {visibleRuns.map((run) => (
               <div
                 key={run.runId}
                 className={`run-item ${run.runId === selectedRunId ? 'active' : ''}`}

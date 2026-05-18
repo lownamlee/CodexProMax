@@ -329,6 +329,48 @@ describe('App', () => {
     expect(screen.getByLabelText('Protocol details')).toHaveClass('collapsed')
   })
 
+  it('caps collapsed run inbox items to the visible height without scroll overflow', async () => {
+    const runs = Array.from({ length: 12 }, (_, index) => ({
+      ...managerFactory().runs[0],
+      runId: index === 0 ? 'run-a' : `run-${index + 1}`,
+      displayName: `Run ${index + 1}`,
+      rootPath: `C:\\Users\\ramly\\Desktop\\CodexProMax\\runs\\run-${index + 1}`,
+      updatedAtIso: `2026-05-07T00:${String(index).padStart(2, '0')}:00.000Z`,
+      updatedAtMs: index + 1,
+    }))
+    vi.mocked(fetch).mockImplementation(async (url: string | URL | Request) => {
+      const requestUrl = String(url)
+      if (requestUrl === '/api/teammates') {
+        return jsonResponse({ ok: true, teammates: teammateFactory() })
+      }
+      if (requestUrl === '/api/snapshot') {
+        return jsonResponse(managerFactory({ runs, selectedRunId: 'run-a' }))
+      }
+      if (requestUrl.includes('/api/runs/run-a/snapshot')) {
+        return jsonResponse(snapshotFactory({ displayName: 'Run 1' }))
+      }
+      return jsonResponse({ ok: false, error: `Unhandled request: ${requestUrl}` }, 500)
+    })
+    window.localStorage.setItem('codex-pro-max:left-sidebar-collapsed', 'true')
+
+    render(<App />)
+    await getEventSource()
+
+    const sidebar = screen.getByLabelText('Run inbox')
+    const runList = sidebar.querySelector('.run-list') as HTMLElement
+    expect(runList.querySelectorAll('.run-item')).toHaveLength(10)
+    expect(appStyles).toMatch(/\.left-sidebar\.collapsed \.run-list\s*\{[^}]*overflow:\s*hidden;/)
+    expect(appStyles).toMatch(/\.run-list\s*\{[^}]*overflow-x:\s*hidden;/)
+
+    Object.defineProperty(runList, 'clientHeight', {
+      configurable: true,
+      get: () => 154,
+    })
+    act(() => window.dispatchEvent(new Event('resize')))
+
+    await waitFor(() => expect(runList.querySelectorAll('.run-item')).toHaveLength(3))
+  })
+
   it('shows context separately from matching 5h and weekly limits on the root conversation', async () => {
     const currentRunId = '019e1aab-577b-7741-8889-c683dd299526'
     vi.mocked(fetch).mockImplementation(async (url: string | URL | Request) => {

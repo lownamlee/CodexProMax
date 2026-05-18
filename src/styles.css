@@ -233,6 +233,7 @@ button:disabled {
 
 .left-sidebar.collapsed .sidebar-inner {
   width: 56px;
+  overflow: hidden;
 }
 
 .left-sidebar.collapsed .brand-area {
@@ -245,6 +246,7 @@ button:disabled {
 .left-sidebar.collapsed .run-list {
   width: 56px;
   align-items: center;
+  overflow: hidden;
   padding: 4px 8px;
 }
 
@@ -282,6 +284,7 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  overflow-x: hidden;
   overflow-y: auto;
   padding: 4px 4px;
 }
