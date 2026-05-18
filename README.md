@@ -201,6 +201,8 @@ CodexProMax/
   <img src="./assets/readme/system-paper-figure.png" alt="Codex Pro Max system architecture" width="980" />
 </p>
 
+This diagram shows the ownership boundaries in the local system. The browser UI talks to the Express API, the API reads and writes the file protocol under `runs/<runId>`, and the snapshot hub pushes file changes back to the UI over SSE. Codex reaches the same protocol files through the installed skill scripts, so the browser and Codex stay coordinated without sharing process memory.
+
 ```mermaid
 flowchart LR
     UI["React + Vite UI"] <--> API["Express API"]
@@ -212,6 +214,8 @@ flowchart LR
 ```
 
 ### Review Loop
+
+This sequence is one complete human review cycle. Codex creates or reopens a run, writes its conclusion through `request_review.ps1`, and waits. The browser sees the updated run through the API, the user sends the next instruction, and `wait_for_review.ps1` returns that instruction JSON to the same Codex conversation.
 
 ```mermaid
 sequenceDiagram
@@ -235,6 +239,8 @@ sequenceDiagram
 
 ### File Protocol
 
+Each run is a plain directory under `runs/`. The small text files are the contract between the browser API and the skill scripts: status coordinates state, instruction carries the next prompt, output carries the latest answer, and session keeps a readable history. Metadata, audit events, and attachments add context without changing that core handshake.
+
 ```mermaid
 flowchart TD
     Root["runs/"] --> Run["&lt;runId&gt;/"]
@@ -248,6 +254,8 @@ flowchart TD
 ```
 
 ### Status Model
+
+The status file is a coordination flag, not a background job queue. A normal loop moves from `RUNNING` to `WAITING_FOR_REVIEW` after Codex writes an answer, then to `INSTRUCTION_RECEIVED` when the browser saves a user prompt, and back to `RUNNING` once Codex consumes it. `BLOCKED`, `ERROR`, and `STOPPED` are visible states for cases that need human attention or resume behavior.
 
 ```mermaid
 stateDiagram-v2
