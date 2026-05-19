@@ -177,7 +177,7 @@ export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
       : request.params.fileName
     const fileName = parseAttachmentName(rawFileName)
     const attachmentPath = path.join(getAttachmentsPath(getRunPath(rootPath, runId)), fileName)
-    response.sendFile(attachmentPath)
+    response.sendFile(attachmentPath, { dotfiles: 'allow' })
   })
 
   app.use((_request, response) => {

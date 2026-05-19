@@ -351,6 +351,27 @@ describe('Codex Pro Max multi-run API', () => {
     expect(runBExists).toBe(false)
   })
 
+  it('serves attachment previews from dot-prefixed protocol roots', async () => {
+    const dotRootPath = path.join(rootPath, '.codex-pro-max')
+    appHandle = createApp({ rootPath: dotRootPath, startWatcher: false })
+
+    const uploadResponse = await request(appHandle.app)
+      .post('/api/runs/run-a/upload')
+      .attach('file', Buffer.from('fake png'), {
+        filename: 'shot.png',
+        contentType: 'image/png',
+      })
+      .expect(201)
+
+    const fileName = uploadResponse.body.attachment.name
+    const previewResponse = await request(appHandle.app)
+      .get(`/api/runs/run-a/attachments/${encodeURIComponent(fileName)}`)
+      .expect(200)
+
+    expect(previewResponse.headers['content-type']).toMatch(/image\/png/)
+    expect(previewResponse.text || previewResponse.body.toString()).toBe('fake png')
+  })
+
   it('deletes one attachment without deleting the selected run', async () => {
     const runA = getRunPath(rootPath, 'run-a')
     const attachmentsPath = path.join(runA, 'attachments')
