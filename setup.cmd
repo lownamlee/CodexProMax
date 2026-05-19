@@ -44,7 +44,8 @@ exit /b %EXIT_CODE%
 
 :POWERSHELL_PAYLOAD
 param(
-  [string]$CodexHome = ""
+  [string]$CodexHome = "",
+  [string]$DataRoot = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -60,6 +61,14 @@ if ([string]::IsNullOrWhiteSpace($CodexHome)) {
   }
 }
 $CodexHome = [System.IO.Path]::GetFullPath($CodexHome)
+if ([string]::IsNullOrWhiteSpace($DataRoot)) {
+  if (-not [string]::IsNullOrWhiteSpace($env:CODEX_PRO_MAX_DATA_ROOT)) {
+    $DataRoot = $env:CODEX_PRO_MAX_DATA_ROOT
+  } else {
+    $DataRoot = Join-Path $HOME ".codex-pro-max"
+  }
+}
+$DataRoot = [System.IO.Path]::GetFullPath($DataRoot)
 
 function Write-AtomicTextNoBom([string]$Path, [string]$Value) {
   $parent = Split-Path -Parent $Path
@@ -116,6 +125,35 @@ function Update-CodexConfig([string]$Path, [string]$SkillFile) {
   }
 }
 
+function Copy-LegacyProtocolData([string]$SourceRoot, [string]$DestinationRoot) {
+  $sourceFull = [System.IO.Path]::GetFullPath($SourceRoot)
+  $destinationFull = [System.IO.Path]::GetFullPath($DestinationRoot)
+  if ($sourceFull.TrimEnd('\') -ieq $destinationFull.TrimEnd('\')) { return }
+
+  function Copy-DirectoryContents([string]$SourceDirectory, [string]$DestinationDirectory) {
+    New-Item -ItemType Directory -Path $DestinationDirectory -Force | Out-Null
+    Get-ChildItem -LiteralPath $SourceDirectory -Force -ErrorAction SilentlyContinue | ForEach-Object {
+      Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $DestinationDirectory $_.Name) -Recurse -Force
+    }
+  }
+
+  $sourceRuns = Join-Path $sourceFull "runs"
+  if (Test-Path -LiteralPath $sourceRuns) {
+    $destinationRuns = Join-Path $destinationFull "runs"
+    New-Item -ItemType Directory -Path $destinationRuns -Force | Out-Null
+    Get-ChildItem -LiteralPath $sourceRuns -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+      Copy-DirectoryContents $_.FullName (Join-Path $destinationRuns $_.Name)
+    }
+  }
+
+  $sourceTeammates = Join-Path $sourceFull "teammates.json"
+  $destinationTeammates = Join-Path $destinationFull "teammates.json"
+  if ((Test-Path -LiteralPath $sourceTeammates) -and -not (Test-Path -LiteralPath $destinationTeammates)) {
+    New-Item -ItemType Directory -Path $destinationFull -Force | Out-Null
+    Copy-Item -LiteralPath $sourceTeammates -Destination $destinationTeammates -Force
+  }
+}
+
 $skillsRoot = Join-Path $CodexHome "skills"
 $skillRoot = Join-Path $skillsRoot "codex-pro-max"
 $skillScripts = Join-Path $skillRoot "scripts"
@@ -124,6 +162,8 @@ $skillPath = Join-Path $skillRoot "SKILL.md"
 $configPath = Join-Path $CodexHome "config.toml"
 
 New-Item -ItemType Directory -Path $CodexHome -Force | Out-Null
+New-Item -ItemType Directory -Path $DataRoot -Force | Out-Null
+Copy-LegacyProtocolData $ProjectRoot $DataRoot
 if (Test-Path -LiteralPath $skillRoot) {
   Remove-Item -LiteralPath $skillRoot -Recurse -Force
 }
@@ -138,6 +178,7 @@ Update-CodexConfig $configPath $skillPath
 
 $installation = [ordered]@{
   projectRoot = $ProjectRoot
+  dataRoot = $DataRoot
   codexHome = $CodexHome
   skillRoot = $skillRoot
   installedAtIso = (Get-Date).ToUniversalTime().ToString("o")
@@ -146,6 +187,7 @@ Write-AtomicTextNoBom (Join-Path $skillRoot "INSTALLATION.json") $installation
 
 Write-Host "Installed Codex Pro Max configuration."
 Write-Host "Project root: $ProjectRoot"
+Write-Host "Data root: $DataRoot"
 Write-Host "Codex home: $CodexHome"
 Write-Host "Global instructions: $agentsPath"
 Write-Host "Skill: $skillPath"

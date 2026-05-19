@@ -31,7 +31,7 @@ Codex Pro Max helps when you want Codex to keep working step by step without los
 - Send the next prompt from Codex Pro Max.
 - Keep the same Codex session going after every reply.
 - Type ahead while Codex is busy.
-- Keep run files locally in the `runs/` folder.
+- Keep run files locally under `%USERPROFILE%\.codex-pro-max\runs`.
 
 <p align="center">
   <img src="./assets/readme/why-it-exists.png" alt="Why Codex Pro Max exists" width="900" />
@@ -62,6 +62,7 @@ From the project folder, double-click `setup.cmd` or run:
 | Codex Pro Max skill | `%USERPROFILE%\.codex\skills\codex-pro-max` | Gives Codex the scripts it needs to create sessions, submit conclusions, and wait for your next prompt. |
 | System instruction file | `%USERPROFILE%\.codex\AGENTS.md` | Tells Codex when and how to use Codex Pro Max. |
 | Codex config entry | `%USERPROFILE%\.codex\config.toml` | Enables the installed skill for Codex. |
+| Codex Pro Max data | `%USERPROFILE%\.codex-pro-max` | Stores run records outside the cloned project so deleting or recloning the repo does not erase conversations. |
 
 If Codex was already open, restart it after running setup so it can load the new skill and instructions.
 
@@ -72,6 +73,8 @@ To remove these installed Codex files later, run:
 ```
 
 The uninstaller removes the Codex Pro Max skill directory and its Codex config entry. It also removes `%USERPROFILE%\.codex\AGENTS.md` when that file still matches this project's installed instructions; if you edited that file, the uninstaller preserves it unless you run `.\uninstall.cmd -ForceAgents`.
+
+The uninstaller leaves `%USERPROFILE%\.codex-pro-max` in place so your run records are not removed with the app configuration.
 
 <p align="center">
   <img src="./assets/readme/setup-cmd-success.png" alt="setup.cmd completed successfully" width="900" />
@@ -86,6 +89,7 @@ Run:
 ```
 
 This command checks dependencies, installs missing packages if needed, and starts the local project.
+Run records are stored in `%USERPROFILE%\.codex-pro-max` by default. To use a different storage folder, set `CODEX_PRO_MAX_DATA_ROOT` before running `start-project.cmd` and `setup.cmd`.
 
 When it is running, open:
 
@@ -174,12 +178,13 @@ CodexProMax/
   setup/skills/codex-pro-max/  Installable Codex skill
   public/                      Static app files
   assets/readme/               README images and GIFs
-  runs/                        Local runtime state, ignored by git
   AGENTS.md                    System instructions installed by setup.cmd
   setup.cmd                    Installs the Codex skill and config
   uninstall.cmd                Removes the installed Codex skill and config entry
   start-project.cmd            Starts Codex Pro Max
 ```
+
+Runtime state lives outside this tree at `%USERPROFILE%\.codex-pro-max` unless `CODEX_PRO_MAX_ROOT` or `CODEX_PRO_MAX_DATA_ROOT` points somewhere else.
 
 ## Commands
 
@@ -201,7 +206,7 @@ CodexProMax/
   <img src="./assets/readme/system-paper-figure.png" alt="Codex Pro Max system architecture" width="980" />
 </p>
 
-This diagram shows the ownership boundaries in the local system. The browser UI talks to the Express API, the API reads and writes the file protocol under `runs/<runId>`, and the snapshot hub pushes file changes back to the UI over SSE. Codex reaches the same protocol files through the installed skill scripts, so the browser and Codex stay coordinated without sharing process memory.
+This diagram shows the ownership boundaries in the local system. The browser UI talks to the Express API, the API reads and writes the file protocol under `%USERPROFILE%\.codex-pro-max\runs\<runId>`, and the snapshot hub pushes file changes back to the UI over SSE. Codex reaches the same protocol files through the installed skill scripts, so the browser and Codex stay coordinated without sharing process memory.
 
 ```mermaid
 flowchart LR
@@ -239,7 +244,7 @@ sequenceDiagram
 
 ### File Protocol
 
-Each run is a plain directory under `runs/`. The small text files are the contract between the browser API and the skill scripts: status coordinates state, instruction carries the next prompt, output carries the latest answer, and session keeps a readable history. Metadata, audit events, and attachments add context without changing that core handshake.
+Each run is a plain directory under the data root's `runs/` folder. The small text files are the contract between the browser API and the skill scripts: status coordinates state, instruction carries the next prompt, output carries the latest answer, and session keeps a readable history. Metadata, audit events, and attachments add context without changing that core handshake.
 
 ```mermaid
 flowchart TD

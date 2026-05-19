@@ -9,6 +9,27 @@ echo Starting Codex Pro Max
 echo Project folder: %CD%
 echo.
 
+if not defined CODEX_PRO_MAX_DATA_ROOT (
+  set "CODEX_PRO_MAX_DATA_ROOT=%USERPROFILE%\.codex-pro-max"
+)
+
+if not exist "%CODEX_PRO_MAX_DATA_ROOT%" (
+  mkdir "%CODEX_PRO_MAX_DATA_ROOT%" >nul 2>nul
+)
+
+if exist "runs" (
+  powershell -NoProfile -ExecutionPolicy Bypass -Command "& { $ErrorActionPreference = 'Stop'; $source = Join-Path (Get-Location).Path 'runs'; $target = Join-Path $env:CODEX_PRO_MAX_DATA_ROOT 'runs'; if ((Test-Path -LiteralPath $source) -and ([System.IO.Path]::GetFullPath($source).TrimEnd('\') -ine [System.IO.Path]::GetFullPath($target).TrimEnd('\'))) { New-Item -ItemType Directory -Path $target -Force | Out-Null; Get-ChildItem -LiteralPath $source -Directory -ErrorAction SilentlyContinue | ForEach-Object { $sourceRun = $_.FullName; $destination = Join-Path $target $_.Name; New-Item -ItemType Directory -Path $destination -Force | Out-Null; Get-ChildItem -LiteralPath $sourceRun -Force -ErrorAction SilentlyContinue | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $destination $_.Name) -Recurse -Force } } } }"
+  if errorlevel 1 (
+    echo [ERROR] Failed to migrate existing run records into "%CODEX_PRO_MAX_DATA_ROOT%".
+    echo.
+    pause
+    exit /b 1
+  )
+)
+
+echo Data folder: %CODEX_PRO_MAX_DATA_ROOT%
+echo.
+
 where node >nul 2>nul
 if errorlevel 1 (
   echo [ERROR] Node.js was not found on PATH.

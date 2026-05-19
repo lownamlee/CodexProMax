@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
 import fs from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import type {
   AttachmentMeta,
@@ -30,6 +31,7 @@ export const ATTACHMENTS_DIR_NAME = 'attachments'
 export const RUN_METADATA_FILE = 'run.json'
 export const SESSION_FILE = 'session.md'
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+export const DEFAULT_DATA_DIR_NAME = '.codex-pro-max'
 const OUTPUT_PREVIEW_BYTES = 4096
 
 const ATTACHMENT_MIME_BY_EXTENSION: Record<string, string> = {
@@ -111,8 +113,22 @@ const sessionMessageCache = new Map<string, SessionMessageCacheEntry>()
 
 export type AtomicTextWriter = (filePath: string, contents: string) => Promise<void>
 
+export function getDefaultProtocolRoot(): string {
+  const configuredDataRoot = process.env.CODEX_PRO_MAX_DATA_ROOT?.trim()
+  if (configuredDataRoot) {
+    return path.resolve(configuredDataRoot)
+  }
+
+  const homeDirectory = os.homedir()
+  if (homeDirectory) {
+    return path.resolve(homeDirectory, DEFAULT_DATA_DIR_NAME)
+  }
+
+  return process.cwd()
+}
+
 export function resolveProtocolRoot(rootPath = process.env.CODEX_PRO_MAX_ROOT): string {
-  return path.resolve(rootPath || process.cwd())
+  return path.resolve(rootPath?.trim() || getDefaultProtocolRoot())
 }
 
 export function getRunsPath(rootPath: string): string {

@@ -78,7 +78,7 @@ function Get-SafeRunId([string]$Value) {
   return $safe
 }
 
-function Get-InstalledProjectRoot {
+function Get-InstalledDataRoot {
   $scriptRoot = Split-Path -Parent $PSCommandPath
   $skillRoot = Split-Path -Parent $scriptRoot
   $installationPath = Join-Path $skillRoot "INSTALLATION.json"
@@ -86,11 +86,21 @@ function Get-InstalledProjectRoot {
 
   try {
     $installation = Read-TextUtf8NoBom $installationPath | ConvertFrom-Json
-    if ($installation.projectRoot) {
-      return [string]$installation.projectRoot
+    if ($installation.dataRoot) {
+      return [string]$installation.dataRoot
     }
   } catch {}
 
+  return ""
+}
+
+function Get-DefaultDataRoot {
+  if (-not [string]::IsNullOrWhiteSpace($env:CODEX_PRO_MAX_DATA_ROOT)) {
+    return $env:CODEX_PRO_MAX_DATA_ROOT
+  }
+  if (-not [string]::IsNullOrWhiteSpace($HOME)) {
+    return (Join-Path $HOME ".codex-pro-max")
+  }
   return ""
 }
 
@@ -151,7 +161,10 @@ if ([string]::IsNullOrWhiteSpace($Root)) {
   $Root = $env:CODEX_PRO_MAX_ROOT
 }
 if ([string]::IsNullOrWhiteSpace($Root)) {
-  $Root = Get-InstalledProjectRoot
+  $Root = Get-InstalledDataRoot
+}
+if ([string]::IsNullOrWhiteSpace($Root)) {
+  $Root = Get-DefaultDataRoot
 }
 if ([string]::IsNullOrWhiteSpace($Root)) {
   $Root = (Get-Location).Path

@@ -70,6 +70,42 @@ describe('Codex Pro Max skill scripts', () => {
     await expect(readFile(path.join(runDir, 'session.md'), 'utf8')).resolves.toBe('')
   })
 
+  it('creates sessions in the durable data root by default', async () => {
+    const dataRoot = await createTempRoot()
+    const threadId = 'thread-data-root-123'
+    const runDir = path.join(dataRoot, 'runs', threadId)
+
+    const result = await runPowerShellScript(CREATE_SCRIPT, [], {
+      CODEX_PRO_MAX_ROOT: '',
+      CODEX_PRO_MAX_DATA_ROOT: dataRoot,
+      CODEX_THREAD_ID: threadId,
+    })
+    const payload = JSON.parse(result.stdout) as {
+      ok: boolean
+      root: string
+      runId: string
+      runDir: string
+      status: string
+    }
+    const metadata = JSON.parse(await readFile(path.join(runDir, 'run.json'), 'utf8')) as {
+      workspacePath: string
+      codexThreadId: string
+    }
+
+    expect(result.code).toBe(0)
+    expect(payload).toMatchObject({
+      ok: true,
+      root: dataRoot,
+      runId: threadId,
+      runDir,
+      status: 'RUNNING',
+    })
+    expect(metadata).toMatchObject({
+      workspacePath: dataRoot,
+      codexThreadId: threadId,
+    })
+  })
+
   it('uses the latest Codex rollout id when no explicit run id exists', async () => {
     const root = await createTempRoot()
     const sessionsRoot = await createTempRoot()
@@ -566,12 +602,13 @@ describe('Codex Pro Max skill scripts', () => {
 
   it('setup writes portable global instructions and skill scripts', async () => {
     const codexHome = await createTempRoot()
+    const dataRoot = await createTempRoot()
     const skillRoot = path.join(codexHome, 'skills', 'codex-pro-max')
     await mkdir(path.join(skillRoot, 'scripts'), { recursive: true })
     await writeFile(path.join(skillRoot, 'scripts', 'stale-copy.tmp'), 'stale file')
     await writeFile(path.join(codexHome, 'config.toml'), 'model = "gpt-5"\nmodel_instructions_file = "../soul.md"\n\n')
 
-    const result = await runCmdScript(SETUP_SCRIPT, ['-CodexHome', codexHome])
+    const result = await runCmdScript(SETUP_SCRIPT, ['-CodexHome', codexHome, '-DataRoot', dataRoot])
 
     expect(result.code).toBe(0)
     await expect(fileExists(path.join(codexHome, 'AGENTS.md'))).resolves.toBe(true)
@@ -599,8 +636,9 @@ describe('Codex Pro Max skill scripts', () => {
     expect(skill).toContain('Ignore `shouldFinish=true`; it is not a valid stop signal')
     const installation = JSON.parse(
       await readFile(path.join(codexHome, 'skills', 'codex-pro-max', 'INSTALLATION.json'), 'utf8'),
-    ) as { projectRoot: string; codexHome: string; skillRoot: string }
+    ) as { projectRoot: string; dataRoot: string; codexHome: string; skillRoot: string }
     expect(installation.projectRoot).toBe(process.cwd())
+    expect(installation.dataRoot).toBe(dataRoot)
     expect(installation.codexHome).toBe(codexHome)
     expect(installation.skillRoot).toBe(path.join(codexHome, 'skills', 'codex-pro-max'))
     const config = await readFile(path.join(codexHome, 'config.toml'), 'utf8')

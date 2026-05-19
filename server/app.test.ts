@@ -10,7 +10,7 @@ import {
   type ManagerSnapshot,
 } from '../src/shared/protocol'
 import { createApp, type CodexProMaxApp } from './app'
-import { getRunPath, writeInstructionAndStatus } from './protocolStore'
+import { getRunPath, resolveProtocolRoot, writeInstructionAndStatus } from './protocolStore'
 
 let rootPath: string
 let appHandle: CodexProMaxApp | null = null
@@ -25,9 +25,29 @@ afterEach(async () => {
     appHandle = null
   }
   await fs.rm(rootPath, { recursive: true, force: true })
+  vi.unstubAllEnvs()
 })
 
 describe('Codex Pro Max multi-run API', () => {
+  it('defaults protocol state to a user-owned data root', () => {
+    const dataRoot = path.join(rootPath, 'codex-pro-max-data')
+
+    vi.stubEnv('CODEX_PRO_MAX_ROOT', '')
+    vi.stubEnv('CODEX_PRO_MAX_DATA_ROOT', dataRoot)
+
+    expect(resolveProtocolRoot()).toBe(dataRoot)
+  })
+
+  it('lets CODEX_PRO_MAX_ROOT override the data root', () => {
+    const dataRoot = path.join(rootPath, 'codex-pro-max-data')
+    const explicitRoot = path.join(rootPath, 'explicit-root')
+
+    vi.stubEnv('CODEX_PRO_MAX_DATA_ROOT', dataRoot)
+    vi.stubEnv('CODEX_PRO_MAX_ROOT', explicitRoot)
+
+    expect(resolveProtocolRoot()).toBe(explicitRoot)
+  })
+
   it('returns an empty manager snapshot when no runs exist', async () => {
     appHandle = createApp({ rootPath, startWatcher: false })
 

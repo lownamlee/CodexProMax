@@ -1010,7 +1010,7 @@ function App() {
   async function handleDeleteRun(run: RunSummary) {
     const confirmed = await requestConfirmation({
       title: 'Delete run',
-      message: `Delete run "${run.displayName}"?\n\nThis removes runs/${run.runId}/ and its protocol files.`,
+      message: `Delete run "${run.displayName}"?\n\nThis removes the selected run folder and its protocol files.`,
       confirmLabel: 'Delete run',
       tone: 'danger',
     })
@@ -1801,7 +1801,7 @@ function RunInbox({
           <div className="run-empty">
             <i className="ri-folder-3-line" aria-hidden="true" />
             <p>No runs yet.</p>
-            <code>runs/&lt;runId&gt;/</code>
+            <code>data root/runs/&lt;runId&gt;/</code>
           </div>
         ) : (
           <div className="run-list" ref={runListRef}>
@@ -4489,7 +4489,7 @@ function EmptyInbox({ managerSnapshot }: { managerSnapshot: ManagerSnapshot | nu
           <h2>No Codex runs found</h2>
           <p>
             Start a Codex session with Codex Pro Max, or create a run folder under{' '}
-            <code>{managerSnapshot?.runsPath ?? 'runs/<runId>/'}</code>.
+            <code>{managerSnapshot?.runsPath ?? 'data root/runs/<runId>/'}</code>.
           </p>
         </div>
       </div>
