@@ -1104,6 +1104,29 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /Run B/i }).querySelector('.run-status-instruction-received')).toBeInTheDocument()
   })
 
+  it('keeps the manually selected run when the manager default changes', async () => {
+    render(<App />)
+    const events = await getEventSource()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Run B/i }))
+
+    expect(await screen.findByRole('heading', { name: 'Draft B' })).toBeInTheDocument()
+
+    act(() => {
+      events.emitSnapshot(managerFactory({
+        selectedRunId: 'run-a',
+        health: {
+          rootExists: true,
+          watcherReady: true,
+          serverTimeIso: '2026-05-07T00:00:07.000Z',
+        },
+      }))
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Draft B' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Run B/i })).toHaveAttribute('aria-current', 'true')
+  })
+
   it('deletes a run through the selected run endpoint', async () => {
     const fetchMock = vi.mocked(fetch)
     render(<App />)
