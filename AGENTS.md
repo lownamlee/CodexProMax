@@ -4,7 +4,7 @@ Use the `codex-pro-max` skill only when `CODEX_PRO_MAX_ROOT` is set, or when `ht
 
 When active, you MUST:
 
-1. Run `create_session.ps1` and use the returned `runDir`. To start a new session that is bound to the current Codex conversation, call `create_session.ps1` without `-RunId`, or pass a custom `-RunId` only when the script can still resolve `CODEX_THREAD_ID` or the current rollout log; the script must write that value to `run.json.codexThreadId`.
+1. Run `create_session.ps1` and use the returned `runDir`. To start a new session that is bound to the current Codex conversation, call `create_session.ps1` without `-RunId`, or pass a custom `-RunId` only when the script can still resolve `CODEX_THREAD_ID` or an explicit current rollout log path; the script must write that value to `run.json.codexThreadId` and must not guess from the newest global rollout log.
 2. Do the user's task.
 3. Run `request_review.ps1 -RunDir "<runDir>" -Output "<normal Codex conclusion>"` to submit the conclusion.
 4. Run `wait_for_review.ps1 -RunDir "<runDir>"` to wait for the next instruction.

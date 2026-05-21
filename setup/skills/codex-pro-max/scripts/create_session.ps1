@@ -104,19 +104,6 @@ function Get-DefaultDataRoot {
   return ""
 }
 
-function Get-CodexSessionsRoot {
-  if (-not [string]::IsNullOrWhiteSpace($env:CODEX_SESSIONS_ROOT)) {
-    return $env:CODEX_SESSIONS_ROOT
-  }
-  if (-not [string]::IsNullOrWhiteSpace($env:CODEX_HOME)) {
-    return (Join-Path $env:CODEX_HOME "sessions")
-  }
-  if (-not [string]::IsNullOrWhiteSpace($HOME)) {
-    return (Join-Path (Join-Path $HOME ".codex") "sessions")
-  }
-  return ""
-}
-
 function Get-RolloutRunId([string]$Path) {
   $fileName = [System.IO.Path]::GetFileName($Path)
   $match = [regex]::Match($fileName, '^rollout-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-(?<id>.+)\.jsonl$')
@@ -124,34 +111,43 @@ function Get-RolloutRunId([string]$Path) {
   return [string]$match.Groups["id"].Value
 }
 
-function Find-CurrentCodexConversationRunId {
-  $sessionsRoot = Get-CodexSessionsRoot
-  if ([string]::IsNullOrWhiteSpace($sessionsRoot)) { return "" }
+function Get-CurrentRolloutLogPath {
+  $candidates = @(
+    $env:CODEX_ROLLOUT_LOG,
+    $env:CODEX_CURRENT_ROLLOUT_LOG,
+    $env:CODEX_SESSION_LOG,
+    $env:CODEX_CURRENT_SESSION_LOG
+  )
 
-  try {
-    $resolvedSessionsRoot = [System.IO.Path]::GetFullPath($sessionsRoot)
-  } catch {
+  foreach ($candidate in $candidates) {
+    if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+    try {
+      $resolved = [System.IO.Path]::GetFullPath($candidate)
+      if (Test-Path -LiteralPath $resolved -PathType Leaf) {
+        return $resolved
+      }
+    } catch {}
+  }
+
+  return ""
+}
+
+function Find-CurrentCodexConversationRunId {
+  $rolloutLogPath = Get-CurrentRolloutLogPath
+  if ([string]::IsNullOrWhiteSpace($rolloutLogPath)) {
     return ""
   }
-  if (-not (Test-Path -LiteralPath $resolvedSessionsRoot)) { return "" }
+
+  return Get-RolloutRunId $rolloutLogPath
+}
+
+function Read-ExistingRunCodexThreadId([string]$Path) {
+  $runJsonPath = Join-Path $Path "run.json"
+  if (-not (Test-Path -LiteralPath $runJsonPath)) { return "" }
 
   try {
-    $latest = Get-ChildItem -LiteralPath $resolvedSessionsRoot -Filter "rollout-*.jsonl" -File -Recurse -ErrorAction SilentlyContinue |
-      ForEach-Object {
-        $rolloutRunId = Get-RolloutRunId $_.FullName
-        if (-not [string]::IsNullOrWhiteSpace($rolloutRunId)) {
-          [pscustomobject]@{
-            RunId = $rolloutRunId
-            LastWriteTimeUtc = $_.LastWriteTimeUtc
-          }
-        }
-      } |
-      Sort-Object LastWriteTimeUtc -Descending |
-      Select-Object -First 1
-
-    if ($latest) {
-      return [string]$latest.RunId
-    }
+    $existing = Read-TextUtf8NoBom $runJsonPath | ConvertFrom-Json
+    if ($existing.codexThreadId) { return [string]$existing.codexThreadId }
   } catch {}
 
   return ""
@@ -176,17 +172,25 @@ if ([string]::IsNullOrWhiteSpace($CodexThreadId)) {
 if ([string]::IsNullOrWhiteSpace($CodexThreadId)) {
   $CodexThreadId = Find-CurrentCodexConversationRunId
 }
-if ([string]::IsNullOrWhiteSpace($RunId)) {
-  $RunId = $CodexThreadId
+if ([string]::IsNullOrWhiteSpace($CodexThreadId)) {
+  throw "Unable to resolve the current Codex conversation id. CODEX_THREAD_ID is empty and no explicit current rollout log path was provided. Refusing to guess from the newest rollout log because that can bind this Codex Pro Max session to another conversation."
 }
 if ([string]::IsNullOrWhiteSpace($RunId)) {
-  $RunId = "run-$(Get-Date -Format 'yyyyMMdd-HHmmss')-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+  $RunId = $CodexThreadId
 }
 
 $resolvedRoot = [System.IO.Path]::GetFullPath($Root)
 $safeRunId = Get-SafeRunId $RunId
 $runDir = [System.IO.Path]::GetFullPath((Join-Path (Join-Path $resolvedRoot "runs") $safeRunId))
 New-Item -ItemType Directory -Force -Path $runDir | Out-Null
+
+$existingCodexThreadId = Read-ExistingRunCodexThreadId $runDir
+if (
+  -not [string]::IsNullOrWhiteSpace($existingCodexThreadId) -and
+  $existingCodexThreadId -ne $CodexThreadId
+) {
+  throw "Refusing to attach run '$safeRunId' to Codex conversation '$CodexThreadId' because the existing run.json is bound to '$existingCodexThreadId'."
+}
 
 $stateLockStream = $null
 try {

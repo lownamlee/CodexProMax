@@ -260,13 +260,24 @@ export async function getManagerSnapshot(
     rootPath: resolvedRoot,
     runsPath: getRunsPath(resolvedRoot),
     runs,
-    selectedRunId: runs[0]?.runId ?? null,
+    selectedRunId: chooseDefaultSelectedRunId(runs),
     health: {
       serverTimeIso: new Date().toISOString(),
       rootExists: await pathExists(resolvedRoot),
       watcherReady,
     },
   }
+}
+
+function chooseDefaultSelectedRunId(runs: RunSummary[]): string | null {
+  const waitingRuns = runs.filter((run) => run.status === 'WAITING_FOR_REVIEW')
+  if (!waitingRuns.length) return runs[0]?.runId ?? null
+
+  return waitingRuns.reduce((oldest, run) =>
+    (run.updatedAtMs ?? Number.POSITIVE_INFINITY) < (oldest.updatedAtMs ?? Number.POSITIVE_INFINITY)
+      ? run
+      : oldest,
+  ).runId
 }
 
 export async function getRunSnapshot(

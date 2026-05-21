@@ -92,6 +92,31 @@ function Append-SessionMessage([string]$Path, [string]$Role, [string]$Content) {
   Add-TextUtf8NoBom $sessionPath (Format-SessionBlock $Role $trimmed "" "")
 }
 
+function Read-ExistingRunCodexThreadId([string]$Path) {
+  $runJsonPath = Join-Path $Path "run.json"
+  if (-not (Test-Path -LiteralPath $runJsonPath)) { return "" }
+
+  try {
+    $existing = Read-TextUtf8NoBom $runJsonPath | ConvertFrom-Json
+    if ($existing.codexThreadId) { return [string]$existing.codexThreadId }
+  } catch {}
+
+  return ""
+}
+
+function Assert-CurrentConversationCanUseRun([string]$Path) {
+  $currentCodexThreadId = $env:CODEX_THREAD_ID
+  if ([string]::IsNullOrWhiteSpace($currentCodexThreadId)) { return }
+
+  $existingCodexThreadId = Read-ExistingRunCodexThreadId $Path
+  if ([string]::IsNullOrWhiteSpace($existingCodexThreadId)) { return }
+
+  if ($existingCodexThreadId -ne $currentCodexThreadId) {
+    $runId = Split-Path -Leaf $Path
+    throw "Refusing to wait on run '$runId' because run.json is bound to Codex conversation '$existingCodexThreadId' while the current conversation is '$currentCodexThreadId'."
+  }
+}
+
 function Read-LatestSessionUserInstruction([string]$Path) {
   $sessionPath = Join-Path $Path "session.md"
   $session = Read-TextUtf8NoBom $sessionPath
@@ -171,6 +196,7 @@ function Read-WaitingSession([string]$Path, [string]$Status) {
 
 $resolvedRunDir = [System.IO.Path]::GetFullPath($RunDir)
 New-Item -ItemType Directory -Path $resolvedRunDir -Force | Out-Null
+Assert-CurrentConversationCanUseRun $resolvedRunDir
 
 $statusPath = Join-Path $resolvedRunDir "status.txt"
 $instructionPath = Join-Path $resolvedRunDir "instruction.txt"

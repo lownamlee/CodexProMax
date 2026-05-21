@@ -97,6 +97,39 @@ function Append-SessionMessage([string]$Path, [string]$Role, [string]$Content) {
   Add-TextUtf8NoBom $sessionPath (Format-SessionBlock $Role $trimmed "" "")
 }
 
+function Read-ExistingRunMetadata([string]$Path, [string]$RunId, [string]$Now) {
+  $metadata = [ordered]@{
+    runId = $RunId
+    displayName = $RunId
+    workspacePath = ""
+    createdAtIso = $Now
+    codexThreadId = $null
+  }
+
+  $runJsonPath = Join-Path $Path "run.json"
+  if (-not (Test-Path -LiteralPath $runJsonPath)) { return $metadata }
+
+  try {
+    $existing = Read-TextUtf8NoBom $runJsonPath | ConvertFrom-Json
+    if ($existing.runId) { $metadata.runId = [string]$existing.runId }
+    if ($existing.displayName) { $metadata.displayName = [string]$existing.displayName }
+    if ($existing.workspacePath) { $metadata.workspacePath = [string]$existing.workspacePath }
+    if ($existing.createdAtIso) { $metadata.createdAtIso = [string]$existing.createdAtIso }
+    if ($existing.codexThreadId) { $metadata.codexThreadId = [string]$existing.codexThreadId }
+  } catch {}
+
+  return $metadata
+}
+
+function Assert-CurrentConversationCanUseRun($Metadata, [string]$CurrentCodexThreadId) {
+  if ([string]::IsNullOrWhiteSpace($CurrentCodexThreadId)) { return }
+  if ($null -eq $Metadata.codexThreadId -or [string]::IsNullOrWhiteSpace([string]$Metadata.codexThreadId)) { return }
+
+  if ([string]$Metadata.codexThreadId -ne $CurrentCodexThreadId) {
+    throw "Refusing to write review for run '$($Metadata.runId)' because run.json is bound to Codex conversation '$($Metadata.codexThreadId)' while the current conversation is '$CurrentCodexThreadId'."
+  }
+}
+
 $resolvedRunDir = [System.IO.Path]::GetFullPath($RunDir)
 New-Item -ItemType Directory -Force -Path $resolvedRunDir | Out-Null
 
@@ -107,22 +140,21 @@ try {
   $now = (Get-Date).ToUniversalTime().ToString("o")
   $runJsonPath = Join-Path $resolvedRunDir "run.json"
   $runId = Split-Path -Leaf $resolvedRunDir
-  $createdAt = $now
-  if (Test-Path -LiteralPath $runJsonPath) {
-    try {
-      $existing = Read-TextUtf8NoBom $runJsonPath | ConvertFrom-Json
-      if ($existing.createdAtIso) { $createdAt = [string]$existing.createdAtIso }
-    } catch {}
-  }
+  $metadata = Read-ExistingRunMetadata $resolvedRunDir $runId $now
+  $currentCodexThreadId = $(if ($CodexThreadId) { $CodexThreadId } else { $env:CODEX_THREAD_ID })
+  Assert-CurrentConversationCanUseRun $metadata $currentCodexThreadId
 
   if ($DisplayName -or $WorkspacePath -or $CodexThreadId) {
+    $nextDisplayName = $(if ($DisplayName) { $DisplayName } elseif ($metadata.displayName) { [string]$metadata.displayName } else { $runId })
+    $nextWorkspacePath = $(if ($WorkspacePath) { $WorkspacePath } elseif ($metadata.workspacePath) { [string]$metadata.workspacePath } else { "" })
+    $nextCodexThreadId = $(if ($CodexThreadId) { $CodexThreadId } elseif ($metadata.codexThreadId) { [string]$metadata.codexThreadId } elseif ($env:CODEX_THREAD_ID) { $env:CODEX_THREAD_ID } else { $null })
     $runJson = [ordered]@{
       runId = $runId
-      displayName = $(if ($DisplayName) { $DisplayName } else { $runId })
-      workspacePath = $WorkspacePath
-      createdAtIso = $createdAt
+      displayName = $nextDisplayName
+      workspacePath = $nextWorkspacePath
+      createdAtIso = [string]$metadata.createdAtIso
       updatedAtIso = $now
-      codexThreadId = $(if ($CodexThreadId) { $CodexThreadId } else { $null })
+      codexThreadId = $nextCodexThreadId
     } | ConvertTo-Json -Depth 4
     Write-AtomicTextNoBom $runJsonPath $runJson
   }

@@ -141,6 +141,23 @@ describe('Codex Pro Max multi-run API', () => {
     expect(response.body.selectedRunId).toBe('run-a')
   })
 
+  it('defaults selection to the oldest run waiting for review', async () => {
+    const oldReview = getRunPath(rootPath, 'old-review')
+    const newRunning = getRunPath(rootPath, 'new-running')
+    await fs.mkdir(oldReview, { recursive: true })
+    await fs.mkdir(newRunning, { recursive: true })
+    await fs.writeFile(path.join(oldReview, 'status.txt'), 'WAITING_FOR_REVIEW\n', 'utf8')
+    await fs.writeFile(path.join(newRunning, 'status.txt'), 'RUNNING\n', 'utf8')
+    await fs.utimes(path.join(oldReview, 'status.txt'), new Date('2026-05-07T00:00:00.000Z'), new Date('2026-05-07T00:00:00.000Z'))
+    await fs.utimes(path.join(newRunning, 'status.txt'), new Date('2026-05-07T00:05:00.000Z'), new Date('2026-05-07T00:05:00.000Z'))
+    appHandle = createApp({ rootPath, startWatcher: false })
+
+    const response = await request(appHandle.app).get('/api/snapshot').expect(200)
+
+    expect(response.body.runs.map((run: { runId: string }) => run.runId)).toEqual(['new-running', 'old-review'])
+    expect(response.body.selectedRunId).toBe('old-review')
+  })
+
   it('keeps two runs isolated when actions are sent to one run', async () => {
     const runA = getRunPath(rootPath, 'run-a')
     const runB = getRunPath(rootPath, 'run-b')

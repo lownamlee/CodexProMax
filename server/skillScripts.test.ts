@@ -106,7 +106,7 @@ describe('Codex Pro Max skill scripts', () => {
     })
   })
 
-  it('uses the latest Codex rollout id when no explicit run id exists', async () => {
+  it('refuses to guess the current Codex conversation from the newest global rollout log', async () => {
     const root = await createTempRoot()
     const sessionsRoot = await createTempRoot()
     const staleRunId = '019e19b7-fef1-7471-b25b-d9afc25c4311'
@@ -122,10 +122,30 @@ describe('Codex Pro Max skill scripts', () => {
       new Date('2026-05-12T13:31:37.000Z'),
     )
 
-    const runDir = path.join(root, 'runs', currentRunId)
     const result = await runPowerShellScript(CREATE_SCRIPT, ['-Root', root], {
       CODEX_THREAD_ID: '',
       CODEX_SESSIONS_ROOT: sessionsRoot,
+    })
+
+    expect(result.code).not.toBe(0)
+    expect(result.stderr).toContain('Refusing to guess from the newest rollout log')
+    await expect(fileExists(path.join(root, 'runs', currentRunId))).resolves.toBe(false)
+  })
+
+  it('uses an explicit current Codex rollout log when no thread id env exists', async () => {
+    const root = await createTempRoot()
+    const sessionsRoot = await createTempRoot()
+    const currentRunId = '019e1aab-577b-7741-8889-c683dd299526'
+    const rolloutLogPath = await writeRolloutLog(
+      sessionsRoot,
+      `2026/05/12/rollout-2026-05-12T13-31-37-${currentRunId}.jsonl`,
+      new Date('2026-05-12T13:31:37.000Z'),
+    )
+
+    const runDir = path.join(root, 'runs', currentRunId)
+    const result = await runPowerShellScript(CREATE_SCRIPT, ['-Root', root], {
+      CODEX_THREAD_ID: '',
+      CODEX_ROLLOUT_LOG: rolloutLogPath,
     })
     const payload = JSON.parse(result.stdout) as {
       ok: boolean
@@ -162,7 +182,7 @@ describe('Codex Pro Max skill scripts', () => {
     const sessionsRoot = await createTempRoot()
     const customRunId = 'folder-organize-20260513-154441'
     const currentRunId = '019e203d-0894-7112-9f0c-7a0d45c74d70'
-    await writeRolloutLog(
+    const rolloutLogPath = await writeRolloutLog(
       sessionsRoot,
       `2026/05/13/rollout-2026-05-13T07-39-51-${currentRunId}.jsonl`,
       new Date('2026-05-13T07:39:51.000Z'),
@@ -171,7 +191,7 @@ describe('Codex Pro Max skill scripts', () => {
     const runDir = path.join(root, 'runs', customRunId)
     const result = await runPowerShellScript(CREATE_SCRIPT, ['-Root', root, '-RunId', customRunId], {
       CODEX_THREAD_ID: '',
-      CODEX_SESSIONS_ROOT: sessionsRoot,
+      CODEX_ROLLOUT_LOG: rolloutLogPath,
     })
     const payload = JSON.parse(result.stdout) as {
       ok: boolean
@@ -201,6 +221,29 @@ describe('Codex Pro Max skill scripts', () => {
       workspacePath: root,
       codexThreadId: currentRunId,
     })
+  })
+
+  it('refuses to reopen an existing run bound to a different Codex conversation', async () => {
+    const root = await createTempRoot()
+    const runId = 'shared-run'
+    const runDir = path.join(root, 'runs', runId)
+    await mkdir(runDir, { recursive: true })
+    await writeFile(path.join(runDir, 'run.json'), JSON.stringify({
+      runId,
+      displayName: runId,
+      workspacePath: root,
+      createdAtIso: '2026-05-12T00:00:00.000Z',
+      updatedAtIso: '2026-05-12T00:00:00.000Z',
+      codexThreadId: 'thread-a',
+    }), 'utf8')
+
+    const result = await runPowerShellScript(CREATE_SCRIPT, ['-Root', root, '-RunId', runId], {
+      CODEX_THREAD_ID: 'thread-b',
+    })
+
+    expect(result.code).not.toBe(0)
+    expect(result.stderr).toContain("Refusing to attach run 'shared-run'")
+    expect(result.stderr).toContain('thread-a')
   })
 
   it('exits only when the selected run status changes', async () => {
@@ -282,6 +325,28 @@ describe('Codex Pro Max skill scripts', () => {
       instruction: 'Continue now.',
       status: 'RUNNING',
     })
+  })
+
+  it('refuses to wait on a run bound to a different Codex conversation', async () => {
+    const root = await createTempRoot()
+    const runDir = path.join(root, 'runs', 'target-run')
+    await mkdir(runDir, { recursive: true })
+    await writeFile(path.join(runDir, 'run.json'), JSON.stringify({
+      runId: 'target-run',
+      displayName: 'target-run',
+      workspacePath: root,
+      createdAtIso: '2026-05-12T00:00:00.000Z',
+      updatedAtIso: '2026-05-12T00:00:00.000Z',
+      codexThreadId: 'thread-a',
+    }), 'utf8')
+    await writeFile(path.join(runDir, 'status.txt'), 'WAITING_FOR_REVIEW')
+
+    const result = await runPowerShellScript(WAIT_SCRIPT, ['-RunDir', runDir], {
+      CODEX_THREAD_ID: 'thread-b',
+    })
+
+    expect(result.code).not.toBe(0)
+    expect(result.stderr).toContain("Refusing to wait on run 'target-run'")
   })
 
   it('allows multiple waiters to receive the same instruction', async () => {
@@ -706,6 +771,64 @@ describe('Codex Pro Max skill scripts', () => {
     expect(session).toContain('Done.')
   })
 
+  it('request review refuses to write a run bound to another Codex conversation', async () => {
+    const root = await createTempRoot()
+    const runDir = path.join(root, 'runs', 'target-run')
+    await mkdir(runDir, { recursive: true })
+    await writeFile(path.join(runDir, 'run.json'), JSON.stringify({
+      runId: 'target-run',
+      displayName: 'target-run',
+      workspacePath: root,
+      createdAtIso: '2026-05-12T00:00:00.000Z',
+      updatedAtIso: '2026-05-12T00:00:00.000Z',
+      codexThreadId: 'thread-a',
+    }), 'utf8')
+
+    const result = await runPowerShellScript(
+      REQUEST_SCRIPT,
+      ['-RunDir', runDir, '-Output', 'Wrong conversation.'],
+      { CODEX_THREAD_ID: 'thread-b' },
+    )
+
+    expect(result.code).not.toBe(0)
+    expect(result.stderr).toContain("Refusing to write review for run 'target-run'")
+    await expect(fileExists(path.join(runDir, 'output.md'))).resolves.toBe(false)
+  })
+
+  it('request review can use an explicit matching thread id while preserving metadata', async () => {
+    const root = await createTempRoot()
+    const runDir = path.join(root, 'runs', 'target-run')
+    await mkdir(runDir, { recursive: true })
+    await writeFile(path.join(runDir, 'run.json'), JSON.stringify({
+      runId: 'target-run',
+      displayName: 'Target display',
+      workspacePath: 'C:\\workspace',
+      createdAtIso: '2026-05-12T00:00:00.000Z',
+      updatedAtIso: '2026-05-12T00:00:00.000Z',
+      codexThreadId: 'thread-a',
+    }), 'utf8')
+
+    const result = await runPowerShellScript(
+      REQUEST_SCRIPT,
+      ['-RunDir', runDir, '-Output', 'Done.', '-DisplayName', 'Target display', '-CodexThreadId', 'thread-a'],
+      { CODEX_THREAD_ID: 'thread-b' },
+    )
+    const metadata = JSON.parse(await readFile(path.join(runDir, 'run.json'), 'utf8')) as {
+      displayName: string
+      workspacePath: string
+      createdAtIso: string
+      codexThreadId: string
+    }
+
+    expect(result.code).toBe(0)
+    expect(metadata).toMatchObject({
+      displayName: 'Target display',
+      workspacePath: 'C:\\workspace',
+      createdAtIso: '2026-05-12T00:00:00.000Z',
+      codexThreadId: 'thread-a',
+    })
+  })
+
   it('request review waits for the selected run state lock', async () => {
     const root = await createTempRoot()
     const runDir = path.join(root, 'runs', 'target-run')
@@ -882,6 +1005,7 @@ async function writeRolloutLog(root: string, relativePath: string, mtime: Date) 
   await mkdir(path.dirname(filePath), { recursive: true })
   await writeFile(filePath, '{"type":"session_meta"}\n', 'utf8')
   await utimes(filePath, mtime, mtime)
+  return filePath
 }
 
 function startWaitScript(env: Record<string, string>, args: string[] = []): StartedWaitScript {

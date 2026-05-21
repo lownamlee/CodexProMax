@@ -220,7 +220,7 @@ flowchart LR
 
 ### Review Loop
 
-This sequence is one complete human review cycle. Codex creates or reopens a run, writes its conclusion through `request_review.ps1`, and waits. The browser sees the updated run through the API, the user sends the next instruction, and `wait_for_review.ps1` returns that instruction JSON to the same Codex conversation.
+This sequence is one complete human review cycle. Codex creates or reopens a run, writes its conclusion through `request_review.ps1`, and waits. The browser sees the updated run through the API, the user sends the next instruction, and `wait_for_review.ps1` returns that instruction JSON to the same Codex conversation. The scripts bind runs to `run.json.codexThreadId`, refuse mismatched wait/review calls, and avoid guessing the current conversation from the newest global rollout log.
 
 ```mermaid
 sequenceDiagram
