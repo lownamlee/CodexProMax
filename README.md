@@ -1,6 +1,6 @@
-# Codex Pro Max Next
+# Codex Pro Max
 
-This folder contains the new SQLite-backed Codex Pro Max backend. It is intentionally separate from the existing file-based app while the replacement flow is being developed.
+This repository contains the SQLite-backed Codex Pro Max backend and UI. The archived file-based implementation lives under `old/`.
 
 ## Codex Flow
 
@@ -34,10 +34,10 @@ There is no delivered-instruction state. When `wait` returns an instruction to C
 ## Local Commands
 
 ```powershell
-cd C:\Users\ramly\Documents\GitHub\CodexProMax\CodexProMax
+cd C:\Users\ramly\Documents\GitHub\CodexProMax
 npm run test
 npm run build
 npm run dev
 ```
 
-Default port is `53127`. Override it with `CODEX_PRO_MAX_NEXT_PORT`.
+Default port is `53127`. Override it with `CODEX_PRO_MAX_PORT`.

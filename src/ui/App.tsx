@@ -57,12 +57,12 @@ const CHAT_BOTTOM_THRESHOLD_PX = 12
 const USER_MESSAGE_TOP_ZONE_PX = 140
 const ATTACHMENT_PROGRESS_MIN_MS = 650
 const QUEUED_INSTRUCTION_VISIBLE_LIMIT = 5
-const LEFT_COLLAPSED_KEY = 'codex-pro-max-next:left-sidebar-collapsed'
-const RIGHT_COLLAPSED_KEY = 'codex-pro-max-next:right-sidebar-collapsed'
-const OUTLINES_COLLAPSED_KEY = 'codex-pro-max-next:right-outlines-collapsed'
-const ATTACHMENTS_COLLAPSED_KEY = 'codex-pro-max-next:right-attachments-collapsed'
-const CONFIRM_RUNNING_SEND_KEY = 'codex-pro-max-next:confirm-running-send'
-const DRAFT_STORAGE_PREFIX = 'codex-pro-max-next:draft:'
+const LEFT_COLLAPSED_KEY = 'codex-pro-max:left-sidebar-collapsed'
+const RIGHT_COLLAPSED_KEY = 'codex-pro-max:right-sidebar-collapsed'
+const OUTLINES_COLLAPSED_KEY = 'codex-pro-max:right-outlines-collapsed'
+const ATTACHMENTS_COLLAPSED_KEY = 'codex-pro-max:right-attachments-collapsed'
+const CONFIRM_RUNNING_SEND_KEY = 'codex-pro-max:confirm-running-send'
+const DRAFT_STORAGE_PREFIX = 'codex-pro-max:draft:'
 
 const EMPTY_ACTIVITY: CodexLiveActivity = {
   latestEventAt: null,

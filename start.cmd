@@ -1,20 +1,20 @@
 @echo off
 setlocal EnableExtensions
 
-title Codex Pro Max Next
+title Codex Pro Max
 cd /d "%~dp0"
 
 echo.
-echo Starting Codex Pro Max Next
+echo Starting Codex Pro Max
 echo Project folder: %CD%
 echo.
 
-if not defined CODEX_PRO_MAX_NEXT_ROOT (
-  set "CODEX_PRO_MAX_NEXT_ROOT=%USERPROFILE%\.codex-pro-max-next"
+if not defined CODEX_PRO_MAX_ROOT (
+  set "CODEX_PRO_MAX_ROOT=%USERPROFILE%\.codex-pro-max"
 )
 
-if not exist "%CODEX_PRO_MAX_NEXT_ROOT%" (
-  mkdir "%CODEX_PRO_MAX_NEXT_ROOT%" >nul 2>nul
+if not exist "%CODEX_PRO_MAX_ROOT%" (
+  mkdir "%CODEX_PRO_MAX_ROOT%" >nul 2>nul
 )
 
 where node >nul 2>nul
@@ -47,7 +47,7 @@ if not exist "node_modules" (
   )
 )
 
-echo Data folder: %CODEX_PRO_MAX_NEXT_ROOT%
+echo Data folder: %CODEX_PRO_MAX_ROOT%
 echo API: http://127.0.0.1:53127
 echo UI:  http://127.0.0.1:53128
 echo.
@@ -58,6 +58,6 @@ call npm run dev
 set "EXIT_CODE=%ERRORLEVEL%"
 
 echo.
-echo Codex Pro Max Next stopped with exit code %EXIT_CODE%.
+echo Codex Pro Max stopped with exit code %EXIT_CODE%.
 pause
 exit /b %EXIT_CODE%

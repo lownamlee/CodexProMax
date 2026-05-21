@@ -1,12 +1,12 @@
 @echo off
 setlocal EnableExtensions
 
-title Codex Pro Max Next Uninstall
+title Codex Pro Max Uninstall
 cd /d "%~dp0"
 set "SCRIPT_FILE=%~f0"
 
 echo.
-echo Codex Pro Max Next uninstall
+echo Codex Pro Max uninstall
 echo Project folder: %CD%
 echo.
 
@@ -23,7 +23,7 @@ if errorlevel 1 goto :fail
 
 echo.
 echo Uninstall complete.
-echo Local data in %USERPROFILE%\.codex-pro-max-next was preserved.
+echo Local data in %USERPROFILE%\.codex-pro-max was preserved.
 echo.
 goto :done
 
@@ -38,7 +38,7 @@ goto :end
 set "EXIT_CODE=0"
 
 :end
-if /I not "%CODEX_PRO_MAX_NEXT_NO_PAUSE%"=="1" pause
+if /I not "%CODEX_PRO_MAX_NO_PAUSE%"=="1" pause
 exit /b %EXIT_CODE%
 
 :NODE_PAYLOAD
@@ -47,7 +47,7 @@ const path = require('path');
 const os = require('os');
 
 const codexHome = path.resolve(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'));
-const skillRoot = path.join(codexHome, 'skills', 'codex-pro-max-next');
+const skillRoot = path.join(codexHome, 'skills', 'codex-pro-max');
 const configFile = path.join(codexHome, 'config.toml');
 
 fs.rmSync(skillRoot, { recursive: true, force: true });
@@ -58,7 +58,7 @@ if (fs.existsSync(configFile)) {
   const blocks = original.match(/(?:^|\r?\n)[ \t]*\[\[skills\.config\]\][\s\S]*?(?=\r?\n[ \t]*\[\[|\r?\n[ \t]*\[[^\[]|$)/g) || [];
   let updated = original;
   for (const block of blocks) {
-    if (block.includes('codex-pro-max-next')) {
+    if (block.includes('codex-pro-max')) {
       updated = updated.replace(block, '\n');
     }
   }

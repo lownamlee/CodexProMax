@@ -23,7 +23,7 @@ export interface CreateAppOptions {
   sessionsRoot?: string
 }
 
-export interface CodexProMaxNextApp {
+export interface CodexProMaxApp {
   app: express.Express
   store: CodexProMaxStore
   waitHub: WaitHub
@@ -40,7 +40,7 @@ const upload = multer({
   },
 })
 
-export function createApp(options: CreateAppOptions = {}): CodexProMaxNextApp {
+export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
   const dataRoot = path.resolve(options.dataRoot ?? getDefaultDataRoot())
   const sessionsRoot = path.resolve(options.sessionsRoot ?? getDefaultCodexSessionsRoot())
   const store = new CodexProMaxStore({ dataRoot, dbPath: options.dbPath })
@@ -53,7 +53,7 @@ export function createApp(options: CreateAppOptions = {}): CodexProMaxNextApp {
   app.get('/api/health', (_request, response) => {
     response.json({
       ok: true,
-      service: 'codex-pro-max-next',
+      service: 'codex-pro-max',
       dataRoot,
       dbPath: store.dbPath,
       sessionsRoot,
@@ -380,15 +380,15 @@ function assertQueueCapacity(store: CodexProMaxStore, sessionId: string): void {
 }
 
 export function getApiPort(): number {
-  const raw = process.env.CODEX_PRO_MAX_NEXT_PORT || process.env.CODEX_PRO_MAX_API_PORT
+  const raw = process.env.CODEX_PRO_MAX_PORT || process.env.CODEX_PRO_MAX_API_PORT
   const parsed = raw ? Number.parseInt(raw, 10) : DEFAULT_PORT
   return Number.isFinite(parsed) ? parsed : DEFAULT_PORT
 }
 
 function getDefaultDataRoot(): string {
-  return process.env.CODEX_PRO_MAX_NEXT_ROOT
+  return process.env.CODEX_PRO_MAX_ROOT
     || process.env.CODEX_PRO_MAX_DATA_ROOT
-    || path.join(os.homedir(), '.codex-pro-max-next')
+    || path.join(os.homedir(), '.codex-pro-max')
 }
 
 async function createOrResumeSession(

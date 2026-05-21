@@ -3,15 +3,15 @@ import os from 'node:os'
 import path from 'node:path'
 import request from 'supertest'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createApp, type CodexProMaxNextApp } from '../src/app'
+import { createApp, type CodexProMaxApp } from '../src/app'
 
 let tempRoot = ''
 let dataRoot = ''
 let sessionsRoot = ''
-let handle: CodexProMaxNextApp | null = null
+let handle: CodexProMaxApp | null = null
 
 beforeEach(async () => {
-  tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-pro-max-next-'))
+  tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-pro-max-'))
   dataRoot = path.join(tempRoot, 'data')
   sessionsRoot = path.join(tempRoot, 'codex-sessions')
 })
@@ -24,7 +24,7 @@ afterEach(async () => {
   await fs.rm(tempRoot, { recursive: true, force: true })
 })
 
-describe('Codex Pro Max Next API', () => {
+describe('Codex Pro Max API', () => {
   it('exposes simple health endpoints', async () => {
     handle = createApp({ dataRoot, sessionsRoot })
 
@@ -33,7 +33,7 @@ describe('Codex Pro Max Next API', () => {
 
     expect(health.body).toMatchObject({
       ok: true,
-      service: 'codex-pro-max-next',
+      service: 'codex-pro-max',
       dataRoot,
       sessionsRoot,
     })

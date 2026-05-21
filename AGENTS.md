@@ -1,6 +1,6 @@
-# Codex Pro Max Next
+# Codex Pro Max
 
-Use the `codex-pro-max-next` skill only when `http://127.0.0.1:53127/api/healthy` is reachable. Otherwise answer normally.
+Use the `codex-pro-max` skill only when `http://127.0.0.1:53127/api/healthy` is reachable. Otherwise answer normally.
 
 When active, use only the backend endpoints. Do not use the old `.ps1` scripts.
 
@@ -22,4 +22,4 @@ The wait loop is compulsory and indefinite:
 - If `/wait` returns a non-empty `instruction.content`, do that instruction, submit a new conclusion, then immediately call `/wait` again.
 - If `/wait` returns no instruction, `timedOut=true`, `stopped=true`, an empty response, a client timeout, a broken connection, or any non-instruction result, immediately call `/wait` again with the same thread id and no timeout.
 
-Never stop waiting for Codex Pro Max Next unless the user explicitly tells you in this chat to stop using Codex Pro Max Next.
+Never stop waiting for Codex Pro Max unless the user explicitly tells you in this chat to stop using Codex Pro Max.

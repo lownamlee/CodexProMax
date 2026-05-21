@@ -3,7 +3,7 @@ const DEFAULT_TIMEOUT_MS = 30_000
 const POLL_INTERVAL_MS = 150
 const REQUEST_TIMEOUT_MS = 1_000
 
-const port = Number.parseInt(process.env.CODEX_PRO_MAX_NEXT_PORT || process.env.CODEX_PRO_MAX_API_PORT || '', 10)
+const port = Number.parseInt(process.env.CODEX_PRO_MAX_PORT || process.env.CODEX_PRO_MAX_API_PORT || '', 10)
 const url = process.argv[2] || `http://127.0.0.1:${Number.isFinite(port) ? port : DEFAULT_PORT}/api/healthy`
 const timeoutMs = parsePositiveInt(process.argv[3], DEFAULT_TIMEOUT_MS)
 const startedAt = Date.now()

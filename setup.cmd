@@ -1,12 +1,12 @@
 @echo off
 setlocal EnableExtensions
 
-title Codex Pro Max Next Setup
+title Codex Pro Max Setup
 cd /d "%~dp0"
 set "SCRIPT_FILE=%~f0"
 
 echo.
-echo Codex Pro Max Next setup
+echo Codex Pro Max setup
 echo Project folder: %CD%
 echo.
 
@@ -43,7 +43,7 @@ if errorlevel 1 goto :fail
 
 echo.
 echo Setup complete.
-echo Run start.cmd to launch Codex Pro Max Next.
+echo Run start.cmd to launch Codex Pro Max.
 echo.
 goto :done
 
@@ -58,7 +58,7 @@ goto :end
 set "EXIT_CODE=0"
 
 :end
-if /I not "%CODEX_PRO_MAX_NEXT_NO_PAUSE%"=="1" pause
+if /I not "%CODEX_PRO_MAX_NO_PAUSE%"=="1" pause
 exit /b %EXIT_CODE%
 
 :NODE_PAYLOAD
@@ -68,8 +68,8 @@ const os = require('os');
 
 const projectRoot = process.cwd();
 const codexHome = path.resolve(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'));
-const skillSource = path.join(projectRoot, 'setup', 'skills', 'codex-pro-max-next');
-const skillRoot = path.join(codexHome, 'skills', 'codex-pro-max-next');
+const skillSource = path.join(projectRoot, 'setup', 'skills', 'codex-pro-max');
+const skillRoot = path.join(codexHome, 'skills', 'codex-pro-max');
 const skillFile = path.join(skillRoot, 'SKILL.md');
 const configFile = path.join(codexHome, 'config.toml');
 
