@@ -312,6 +312,41 @@ describe('Codex Pro Max multi-run API', () => {
     })
   })
 
+  it('returns a Codex rollout path by thread id', async () => {
+    const sessionsRoot = path.join(rootPath, 'codex-sessions')
+    const threadId = '019e4914-8bbe-7d70-9e55-3ec6fc52d221'
+    const fileName = `rollout-2026-05-21T13-49-08-${threadId}.jsonl`
+    const rolloutPath = path.join(sessionsRoot, '2026', '05', '21', fileName)
+    await fs.mkdir(path.dirname(rolloutPath), { recursive: true })
+    await fs.writeFile(rolloutPath, '{"type":"session_meta"}\n', 'utf8')
+    vi.stubEnv('CODEX_SESSIONS_ROOT', sessionsRoot)
+    appHandle = createApp({ rootPath, startWatcher: false })
+
+    const response = await request(appHandle.app)
+      .get(`/api/codex-live/rollout?threadId=${encodeURIComponent(threadId)}`)
+      .expect(200)
+
+    expect(response.body).toMatchObject({
+      ok: true,
+      codexThreadId: threadId,
+      rootPath: sessionsRoot,
+      rolloutPath,
+      matchCount: 1,
+      session: {
+        fileName,
+        relativePath: `2026/05/21/${fileName}`,
+        sizeBytes: 24,
+      },
+    })
+
+    const pathResponse = await request(appHandle.app)
+      .get(`/api/codex-live/rollout/${encodeURIComponent(threadId)}?format=path`)
+      .expect(200)
+
+    expect(pathResponse.headers['content-type']).toMatch(/text\/plain/)
+    expect(pathResponse.text).toBe(`${rolloutPath}\n`)
+  })
+
   it('marks invalid statuses as error', async () => {
     const runA = getRunPath(rootPath, 'run-a')
     await fs.mkdir(runA, { recursive: true })

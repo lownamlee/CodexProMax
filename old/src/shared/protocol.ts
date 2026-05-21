@@ -310,6 +310,15 @@ export interface CodexLiveSessionsResponse {
   sessions: CodexLiveSessionSummary[]
 }
 
+export interface CodexLiveRolloutResponse {
+  ok: true
+  codexThreadId: string
+  rootPath: string
+  rolloutPath: string
+  session: CodexLiveSessionSummary
+  matchCount: number
+}
+
 export interface CodexLiveHistoryResponse {
   ok: true
   rootPath: string

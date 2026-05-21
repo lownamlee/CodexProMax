@@ -1,25 +1,16 @@
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vitest/config'
-
-const apiPort = process.env.CODEX_PRO_MAX_API_PORT ?? '53127'
 
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: '127.0.0.1',
+    port: 53128,
     proxy: {
       '/api': {
-        target: `http://127.0.0.1:${apiPort}`,
-        changeOrigin: true,
-      },
-      '/attachments': {
-        target: `http://127.0.0.1:${apiPort}`,
+        target: 'http://127.0.0.1:53127',
         changeOrigin: true,
       },
     },
-  },
-  test: {
-    environment: 'jsdom',
-    setupFiles: './src/test/setup.ts',
-    globals: true,
   },
 })

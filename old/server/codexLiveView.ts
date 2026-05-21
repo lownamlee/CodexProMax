@@ -7,6 +7,7 @@ import type {
   CodexLiveRateLimits,
   CodexLiveRateLimitWindow,
   CodexLiveRecord,
+  CodexLiveRolloutResponse,
   CodexLiveSessionSummary,
   CodexLiveSessionsResponse,
 } from '../src/shared/protocol'
@@ -101,6 +102,35 @@ export async function readCodexLiveHistory(
     tailBytes: recentLines.bytesRead,
     totalSizeBytes: stats.size,
     truncated: recentLines.truncated,
+  }
+}
+
+export async function findCodexLiveRolloutByThreadId(codexThreadId: string): Promise<CodexLiveRolloutResponse | null> {
+  const normalizedThreadId = codexThreadId.trim()
+  const rootPath = getCodexSessionsRoot()
+  const matches: Array<{ filePath: string; stats: { birthtime: Date; mtime: Date; size: number } }> = []
+
+  await walkJsonlFiles(rootPath, async (filePath) => {
+    if (getRolloutThreadId(filePath) !== normalizedThreadId) return
+
+    const stats = await fs.stat(filePath)
+    if (!stats.isFile()) return
+
+    matches.push({ filePath, stats })
+  })
+
+  if (matches.length === 0) return null
+
+  matches.sort((left, right) => right.stats.mtime.getTime() - left.stats.mtime.getTime())
+  const latest = matches[0]
+
+  return {
+    ok: true,
+    codexThreadId: normalizedThreadId,
+    rootPath,
+    rolloutPath: latest.filePath,
+    session: toSessionSummary(rootPath, latest.filePath, latest.stats),
+    matchCount: matches.length,
   }
 }
 
@@ -439,6 +469,11 @@ function parseCreatedAt(filePath: string) {
   const [, year, month, day, hour, minute, second] = match
   const date = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}`)
   return Number.isNaN(date.getTime()) ? '' : date.toISOString()
+}
+
+function getRolloutThreadId(filePath: string) {
+  const match = path.basename(filePath).match(/^rollout-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-(.+)\.jsonl$/)
+  return match?.[1] ?? ''
 }
 
 function makeRecord(record: Omit<CodexLiveRecord, 'timestamp' | 'callId'> & Partial<Pick<CodexLiveRecord, 'timestamp' | 'callId'>>): CodexLiveRecord {

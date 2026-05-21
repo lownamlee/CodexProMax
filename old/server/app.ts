@@ -10,7 +10,7 @@ import {
   TEAMMATE_AVATAR_URLS,
 } from '../src/shared/protocol'
 import { HttpError } from './errors'
-import { listCodexLiveSessions, readCodexLiveHistory } from './codexLiveView'
+import { findCodexLiveRolloutByThreadId, listCodexLiveSessions, readCodexLiveHistory } from './codexLiveView'
 import { MultiRunSnapshotHub } from './snapshotHub'
 import {
   DEFAULT_API_PORT,
@@ -80,6 +80,16 @@ export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
 
   app.get('/api/codex-live/sessions', async (request, response) => {
     response.json(await listCodexLiveSessions(Number(request.query.limit || 100)))
+  })
+
+  app.get('/api/codex-live/rollout', async (request, response) => {
+    const threadId = parseCodexThreadId(readQueryString(request.query.threadId ?? request.query.codexThreadId))
+    await sendCodexRolloutLookup(request, response, threadId)
+  })
+
+  app.get('/api/codex-live/rollout/:threadId', async (request, response) => {
+    const threadId = parseCodexThreadId(request.params.threadId)
+    await sendCodexRolloutLookup(request, response, threadId)
   })
 
   app.get('/api/codex-live/sessions/:sessionId', async (request, response) => {
@@ -469,6 +479,49 @@ function parseRunId(value: string | undefined): string {
   }
 
   return runId
+}
+
+async function sendCodexRolloutLookup(
+  request: express.Request,
+  response: express.Response,
+  threadId: string,
+): Promise<void> {
+  const result = await findCodexLiveRolloutByThreadId(threadId)
+  if (!result) {
+    throw new HttpError(404, `No rollout log found for Codex thread id '${threadId}'.`)
+  }
+
+  if (wantsPathOnly(request)) {
+    response.type('text/plain').send(`${result.rolloutPath}\n`)
+    return
+  }
+
+  response.json(result)
+}
+
+function parseCodexThreadId(value: string | undefined): string {
+  const threadId = (value ?? '').trim()
+  if (!threadId) {
+    throw new HttpError(400, 'Codex thread id is required. Use ?threadId=<id> or /api/codex-live/rollout/<id>.')
+  }
+  if (threadId.length > 240 || /[\\/]/.test(threadId) || /[\u0000-\u001f]/.test(threadId)) {
+    throw new HttpError(400, 'Invalid Codex thread id.')
+  }
+
+  return threadId
+}
+
+function readQueryString(value: unknown): string {
+  if (Array.isArray(value)) {
+    return readQueryString(value[0])
+  }
+  return typeof value === 'string' ? value : ''
+}
+
+function wantsPathOnly(request: express.Request): boolean {
+  const format = readQueryString(request.query.format).toLowerCase()
+  const pathOnly = readQueryString(request.query.pathOnly).toLowerCase()
+  return format === 'path' || pathOnly === '1' || pathOnly === 'true' || pathOnly === 'yes'
 }
 
 function parseAttachmentName(value: string | undefined): string {
