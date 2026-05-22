@@ -8,9 +8,13 @@ import { randomUUID } from 'node:crypto'
 import { CodexProMaxStore } from './database'
 import { HttpError, isNodeError } from './errors'
 import { findRolloutByCodexThreadId, getDefaultCodexSessionsRoot, validateCodexThreadId } from './rolloutResolver'
-import type { RolloutLookup, SessionRecord } from './types'
+import type { AttachmentRecord, InstructionRecord, RolloutLookup, SessionDetail, SessionRecord } from './types'
 import { WaitHub } from './waitHub'
-import { readCodexLiveSessionState } from './codexLiveUsage'
+import {
+  readCodexLiveAssistantMessagesSinceLastUser,
+  readCodexLiveSessionState,
+  type CodexLiveAssistantMessageExport,
+} from './codexLiveUsage'
 
 const DEFAULT_PORT = 53127
 const MAX_WAIT_TIMEOUT_MS = 30 * 60 * 1000
@@ -145,6 +149,14 @@ export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
       activity: liveState.activity,
       thinkingRecords: liveState.thinkingRecords,
     })
+  })
+
+  app.get('/api/sessions/:sessionId/exports/latest-ai-messages', async (request, response) => {
+    const session = getSessionDetailOrThrow(store, request.params.sessionId)
+    const exportData = await readSessionAssistantMessageExport(session)
+    response.setHeader('Content-Disposition', contentDispositionAttachment(createAiExportFileName(session)))
+    response.setHeader('Content-Type', 'text/markdown; charset=utf-8')
+    response.send(formatAssistantMessageExport(session, exportData))
   })
 
   app.delete('/api/sessions/:sessionId', async (request, response) => {
@@ -365,7 +377,7 @@ export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
         ok: true,
         timedOut: false,
         stopped: false,
-        instruction: immediateInstruction,
+        instruction: formatInstructionForCodex(store, immediateInstruction),
         session: store.getSessionById(session.id),
       })
       return
@@ -382,7 +394,7 @@ export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
       ok: true,
       timedOut: !waitResult.notified && !instruction,
       stopped: nextSession?.status === 'STOPPED',
-      instruction,
+      instruction: instruction ? formatInstructionForCodex(store, instruction) : null,
       session: nextSession,
     })
   })
@@ -422,6 +434,27 @@ function assertQueueCapacity(store: CodexProMaxStore, sessionId: string): void {
   if (store.countQueuedInstructions(sessionId) >= MAX_QUEUED_INSTRUCTIONS) {
     throw new HttpError(409, `Instruction queue is full. A session can have up to ${MAX_QUEUED_INSTRUCTIONS} queued messages.`)
   }
+}
+
+function formatInstructionForCodex(store: CodexProMaxStore, instruction: InstructionRecord): InstructionRecord {
+  const mentionedAttachments = store.listSessionAttachments(instruction.sessionId)
+    .filter((attachment) => hasAttachmentMention(instruction.content, attachment.originalName))
+  if (mentionedAttachments.length === 0) return instruction
+
+  return {
+    ...instruction,
+    content: appendAttachmentPathHints(instruction.content, mentionedAttachments),
+  }
+}
+
+function appendAttachmentPathHints(content: string, attachments: AttachmentRecord[]): string {
+  const lines = attachments.map((attachment) => `- @${attachment.originalName}: ${attachment.storagePath}`)
+  return `${content.trimEnd()}\n\nAttachment file paths:\n${lines.join('\n')}`
+}
+
+function hasAttachmentMention(content: string, attachmentName: string): boolean {
+  const escaped = attachmentName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`(^|\\s)@${escaped}(?=\\s|$)`).test(content)
 }
 
 export function getApiPort(): number {
@@ -506,6 +539,168 @@ async function filterLiveThinkingAfterLatestUser(
       return !Number.isFinite(recordTimeMs) || recordTimeMs >= latestUserTimeMs
     }),
   }
+}
+
+async function readSessionAssistantMessageExport(session: SessionDetail): Promise<CodexLiveAssistantMessageExport> {
+  if (!session.rolloutPath) {
+    throw new HttpError(404, 'Session has no bound rollout log.')
+  }
+
+  try {
+    const exportData = await readCodexLiveAssistantMessagesSinceLastUser(
+      session.rolloutPath,
+      latestSessionUserMessage(session),
+    )
+    if (!exportData.latestUserMessage) {
+      throw new HttpError(404, 'No user message found in the bound rollout log.')
+    }
+    return exportData
+  } catch (error) {
+    if (isNodeError(error) && error.code === 'ENOENT') {
+      throw new HttpError(404, 'Bound rollout log was not found.')
+    }
+    throw error
+  }
+}
+
+function latestSessionUserMessage(session: SessionDetail) {
+  for (let index = session.messages.length - 1; index >= 0; index -= 1) {
+    const message = session.messages[index]
+    if (message.role === 'user') {
+      return {
+        timestamp: message.createdAt,
+        text: message.content,
+      }
+    }
+  }
+  return null
+}
+
+function formatAssistantMessageExport(
+  session: SessionRecord,
+  exportData: CodexLiveAssistantMessageExport,
+  exportedAt = new Date(),
+): string {
+  const lines = [
+    '# Codex AI Chat Export',
+    '',
+    `Session: ${session.displayName?.trim() || session.codexThreadId}`,
+    `Thread: ${session.codexThreadId}`,
+    `Rollout: ${session.rolloutPath ? path.basename(session.rolloutPath) : 'None'}`,
+    `Exported: ${exportedAt.toISOString()}`,
+    '',
+    '## Latest User Message',
+    '',
+    `Timestamp: ${exportData.latestUserMessage?.timestamp || 'Unknown'}`,
+    '',
+    markdownTextBlock(exportData.latestUserMessage?.text ?? ''),
+    '',
+    '## Handoff Summary',
+    '',
+    `AI messages captured: ${exportData.assistantMessages.length}`,
+    `Tool calls captured: ${exportData.toolCalls.length}`,
+    `Edited files captured: ${exportData.editedFiles.length}`,
+    `Task events captured: ${exportData.taskEvents.length}`,
+    '',
+    '## Edited Files',
+    '',
+    ...formatEditedFiles(exportData),
+    '## Tool Calls And Outputs',
+    '',
+    ...formatToolCalls(exportData),
+    '## Task Events',
+    '',
+    ...formatTaskEvents(exportData),
+    '## AI Messages',
+    '',
+  ]
+
+  if (exportData.assistantMessages.length === 0) {
+    lines.push('No AI messages were found after the latest user message.', '')
+    return lines.join('\n')
+  }
+
+  exportData.assistantMessages.forEach((message, index) => {
+    lines.push(
+      `### AI Message ${index + 1}`,
+      '',
+      `Timestamp: ${message.timestamp || 'Unknown'}`,
+      '',
+      markdownTextBlock(message.text),
+      '',
+    )
+  })
+
+  return lines.join('\n')
+}
+
+function formatEditedFiles(exportData: CodexLiveAssistantMessageExport): string[] {
+  if (exportData.editedFiles.length === 0) {
+    return ['No edited files were captured in this rollout slice.', '']
+  }
+
+  return exportData.editedFiles.flatMap((file) => [
+    `### ${file.path}`,
+    '',
+    `Change type: ${file.type}`,
+    file.movePath ? `Move target: ${file.movePath}` : '',
+    '',
+    ...file.unifiedDiffs.flatMap((diff, index) => [
+      `Diff ${index + 1}:`,
+      '',
+      markdownTextBlock(diff, 'diff'),
+      '',
+    ]),
+  ].filter((line) => line !== ''))
+}
+
+function formatToolCalls(exportData: CodexLiveAssistantMessageExport): string[] {
+  if (exportData.toolCalls.length === 0) {
+    return ['No tool calls were captured in this rollout slice.', '']
+  }
+
+  return exportData.toolCalls.flatMap((toolCall, index) => {
+    const input = toolCall.command || toolCall.input
+    return [
+      `### Tool Call ${index + 1}: ${toolCall.name || toolCall.kind || 'tool'}`,
+      '',
+      `Timestamp: ${toolCall.timestamp || 'Unknown'}`,
+      `Record index: ${toolCall.index}`,
+      toolCall.status ? `Status: ${toolCall.status}` : '',
+      toolCall.workdir ? `Workdir: ${toolCall.workdir}` : '',
+      input ? 'Input:' : '',
+      input ? markdownTextBlock(input) : '',
+      toolCall.output ? 'Output:' : '',
+      toolCall.output ? markdownTextBlock(toolCall.output) : '',
+      '',
+    ].filter((line) => line !== '')
+  })
+}
+
+function formatTaskEvents(exportData: CodexLiveAssistantMessageExport): string[] {
+  if (exportData.taskEvents.length === 0) {
+    return ['No task completion events were captured in this rollout slice.', '']
+  }
+
+  return exportData.taskEvents.flatMap((event) => [
+    `- ${event.timestamp || 'Unknown'} ${event.type}${event.status ? ` (${event.status})` : ''}${event.summary ? `: ${event.summary}` : ''}`,
+  ]).concat('')
+}
+
+function markdownTextBlock(value: string, language = 'text'): string {
+  const normalized = value.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  const longestBacktickRun = normalized.match(/`+/g)?.reduce((longest, run) => Math.max(longest, run.length), 0) ?? 0
+  const fence = '`'.repeat(Math.max(3, longestBacktickRun + 1))
+  return `${fence}${language}\n${normalized}\n${fence}`
+}
+
+function createAiExportFileName(session: SessionRecord): string {
+  const label = sanitizeAttachmentStem(session.displayName || session.codexThreadId) || 'codex-session'
+  return `${label}-latest-ai-chat-${formatAttachmentTimestamp(new Date())}.md`
+}
+
+function contentDispositionAttachment(fileName: string): string {
+  return `attachment; filename="${fileName.replace(/["\\\r\n]/g, '_')}"`
 }
 
 function sendRollout(response: express.Response, request: express.Request, rollout: RolloutLookup): void {

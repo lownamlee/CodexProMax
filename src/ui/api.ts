@@ -128,6 +128,26 @@ export async function fetchSessionUsage(sessionId: string): Promise<SessionUsage
   return parseJsonResponse(await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/usage`, { cache: 'no-store' }))
 }
 
+export async function downloadLatestAiMessagesExport(sessionId: string): Promise<string> {
+  const response = await fetch(latestAiMessagesExportUrl(sessionId), { cache: 'no-store' })
+  if (!response.ok) {
+    throw new Error(await readResponseError(response))
+  }
+
+  const blob = await response.blob()
+  const fileName = readContentDispositionFileName(response.headers.get('content-disposition'))
+    || 'codex-latest-ai-chat.md'
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = fileName
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
+  return fileName
+}
+
 export async function createSessionByThread(codexThreadId: string, displayName = ''): Promise<CreateSessionResponse> {
   return parseJsonResponse(await fetch(`/api/codex/sessions/by-thread/${encodeURIComponent(codexThreadId)}`, {
     method: 'POST',
@@ -223,6 +243,10 @@ export function attachmentUrl(sessionId: string, attachmentId: string): string {
   return `/api/sessions/${encodeURIComponent(sessionId)}/attachments/${encodeURIComponent(attachmentId)}`
 }
 
+export function latestAiMessagesExportUrl(sessionId: string): string {
+  return `/api/sessions/${encodeURIComponent(sessionId)}/exports/latest-ai-messages`
+}
+
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   const payload = await response.json() as unknown
   if (!response.ok) {
@@ -233,4 +257,32 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
 
 function isApiErrorResponse(value: unknown): value is ApiErrorResponse {
   return value !== null && typeof value === 'object' && 'error' in value
+}
+
+async function readResponseError(response: Response): Promise<string> {
+  try {
+    const payload = await response.json() as unknown
+    return isApiErrorResponse(payload) ? payload.error : 'Request failed'
+  } catch {
+    return 'Request failed'
+  }
+}
+
+function readContentDispositionFileName(value: string | null): string {
+  if (!value) return ''
+
+  const encodedMatch = value.match(/filename\*=UTF-8''([^;]+)/i)
+  if (encodedMatch?.[1]) {
+    try {
+      return decodeURIComponent(encodedMatch[1])
+    } catch {
+      return encodedMatch[1]
+    }
+  }
+
+  const quotedMatch = value.match(/filename="([^"]+)"/i)
+  if (quotedMatch?.[1]) return quotedMatch[1]
+
+  const bareMatch = value.match(/filename=([^;]+)/i)
+  return bareMatch?.[1]?.trim() ?? ''
 }

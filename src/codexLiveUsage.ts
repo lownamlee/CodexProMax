@@ -1,4 +1,6 @@
+import nodeFs from 'node:fs'
 import fs from 'node:fs/promises'
+import { createInterface } from 'node:readline'
 import type {
   CodexLiveActivity,
   CodexLiveContextUsage,
@@ -13,6 +15,46 @@ const USAGE_TAIL_BYTES = 2 * 1024 * 1024
 const USAGE_SCAN_BYTES = 32 * 1024 * 1024
 const USAGE_SCAN_CHUNK_BYTES = 256 * 1024
 const USAGE_RECORD_LIMIT = 220
+
+export interface CodexLiveAssistantMessageExport {
+  latestUserMessage: CodexLiveExportMessage | null
+  assistantMessages: CodexLiveExportMessage[]
+  toolCalls: CodexLiveExportToolCall[]
+  editedFiles: CodexLiveEditedFile[]
+  taskEvents: CodexLiveExportTaskEvent[]
+}
+
+export interface CodexLiveExportMessage {
+  timestamp: string
+  text: string
+}
+
+export interface CodexLiveExportToolCall {
+  id: string
+  index: number
+  timestamp: string
+  name: string
+  kind: string
+  status: string
+  command: string
+  workdir: string
+  input: string
+  output: string
+}
+
+export interface CodexLiveEditedFile {
+  path: string
+  type: string
+  movePath: string | null
+  unifiedDiffs: string[]
+}
+
+export interface CodexLiveExportTaskEvent {
+  timestamp: string
+  type: string
+  status: string
+  summary: string
+}
 
 export async function readCodexLiveUsage(rolloutPath: string): Promise<CodexLiveContextUsage | null> {
   return (await readCodexLiveSessionState(rolloutPath)).usage
@@ -60,6 +102,88 @@ export async function readCodexLiveSessionState(rolloutPath: string): Promise<Co
       .slice(lastUserRecordIndex >= 0 ? lastUserRecordIndex + 1 : 0)
       .filter(isConversationThinkingRecord)
       .slice(-30),
+  }
+}
+
+export async function readCodexLiveAssistantMessagesSinceLastUser(
+  rolloutPath: string,
+  latestSessionUserMessage: CodexLiveExportMessage | null = null,
+): Promise<CodexLiveAssistantMessageExport> {
+  const lineReader = createInterface({
+    input: nodeFs.createReadStream(rolloutPath, { encoding: 'utf8' }),
+    crlfDelay: Infinity,
+  })
+  const latestSessionUserTimeMs = latestSessionUserMessage?.timestamp
+    ? Date.parse(latestSessionUserMessage.timestamp)
+    : Number.NaN
+  const useSessionUserCutoff = Boolean(latestSessionUserMessage)
+  let latestUserMessage: CodexLiveExportMessage | null = latestSessionUserMessage
+  let assistantMessages: CodexLiveExportMessage[] = []
+  let toolCalls: CodexLiveExportToolCall[] = []
+  let taskEvents: CodexLiveExportTaskEvent[] = []
+  let toolCallsById = new Map<string, CodexLiveExportToolCall>()
+  let editedFilesByPath = new Map<string, CodexLiveEditedFile>()
+  let index = 0
+
+  try {
+    for await (const line of lineReader) {
+      const record = safeJson(line)
+      const payload = readRecord(record?.payload)
+      const timestamp = readString(record?.timestamp) || readString(record?.time)
+      if (useSessionUserCutoff && Number.isFinite(latestSessionUserTimeMs)) {
+        const recordTimeMs = Date.parse(timestamp)
+        if (Number.isFinite(recordTimeMs) && recordTimeMs < latestSessionUserTimeMs) {
+          index += 1
+          continue
+        }
+      }
+
+      const recordIndex = index
+      const liveRecord = record ? parseCodexLiveRecordFromRecord(record, recordIndex) : null
+      index += 1
+
+      if (!useSessionUserCutoff && liveRecord && isConversationUserRecord(liveRecord)) {
+        latestUserMessage = {
+          timestamp: liveRecord.timestamp,
+          text: liveRecord.text,
+        }
+        assistantMessages = []
+        toolCalls = []
+        taskEvents = []
+        toolCallsById = new Map<string, CodexLiveExportToolCall>()
+        editedFilesByPath = new Map<string, CodexLiveEditedFile>()
+        continue
+      }
+
+      if (latestUserMessage && payload) {
+        collectCodexLiveExportContext(
+          payload,
+          timestamp,
+          recordIndex,
+          toolCalls,
+          toolCallsById,
+          editedFilesByPath,
+          taskEvents,
+        )
+      }
+
+      if (latestUserMessage && liveRecord && isConversationThinkingRecord(liveRecord)) {
+        assistantMessages.push({
+          timestamp: liveRecord.timestamp,
+          text: liveRecord.text,
+        })
+      }
+    }
+  } finally {
+    lineReader.close()
+  }
+
+  return {
+    latestUserMessage,
+    assistantMessages,
+    toolCalls,
+    editedFiles: Array.from(editedFilesByPath.values()),
+    taskEvents,
   }
 }
 
@@ -112,6 +236,10 @@ export function parseCodexLiveRecord(line: string, index: number): CodexLiveReco
   const record = safeJson(line)
   if (!record) return null
 
+  return parseCodexLiveRecordFromRecord(record, index)
+}
+
+function parseCodexLiveRecordFromRecord(record: Record<string, unknown>, index: number): CodexLiveRecord | null {
   const timestamp = readString(record.timestamp) || readString(record.time)
   const payload = readRecord(record.payload)
   const fallbackId = `${timestamp || 'record'}-${index}`
@@ -161,6 +289,124 @@ export function parseCodexLiveRecord(line: string, index: number): CodexLiveReco
   }
 
   return null
+}
+
+function collectCodexLiveExportContext(
+  payload: Record<string, unknown>,
+  timestamp: string,
+  index: number,
+  toolCalls: CodexLiveExportToolCall[],
+  toolCallsById: Map<string, CodexLiveExportToolCall>,
+  editedFilesByPath: Map<string, CodexLiveEditedFile>,
+  taskEvents: CodexLiveExportTaskEvent[],
+): void {
+  const payloadType = readString(payload.type)
+  const callId = readString(payload.call_id)
+
+  if (payloadType === 'function_call' || payloadType === 'custom_tool_call') {
+    const toolCall = makeExportToolCall(payload, timestamp, index)
+    toolCalls.push(toolCall)
+    if (toolCall.id) {
+      toolCallsById.set(toolCall.id, toolCall)
+    }
+    return
+  }
+
+  if (payloadType === 'function_call_output' || payloadType === 'custom_tool_call_output') {
+    const toolCall = toolCallsById.get(callId)
+    if (toolCall) {
+      toolCall.output = readString(payload.output)
+    }
+    return
+  }
+
+  if (payloadType === 'patch_apply_end') {
+    const toolCall = toolCallsById.get(callId)
+    if (toolCall) {
+      toolCall.status = readString(payload.status) || (readBoolean(payload.success) ? 'completed' : 'failed')
+      const output = [readString(payload.stdout), readString(payload.stderr)].filter(Boolean).join('\n')
+      if (output.trim()) {
+        toolCall.output = output
+      }
+    }
+    collectEditedFiles(payload.changes, editedFilesByPath)
+    return
+  }
+
+  if (payloadType === 'task_complete') {
+    taskEvents.push({
+      timestamp,
+      type: payloadType,
+      status: 'completed',
+      summary: taskSummary(payload),
+    })
+  }
+}
+
+function makeExportToolCall(payload: Record<string, unknown>, timestamp: string, index: number): CodexLiveExportToolCall {
+  const name = readString(payload.name)
+  const parsedArguments = readArguments(payload.arguments)
+  const command = readString(parsedArguments?.command)
+  const workdir = readString(parsedArguments?.workdir)
+  const input = readString(payload.input) || (parsedArguments ? JSON.stringify(parsedArguments, null, 2) : readString(payload.arguments))
+
+  return {
+    id: readString(payload.call_id),
+    index,
+    timestamp,
+    name,
+    kind: readString(payload.type),
+    status: readString(payload.status),
+    command,
+    workdir,
+    input,
+    output: '',
+  }
+}
+
+function collectEditedFiles(value: unknown, editedFilesByPath: Map<string, CodexLiveEditedFile>): void {
+  const changes = readRecord(value)
+  if (!changes) return
+
+  Object.entries(changes).forEach(([filePath, changeValue]) => {
+    const change = readRecord(changeValue)
+    if (!change) return
+
+    const existing = editedFilesByPath.get(filePath) ?? {
+      path: filePath,
+      type: readString(change.type) || 'update',
+      movePath: readNullableString(change.move_path),
+      unifiedDiffs: [],
+    }
+    const diff = readString(change.unified_diff)
+    if (diff.trim()) {
+      existing.unifiedDiffs.push(diff)
+    }
+    existing.type = readString(change.type) || existing.type
+    existing.movePath = readNullableString(change.move_path) ?? existing.movePath
+    editedFilesByPath.set(filePath, existing)
+  })
+}
+
+function readArguments(value: unknown): Record<string, unknown> | null {
+  if (typeof value === 'string') {
+    try {
+      return readRecord(JSON.parse(value))
+    } catch {
+      return null
+    }
+  }
+  return readRecord(value)
+}
+
+function taskSummary(payload: Record<string, unknown>): string {
+  const durationMs = readNumber(payload.duration_ms)
+  const completedAt = readNumber(payload.completed_at)
+  const parts = [
+    completedAt > 0 ? `completed_at=${new Date(completedAt * 1000).toISOString()}` : '',
+    durationMs > 0 ? `duration_ms=${durationMs}` : '',
+  ].filter(Boolean)
+  return parts.join(', ')
 }
 
 async function readRecentJsonlLines(filePath: string, limit: number): Promise<string[]> {

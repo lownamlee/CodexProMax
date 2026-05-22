@@ -465,6 +465,10 @@ export class CodexProMaxStore {
     return row ? mapAttachment(row) : null
   }
 
+  listSessionAttachments(sessionId: string): AttachmentRecord[] {
+    return this.listAttachments(sessionId)
+  }
+
   getAttachmentsRoot(): string {
     return path.join(this.dataRoot, 'attachments')
   }

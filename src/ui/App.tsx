@@ -44,6 +44,7 @@ import {
   deleteInstruction,
   deleteSession,
   deleteSkill,
+  downloadLatestAiMessagesExport,
   fetchHealth,
   fetchSession,
   fetchSkills,
@@ -87,6 +88,7 @@ type PendingAction =
   | 'stop'
   | 'delete-session'
   | 'delete-attachment'
+  | 'export'
   | 'update-instruction'
   | 'delete-instruction'
 
@@ -580,6 +582,22 @@ export default function App() {
     }
   }
 
+  async function handleExportLatestAiMessages() {
+    if (!selectedSessionId || !sessionDetail) return
+
+    setPending('export')
+    setError('')
+    setNotice('')
+    try {
+      const fileName = await downloadLatestAiMessagesExport(selectedSessionId)
+      setNotice(`Exported ${fileName}.`)
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : 'Export failed.')
+    } finally {
+      setPending(null)
+    }
+  }
+
   async function handleStopSession() {
     if (!selectedSessionId || !sessionDetail) return
     const confirmed = await requestConfirmation({
@@ -788,6 +806,9 @@ export default function App() {
           <div className="toolbar">
             <button type="button" onClick={() => void handleStopSession()} disabled={!sessionDetail || pending === 'stop'} title="Stop session">
               <i className={pending === 'stop' ? 'ri-loader-4-line spinning' : 'ri-stop-circle-line'} aria-hidden="true" />
+            </button>
+            <button type="button" onClick={() => void handleExportLatestAiMessages()} disabled={!sessionDetail || pending === 'export'} title="Export AI messages after latest user message">
+              <i className={pending === 'export' ? 'ri-loader-4-line spinning' : 'ri-download-2-line'} aria-hidden="true" />
             </button>
             <button type="button" onClick={() => void handleClearConversation()} disabled={!sessionDetail || pending === 'clear'} title="Clear conversation">
               <i className={pending === 'clear' ? 'ri-loader-4-line spinning' : 'ri-chat-delete-line'} aria-hidden="true" />

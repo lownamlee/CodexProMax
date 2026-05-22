@@ -179,6 +179,42 @@ describe('Codex Pro Max API', () => {
     expect(detail.body.session.instructions[0].consumedAt).toBeTruthy()
   })
 
+  it('adds stored file paths for mentioned attachments in Codex wait responses', async () => {
+    const threadId = '019e4914-8bbe-7d70-9e55-3ec6fc52d221'
+    await writeRollout(threadId)
+    handle = createApp({ dataRoot, sessionsRoot })
+    const createResponse = await request(handle.app).post(`/api/codex/sessions/by-thread/${threadId}`).send({}).expect(201)
+    const sessionId = createResponse.body.session.id as string
+
+    const upload = await request(handle.app)
+      .post(`/api/sessions/${sessionId}/attachments`)
+      .attach('file', Buffer.from('handoff notes'), {
+        filename: 'handoff.md',
+        contentType: 'text/markdown',
+      })
+      .expect(201)
+    const attachment = upload.body.attachment as { originalName: string; storagePath: string }
+    const instructionContent = `@${attachment.originalName}\n\nRead this handoff and continue.`
+
+    await request(handle.app)
+      .post(`/api/sessions/${sessionId}/instructions`)
+      .send({ content: instructionContent })
+      .expect(201)
+
+    const waitResponse = await request(handle.app)
+      .post(`/api/codex/sessions/by-thread/${threadId}/wait`)
+      .send({})
+      .expect(200)
+
+    expect(waitResponse.body.instruction.content).toContain(instructionContent)
+    expect(waitResponse.body.instruction.content).toContain('Attachment file paths:')
+    expect(waitResponse.body.instruction.content).toContain(`- @${attachment.originalName}: ${attachment.storagePath}`)
+
+    const detail = await request(handle.app).get(`/api/sessions/${sessionId}`).expect(200)
+    const userMessages = detail.body.session.messages.filter((message: { role: string }) => message.role === 'user')
+    expect(userMessages.at(-1).content).toBe(instructionContent)
+  })
+
   it('broadcasts one queued instruction to every active wait request', async () => {
     const threadId = '019e4914-8bbe-7d70-9e55-3ec6fc52d221'
     await writeRollout(threadId)
@@ -353,6 +389,214 @@ describe('Codex Pro Max API', () => {
     expect(response.body.thinkingRecords.map((record: { text: string }) => record.text)).toEqual([
       'Checking the new UI path.',
     ])
+  })
+
+  it('exports assistant rollout messages after the latest rollout user message', async () => {
+    const threadId = '019e4914-8bbe-7d70-9e55-3ec6fc52d221'
+    await writeRollout(threadId, [
+      JSON.stringify({
+        timestamp: '2026-05-21T07:34:09.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'Assistant message before any user.' }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: '2026-05-21T07:34:10.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'user_message',
+          message: 'Earlier user request.',
+        },
+      }),
+      JSON.stringify({
+        timestamp: '2026-05-21T07:34:11.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'Earlier assistant answer.' }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: '2026-05-21T07:34:12.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'user_message',
+          message: 'For Client Management page, add checkbox for the table.',
+        },
+      }),
+      JSON.stringify({
+        timestamp: '2026-05-21T07:34:13.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'reasoning',
+          summary: [{ text: 'Hidden reasoning should not export.' }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: '2026-05-21T07:34:14.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'Added row selection checkboxes.' }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: '2026-05-21T07:34:15.000Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'Batch delete is now wired.' }],
+        },
+      }),
+    ])
+    handle = createApp({ dataRoot, sessionsRoot })
+    const createResponse = await request(handle.app).post(`/api/codex/sessions/by-thread/${threadId}`).send({}).expect(201)
+
+    const response = await request(handle.app)
+      .get(`/api/sessions/${createResponse.body.session.id}/exports/latest-ai-messages`)
+      .expect(200)
+
+    expect(response.headers['content-type']).toContain('text/markdown')
+    expect(response.headers['content-disposition']).toContain('attachment; filename=')
+    expect(response.text).toContain('For Client Management page, add checkbox for the table.')
+    expect(response.text).toContain('Added row selection checkboxes.')
+    expect(response.text).toContain('Batch delete is now wired.')
+    expect(response.text).not.toContain('Earlier assistant answer.')
+    expect(response.text).not.toContain('Hidden reasoning should not export.')
+  })
+
+  it('uses the latest Codex Pro Max session user message as the export cutoff', async () => {
+    const threadId = '019e4914-8bbe-7d70-9e55-3ec6fc52d221'
+    const rolloutPath = await writeRollout(threadId, [
+      JSON.stringify({
+        timestamp: '2026-05-21T07:34:10.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'user_message',
+          message: 'Listen to Codex Pro Max.',
+        },
+      }),
+    ])
+    handle = createApp({ dataRoot, sessionsRoot })
+    const createResponse = await request(handle.app).post(`/api/codex/sessions/by-thread/${threadId}`).send({}).expect(201)
+    const sessionId = createResponse.body.session.id as string
+
+    await request(handle.app)
+      .post(`/api/sessions/${sessionId}/instructions`)
+      .send({ content: 'For Client Management page, add checkbox for the table.' })
+      .expect(201)
+    await request(handle.app)
+      .post(`/api/codex/sessions/by-thread/${threadId}/wait`)
+      .send({})
+      .expect(200)
+
+    const detail = await request(handle.app).get(`/api/sessions/${sessionId}`).expect(200)
+    const latestUserMessage = [...detail.body.session.messages]
+      .reverse()
+      .find((message: { role: string }) => message.role === 'user') as { createdAt: string } | undefined
+    expect(latestUserMessage).toBeTruthy()
+
+    const latestUserTimeMs = Date.parse(latestUserMessage!.createdAt)
+    await fs.writeFile(rolloutPath, [
+      '{"type":"session_meta"}',
+      JSON.stringify({
+        timestamp: '2026-05-21T07:34:10.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'user_message',
+          message: 'Listen to Codex Pro Max.',
+        },
+      }),
+      JSON.stringify({
+        timestamp: new Date(latestUserTimeMs - 1000).toISOString(),
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'Assistant message before Codex Pro Max user.' }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: new Date(latestUserTimeMs + 1000).toISOString(),
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'Added batch delete checkboxes.' }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: new Date(latestUserTimeMs + 1500).toISOString(),
+        type: 'response_item',
+        payload: {
+          type: 'function_call',
+          name: 'shell_command',
+          arguments: JSON.stringify({
+            command: 'npm test',
+            workdir: 'C:\\repo',
+          }),
+          call_id: 'call_test',
+        },
+      }),
+      JSON.stringify({
+        timestamp: new Date(latestUserTimeMs + 1600).toISOString(),
+        type: 'response_item',
+        payload: {
+          type: 'function_call_output',
+          call_id: 'call_test',
+          output: 'Exit code: 0\nTests passed.',
+        },
+      }),
+      JSON.stringify({
+        timestamp: new Date(latestUserTimeMs + 2000).toISOString(),
+        type: 'response_item',
+        payload: {
+          type: 'custom_tool_call',
+          status: 'completed',
+          call_id: 'call_patch',
+          name: 'apply_patch',
+          input: '*** Begin Patch\n*** Update File: src/renderer/renderer.js\n+  selectedManagementClientIds: [],\n*** End Patch\n',
+        },
+      }),
+      JSON.stringify({
+        timestamp: new Date(latestUserTimeMs + 2100).toISOString(),
+        type: 'event_msg',
+        payload: {
+          type: 'patch_apply_end',
+          call_id: 'call_patch',
+          stdout: 'Success. Updated the following files:\nM src/renderer/renderer.js\n',
+          stderr: '',
+          success: true,
+          status: 'completed',
+          changes: {
+            'C:\\repo\\src\\renderer\\renderer.js': {
+              type: 'update',
+              unified_diff: '@@\n+  selectedManagementClientIds: [],\n',
+              move_path: null,
+            },
+          },
+        },
+      }),
+    ].join('\n') + '\n', 'utf8')
+
+    const response = await request(handle.app)
+      .get(`/api/sessions/${sessionId}/exports/latest-ai-messages`)
+      .expect(200)
+
+    expect(response.text).toContain('For Client Management page, add checkbox for the table.')
+    expect(response.text).toContain('Added batch delete checkboxes.')
+    expect(response.text).toContain('C:\\repo\\src\\renderer\\renderer.js')
+    expect(response.text).toContain('selectedManagementClientIds')
+    expect(response.text).toContain('npm test')
+    expect(response.text).toContain('Tests passed.')
+    expect(response.text).not.toContain('Listen to Codex Pro Max.')
+    expect(response.text).not.toContain('Assistant message before Codex Pro Max user.')
   })
 
   it('filters rollout thinking records before the latest SQLite user message', async () => {

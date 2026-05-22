@@ -132,6 +132,10 @@ After Codex finishes a task, Codex Pro Max shows the conclusion in the browser.
 
 Type your next prompt in Codex Pro Max. Once Codex receives it, it continues the same Codex session, works until the next conclusion, writes that conclusion back into Codex Pro Max, and waits again.
 
+Upload a file and insert its `@attachment-name` mention into the prompt when Codex needs that file. The wait response keeps the chat message readable in the UI and adds the stored local file path for Codex when that mentioned attachment is delivered.
+
+Use the download button in the session toolbar to export the latest user turn, AI messages, tool calls, task events, and edited-file diffs from the bound rollout log as Markdown.
+
 That is the main loop:
 
 ```text
@@ -283,7 +287,7 @@ stateDiagram-v2
 | `src/app.ts` | Express routes, request validation, uploads, Codex endpoints, and wait coordination. |
 | `src/database.ts` | SQLite migrations, sessions, messages, conclusions, instructions, attachments, events, and slash skills. |
 | `src/rolloutResolver.ts` | Resolves the rollout log and Codex live session id from a Codex thread id. |
-| `src/codexLiveUsage.ts` | Reads rollout activity, token usage, and thinking records for the UI. |
+| `src/codexLiveUsage.ts` | Reads rollout activity, token usage, thinking records, and export slices from rollout logs. |
 | `src/waitHub.ts` | Holds pending wait requests until an instruction arrives or a session stops. |
 | `setup/skills/codex-pro-max/SKILL.md` | Installed Codex endpoint flow for create/resume, conclusion, and wait. |
 
@@ -295,6 +299,7 @@ stateDiagram-v2
 | `GET /api/healthy` | Health probe used before Codex enables the skill flow. |
 | `GET /api/sessions` | Lists browser session summaries. |
 | `GET /api/sessions/:sessionId` | Reads one session with messages, instructions, and attachments. |
+| `GET /api/sessions/:sessionId/exports/latest-ai-messages` | Downloads a Markdown export for the latest AI work after the current user turn. |
 | `POST /api/sessions/:sessionId/instructions` | Queues the next instruction from the browser. |
 | `POST /api/sessions/:sessionId/attachments` | Uploads one attachment. |
 | `POST /api/sessions/:sessionId/stop` | Stops one session and wakes pending waits. |
