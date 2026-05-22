@@ -395,6 +395,8 @@ export default function App() {
   }, [notice])
 
   useEffect(() => {
+    if (rightCollapsed || attachmentsCollapsed) return
+
     const lightbox = new PhotoSwipeLightbox({
       gallery: '.attachment-list',
       children: 'a.attachment-main',
@@ -404,7 +406,7 @@ export default function App() {
     return () => {
       lightbox.destroy()
     }
-  }, [selectedSessionId, attachmentSignature])
+  }, [selectedSessionId, attachmentSignature, rightCollapsed, attachmentsCollapsed])
 
   useEffect(() => {
     if (editingInstructionId && !editingInstruction) {
@@ -1866,11 +1868,32 @@ function Composer({
     () => uniqueAttachments.filter((attachment) => hasAttachmentMention(value, attachment.originalName)),
     [uniqueAttachments, value],
   )
+  const mentionedImageSignature = useMemo(
+    () => mentionedAttachments
+      .filter((attachment) => attachment.mimeType.startsWith('image/'))
+      .map((attachment) => attachment.id)
+      .join('|'),
+    [mentionedAttachments],
+  )
 
   useLayoutEffect(() => {
     resizeTextarea(textareaRef.current)
     reportComposerHeight()
   }, [editingInstruction, value, queuedInstructions.length])
+
+  useEffect(() => {
+    if (!mentionedImageSignature) return
+
+    const lightbox = new PhotoSwipeLightbox({
+      gallery: '.composer-attachment-tray',
+      children: 'a.composer-attachment-chip-preview',
+      pswpModule: () => import('photoswipe'),
+    })
+    lightbox.init()
+    return () => {
+      lightbox.destroy()
+    }
+  }, [mentionedImageSignature])
 
   useEffect(() => {
     if (focusSignal > 0) {
@@ -1977,20 +2000,7 @@ function Composer({
               key={attachment.id}
               title={attachment.originalName}
             >
-              <button
-                type="button"
-                className="composer-attachment-chip-preview"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => onPreviewAttachment(attachment)}
-                title={`Preview ${attachment.originalName}`}
-                aria-label={`Preview attachment ${attachment.originalName}`}
-              >
-                {attachment.mimeType.startsWith('image/') ? (
-                  <img className="composer-attachment-chip-thumb" src={attachmentUrl(attachment.sessionId, attachment.id)} alt="" />
-                ) : (
-                  <span className="composer-attachment-chip-kind">{attachmentKind(attachment)}</span>
-                )}
-              </button>
+              <ComposerAttachmentChipPreview attachment={attachment} onPreviewAttachment={onPreviewAttachment} />
               <span className="composer-attachment-chip-name">@{attachment.originalName}</span>
               <button
                 type="button"
@@ -2043,6 +2053,58 @@ function Composer({
         </button>
       </div>
     </section>
+  )
+}
+
+function ComposerAttachmentChipPreview({
+  attachment,
+  onPreviewAttachment,
+}: {
+  attachment: AttachmentRecord
+  onPreviewAttachment: (attachment: AttachmentRecord) => void
+}) {
+  const [dimensions, setDimensions] = useState({ width: 1200, height: 900 })
+  const url = attachmentUrl(attachment.sessionId, attachment.id)
+
+  if (attachment.mimeType.startsWith('image/')) {
+    return (
+      <a
+        className="composer-attachment-chip-preview"
+        href={url}
+        data-pswp-width={dimensions.width}
+        data-pswp-height={dimensions.height}
+        target="_blank"
+        rel="noreferrer"
+        onMouseDown={(event) => event.preventDefault()}
+        title={`Preview ${attachment.originalName}`}
+        aria-label={`Preview attachment ${attachment.originalName}`}
+      >
+        <img
+          className="composer-attachment-chip-thumb"
+          src={url}
+          alt=""
+          onLoad={(event) => {
+            const { naturalWidth, naturalHeight } = event.currentTarget
+            if (naturalWidth > 0 && naturalHeight > 0) {
+              setDimensions({ width: naturalWidth, height: naturalHeight })
+            }
+          }}
+        />
+      </a>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      className="composer-attachment-chip-preview"
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={() => onPreviewAttachment(attachment)}
+      title={`Preview ${attachment.originalName}`}
+      aria-label={`Preview attachment ${attachment.originalName}`}
+    >
+      <span className="composer-attachment-chip-kind">{attachmentKind(attachment)}</span>
+    </button>
   )
 }
 
