@@ -40,6 +40,56 @@ describe('Codex Pro Max API', () => {
     expect(healthy.body).toEqual({ ok: true })
   })
 
+  it('seeds a removable default skill only once', async () => {
+    handle = createApp({ dataRoot, sessionsRoot })
+
+    const initial = await request(handle.app).get('/api/skills').expect(200)
+    expect(initial.body.skills).toHaveLength(1)
+    expect(initial.body.skills[0]).toMatchObject({
+      name: 'plan-first',
+      origin: 'system',
+    })
+    expect(initial.body.skills[0].content).toContain('Do not conclude easily')
+
+    await request(handle.app)
+      .delete(`/api/skills/${initial.body.skills[0].id}`)
+      .expect(200)
+    handle.close()
+    handle = createApp({ dataRoot, sessionsRoot })
+
+    const restarted = await request(handle.app).get('/api/skills').expect(200)
+    expect(restarted.body.skills).toEqual([])
+  })
+
+  it('creates and edits slash skills through the API', async () => {
+    handle = createApp({ dataRoot, sessionsRoot })
+
+    const created = await request(handle.app)
+      .post('/api/skills')
+      .send({ name: 'review_pass', content: 'Review the current implementation.' })
+      .expect(201)
+    expect(created.body.skill).toMatchObject({
+      name: 'review_pass',
+      content: 'Review the current implementation.',
+      origin: 'user',
+    })
+
+    const updated = await request(handle.app)
+      .patch(`/api/skills/${created.body.skill.id}`)
+      .send({ name: 'review-pass', content: 'Review the implementation and tests.' })
+      .expect(200)
+    expect(updated.body.skill).toMatchObject({
+      name: 'review-pass',
+      content: 'Review the implementation and tests.',
+    })
+
+    const invalid = await request(handle.app)
+      .post('/api/skills')
+      .send({ name: 'bad skill name', content: 'Should fail.' })
+      .expect(400)
+    expect(invalid.body.error).toContain('Skill name')
+  })
+
   it('resolves rollout path and Codex live session id from a thread id', async () => {
     const threadId = '019e4914-8bbe-7d70-9e55-3ec6fc52d221'
     const rolloutPath = await writeRollout(threadId)

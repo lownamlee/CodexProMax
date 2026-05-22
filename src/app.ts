@@ -84,6 +84,51 @@ export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
     })
   })
 
+  app.get('/api/skills', (_request, response) => {
+    response.json({
+      ok: true,
+      skills: store.listSkills(),
+    })
+  })
+
+  app.post('/api/skills', (request, response) => {
+    const skill = store.createSkill(parseSkillInput(request.body))
+    response.status(201).json({
+      ok: true,
+      skill,
+      skills: store.listSkills(),
+    })
+  })
+
+  app.patch('/api/skills/:skillId', (request, response) => {
+    const skill = store.updateSkill(
+      parseId(request.params.skillId, 'Skill id'),
+      parseSkillInput(request.body),
+    )
+    if (!skill) {
+      throw new HttpError(404, 'Skill not found.')
+    }
+
+    response.json({
+      ok: true,
+      skill,
+      skills: store.listSkills(),
+    })
+  })
+
+  app.delete('/api/skills/:skillId', (request, response) => {
+    const deletedSkill = store.deleteSkill(parseId(request.params.skillId, 'Skill id'))
+    if (!deletedSkill) {
+      throw new HttpError(404, 'Skill not found.')
+    }
+
+    response.json({
+      ok: true,
+      deletedSkill,
+      skills: store.listSkills(),
+    })
+  })
+
   app.get('/api/sessions/:sessionId', (request, response) => {
     response.json({
       ok: true,
@@ -595,6 +640,26 @@ function parseContent(value: unknown, label: string): string {
     throw new HttpError(400, `${label} content is required.`)
   }
   return content
+}
+
+function parseSkillInput(value: unknown): { name: string; content: string } {
+  return {
+    name: parseSkillName(value),
+    content: parseContent(value, 'Skill'),
+  }
+}
+
+function parseSkillName(value: unknown): string {
+  if (!value || typeof value !== 'object') {
+    throw new HttpError(400, 'Skill body must be a JSON object.')
+  }
+  const name = typeof (value as { name?: unknown }).name === 'string'
+    ? (value as { name: string }).name.trim().toLowerCase()
+    : ''
+  if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(name)) {
+    throw new HttpError(400, 'Skill name must use 1-64 lowercase letters, numbers, hyphens, or underscores.')
+  }
+  return name
 }
 
 function readBodyString(value: unknown, key: string): string {

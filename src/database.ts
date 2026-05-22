@@ -13,6 +13,8 @@ import type {
   SessionRecord,
   SessionSummary,
   SessionStatus,
+  SkillOrigin,
+  SkillRecord,
 } from './types'
 
 export interface CodexProMaxStoreOptions {
@@ -34,6 +36,21 @@ export interface CreateAttachmentInput {
   sizeBytes: number
   storagePath: string
 }
+
+export interface CreateSkillInput {
+  name: string
+  content: string
+  origin?: SkillOrigin
+}
+
+export interface UpdateSkillInput {
+  name: string
+  content: string
+}
+
+const DEFAULT_SKILL_SEED_KEY = 'system_skills_v1'
+const DEFAULT_SKILL_NAME = 'plan-first'
+const DEFAULT_SKILL_CONTENT = 'Do not conclude easily, it\'s ok to change the current data structure and coding and data as we are still at development phase, plan and implement it properly'
 
 type SessionRow = {
   id: string
@@ -81,6 +98,15 @@ type AttachmentRow = {
   created_at: string
 }
 
+type SkillRow = {
+  id: string
+  name: string
+  content: string
+  origin: SkillOrigin
+  created_at: string
+  updated_at: string
+}
+
 export class CodexProMaxStore {
   readonly dataRoot: string
   readonly dbPath: string
@@ -95,6 +121,7 @@ export class CodexProMaxStore {
     this.db.exec('PRAGMA foreign_keys = ON')
     this.db.exec('PRAGMA journal_mode = WAL')
     this.migrate()
+    this.seedDefaultSkills()
     this.normalizeAttachmentDisplayNames()
   }
 
@@ -446,8 +473,49 @@ export class CodexProMaxStore {
     return path.join(this.getAttachmentsRoot(), sessionId)
   }
 
+  listSkills(): SkillRecord[] {
+    const rows = this.db.prepare('SELECT * FROM skills ORDER BY name COLLATE NOCASE ASC, created_at ASC')
+      .all() as SkillRow[]
+    return rows.map(mapSkill)
+  }
+
+  getSkillById(id: string): SkillRecord | null {
+    const row = this.db.prepare('SELECT * FROM skills WHERE id = ?').get(id) as SkillRow | undefined
+    return row ? mapSkill(row) : null
+  }
+
+  createSkill(input: CreateSkillInput): SkillRecord {
+    const now = nowIso()
+    const id = randomUUID()
+    this.db.prepare(`
+      INSERT INTO skills (id, name, content, origin, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, input.name, input.content, input.origin ?? 'user', now, now)
+    return this.getSkillById(id)!
+  }
+
+  updateSkill(skillId: string, input: UpdateSkillInput): SkillRecord | null {
+    const existing = this.getSkillById(skillId)
+    if (!existing) return null
+    this.db.prepare('UPDATE skills SET name = ?, content = ?, updated_at = ? WHERE id = ?')
+      .run(input.name, input.content, nowIso(), skillId)
+    return this.getSkillById(skillId)
+  }
+
+  deleteSkill(skillId: string): SkillRecord | null {
+    const existing = this.getSkillById(skillId)
+    if (!existing) return null
+    this.db.prepare('DELETE FROM skills WHERE id = ?').run(skillId)
+    return existing
+  }
+
   private migrate(): void {
     this.db.exec(`
+      CREATE TABLE IF NOT EXISTS app_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
         codex_thread_id TEXT NOT NULL UNIQUE,
@@ -502,6 +570,15 @@ export class CodexProMaxStore {
         created_at TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS skills (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+        content TEXT NOT NULL,
+        origin TEXT NOT NULL CHECK (origin IN ('system', 'user')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
       CREATE INDEX IF NOT EXISTS idx_sessions_codex_thread_id ON sessions(codex_thread_id);
       CREATE INDEX IF NOT EXISTS idx_sessions_status_updated ON sessions(status, updated_at);
       CREATE INDEX IF NOT EXISTS idx_messages_session_created ON messages(session_id, created_at);
@@ -510,6 +587,27 @@ export class CodexProMaxStore {
       CREATE INDEX IF NOT EXISTS idx_attachments_session_created ON attachments(session_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_events_session_created ON session_events(session_id, created_at);
     `)
+  }
+
+  private seedDefaultSkills(): void {
+    const seeded = this.db.prepare('SELECT value FROM app_meta WHERE key = ?')
+      .get(DEFAULT_SKILL_SEED_KEY) as { value: string } | undefined
+    if (seeded) return
+
+    const now = nowIso()
+    this.db.exec('BEGIN IMMEDIATE')
+    try {
+      this.db.prepare(`
+        INSERT OR IGNORE INTO skills (id, name, content, origin, created_at, updated_at)
+        VALUES (?, ?, ?, 'system', ?, ?)
+      `).run(randomUUID(), DEFAULT_SKILL_NAME, DEFAULT_SKILL_CONTENT, now, now)
+      this.db.prepare('INSERT INTO app_meta (key, value) VALUES (?, ?)')
+        .run(DEFAULT_SKILL_SEED_KEY, now)
+      this.db.exec('COMMIT')
+    } catch (error) {
+      this.db.exec('ROLLBACK')
+      throw error
+    }
   }
 
   private listMessages(sessionId: string): MessageRecord[] {
@@ -627,6 +725,17 @@ function mapAttachment(row: AttachmentRow): AttachmentRecord {
     sizeBytes: row.size_bytes,
     storagePath: row.storage_path,
     createdAt: row.created_at,
+  }
+}
+
+function mapSkill(row: SkillRow): SkillRecord {
+  return {
+    id: row.id,
+    name: row.name,
+    content: row.content,
+    origin: row.origin,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   }
 }
 

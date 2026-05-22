@@ -31,6 +31,16 @@ Core session states:
 
 There is no delivered-instruction state. When `wait` returns an instruction to Codex, the instruction is consumed and the session goes back to `RUNNING`.
 
+## Composer Context
+
+The session composer keeps context attached to the next instruction:
+
+- Type `@` to insert an uploaded attachment mention.
+- Type `/` to open saved slash skills. Arrow keys move through attachment or skill suggestions, while `Enter` or `Tab` inserts the active item.
+- Manage slash skills from the profile menu's Skills dialog. New data roots include a removable `/plan-first` system skill for the deeper planning prompt used during development.
+
+Slash skills are global SQLite records, so they are available across Codex sessions without belonging to one session transcript.
+
 ## Local Commands
 
 ```powershell

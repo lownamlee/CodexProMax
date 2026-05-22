@@ -34,23 +34,29 @@ import type {
   SessionRecord,
   SessionStatus,
   SessionSummary,
+  SkillRecord,
 } from '../types'
 import {
   attachmentUrl,
   clearConversation,
+  createSkill,
   deleteAttachment,
   deleteInstruction,
   deleteSession,
+  deleteSkill,
   fetchHealth,
   fetchSession,
+  fetchSkills,
   fetchSessionUsage,
   fetchSessions,
   sendInstruction,
   stopSession,
   updateInstruction,
+  updateSkill,
   uploadAttachment,
   type HealthResponse,
 } from './api'
+import { cycleSuggestionIndex, findSlashSkillRange, replaceExactSlashSkill, replaceSlashSkillRange } from './skillInsertion'
 
 const SESSION_POLL_MS = 3500
 const CHAT_BOTTOM_THRESHOLD_PX = 12
@@ -111,6 +117,7 @@ type ConfirmDialogState = ConfirmDialogOptions & {
 export default function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null)
   const [sessions, setSessions] = useState<SessionSummary[]>([])
+  const [skills, setSkills] = useState<SkillRecord[]>([])
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null)
   const [conversationUsage, setConversationUsage] = useState<CodexLiveContextUsage | null>(null)
@@ -325,10 +332,15 @@ export default function App() {
 
     async function loadInitialState() {
       try {
-        const [healthResponse, sessionsResponse] = await Promise.all([fetchHealth(), fetchSessions()])
+        const [healthResponse, sessionsResponse, skillsResponse] = await Promise.all([
+          fetchHealth(),
+          fetchSessions(),
+          fetchSkills(),
+        ])
         if (cancelled) return
         setHealth(healthResponse)
         setSessions(sessionsResponse.sessions)
+        setSkills(skillsResponse.skills)
         setSelectedSessionId(sessionsResponse.sessions[0]?.id ?? null)
       } catch (loadError) {
         if (!cancelled) {
@@ -439,8 +451,9 @@ export default function App() {
     setPending('refresh')
     setError('')
     try {
-      const healthResponse = await fetchHealth()
+      const [healthResponse, skillsResponse] = await Promise.all([fetchHealth(), fetchSkills()])
       setHealth(healthResponse)
+      setSkills(skillsResponse.skills)
       await loadSessions({ keepSelection: true })
       await loadSelectedSession(selectedSessionId)
     } catch (refreshError) {
@@ -830,6 +843,7 @@ export default function App() {
               queueLimitReached={queueLimitReached}
               editingInstruction={editingInstruction}
               attachments={attachments}
+              skills={skills}
               queuedInstructions={queuedInstructions}
               deletingInstructionIds={deletingInstructionIds}
               focusSignal={composerFocusSignal}
@@ -934,7 +948,15 @@ export default function App() {
           onClose={() => setWorkspaceSettingsOpen(false)}
         />
       )}
-      {skillsOpen && <SimpleProfileDialog title="Skills" icon="ri-brain-line" message="Codex skills are configured from the local Codex environment." onClose={() => setSkillsOpen(false)} />}
+      {skillsOpen && (
+        <SkillsDialog
+          skills={skills}
+          onSkillsChange={setSkills}
+          onError={setError}
+          onNotice={setNotice}
+          onClose={() => setSkillsOpen(false)}
+        />
+      )}
       {logoutErrorOpen && <SimpleProfileDialog title="Cannot sign out" icon="ri-error-warning-line" message="This is a local development build. There is no remote account session to sign out from." onClose={() => setLogoutErrorOpen(false)} tone="danger" />}
       <div
         className="sidebar-mobile-backdrop"
@@ -1372,6 +1394,192 @@ function SettingsDialog({
               onChange={(event) => onConfirmRunningSendChange(event.target.checked)}
             />
           </label>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function SkillsDialog({
+  skills,
+  onSkillsChange,
+  onError,
+  onNotice,
+  onClose,
+}: {
+  skills: SkillRecord[]
+  onSkillsChange: (skills: SkillRecord[]) => void
+  onError: (message: string) => void
+  onNotice: (message: string) => void
+  onClose: () => void
+}) {
+  const [newName, setNewName] = useState('')
+  const [newContent, setNewContent] = useState('')
+  const [editingSkillId, setEditingSkillId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editContent, setEditContent] = useState('')
+  const [pendingSkillId, setPendingSkillId] = useState('')
+  useEscapeToClose(onClose)
+
+  useEffect(() => {
+    if (editingSkillId && !skills.some((skill) => skill.id === editingSkillId)) {
+      setEditingSkillId(null)
+    }
+  }, [editingSkillId, skills])
+
+  function beginEdit(skill: SkillRecord) {
+    setEditingSkillId(skill.id)
+    setEditName(skill.name)
+    setEditContent(skill.content)
+  }
+
+  async function handleCreate() {
+    setPendingSkillId('create')
+    onError('')
+    try {
+      const response = await createSkill(newName, newContent)
+      onSkillsChange(response.skills)
+      setNewName('')
+      setNewContent('')
+      onNotice(`Skill /${response.skill.name} added.`)
+    } catch (skillError) {
+      onError(skillError instanceof Error ? skillError.message : 'Create skill failed.')
+    } finally {
+      setPendingSkillId('')
+    }
+  }
+
+  async function handleUpdate(skill: SkillRecord) {
+    setPendingSkillId(skill.id)
+    onError('')
+    try {
+      const response = await updateSkill(skill.id, editName, editContent)
+      onSkillsChange(response.skills)
+      setEditingSkillId(null)
+      onNotice(`Skill /${response.skill.name} updated.`)
+    } catch (skillError) {
+      onError(skillError instanceof Error ? skillError.message : 'Update skill failed.')
+    } finally {
+      setPendingSkillId('')
+    }
+  }
+
+  async function handleDelete(skill: SkillRecord) {
+    setPendingSkillId(skill.id)
+    onError('')
+    try {
+      const response = await deleteSkill(skill.id)
+      onSkillsChange(response.skills)
+      onNotice(`Skill /${response.deletedSkill.name} deleted.`)
+    } catch (skillError) {
+      onError(skillError instanceof Error ? skillError.message : 'Delete skill failed.')
+    } finally {
+      setPendingSkillId('')
+    }
+  }
+
+  return (
+    <div className="preview-backdrop settings-backdrop" role="presentation" onClick={onClose}>
+      <section className="settings-dialog skills-dialog" role="dialog" aria-modal="true" aria-label="Skills" onClick={(event) => event.stopPropagation()}>
+        <header>
+          <div>
+            <p className="eyebrow">Profile</p>
+            <h2>Skills</h2>
+          </div>
+          <button type="button" className="icon-button" onClick={onClose} title="Close skills" autoFocus>
+            <i className="ri-close-line" aria-hidden="true" />
+          </button>
+        </header>
+        <form
+          className="skill-editor skill-create"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void handleCreate()
+          }}
+        >
+          <label className="skill-field skill-name-field">
+            <span>Name</span>
+            <span className="skill-name-input">
+              <b aria-hidden="true">/</b>
+              <input
+                value={newName}
+                onChange={(event) => setNewName(event.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="new-skill"
+              />
+            </span>
+          </label>
+          <label className="skill-field">
+            <span>Text</span>
+            <textarea value={newContent} onChange={(event) => setNewContent(event.target.value)} />
+          </label>
+          <button className="confirm-button primary skill-save-button" type="submit" disabled={pendingSkillId === 'create'}>
+            <i className={pendingSkillId === 'create' ? 'ri-loader-4-line spinning' : 'ri-add-line'} aria-hidden="true" />
+            Add
+          </button>
+        </form>
+        <div className="skill-list" aria-label="Configured skills">
+          {skills.length === 0 && <p className="muted-copy">No skills configured.</p>}
+          {skills.map((skill) => {
+            const editing = editingSkillId === skill.id
+            const pending = pendingSkillId === skill.id
+            return (
+              <article className={`skill-row ${editing ? 'is-editing' : ''}`} key={skill.id}>
+                {editing ? (
+                  <form
+                    className="skill-editor"
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      void handleUpdate(skill)
+                    }}
+                  >
+                    <label className="skill-field skill-name-field">
+                      <span>Name</span>
+                      <span className="skill-name-input">
+                        <b aria-hidden="true">/</b>
+                        <input
+                          value={editName}
+                          onChange={(event) => setEditName(event.target.value)}
+                          autoComplete="off"
+                          spellCheck={false}
+                        />
+                      </span>
+                    </label>
+                    <label className="skill-field">
+                      <span>Text</span>
+                      <textarea value={editContent} onChange={(event) => setEditContent(event.target.value)} />
+                    </label>
+                    <div className="skill-editor-actions">
+                      <button type="button" className="confirm-button secondary" onClick={() => setEditingSkillId(null)}>
+                        Cancel
+                      </button>
+                      <button type="submit" className="confirm-button primary" disabled={pending}>
+                        <i className={pending ? 'ri-loader-4-line spinning' : 'ri-check-line'} aria-hidden="true" />
+                        Save
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <>
+                    <div className="skill-row-copy">
+                      <strong>/{skill.name}</strong>
+                      <small>{skill.origin === 'system' ? 'System' : 'User'}</small>
+                      <p>{skill.content}</p>
+                    </div>
+                    <div className="skill-row-actions">
+                      <button type="button" onClick={() => beginEdit(skill)} disabled={Boolean(pendingSkillId)} title={`Edit /${skill.name}`}>
+                        <i className="ri-edit-line" aria-hidden="true" />
+                      </button>
+                      <button type="button" onClick={() => void handleDelete(skill)} disabled={Boolean(pendingSkillId)} title={`Delete /${skill.name}`}>
+                        <i className={pending ? 'ri-loader-4-line spinning' : 'ri-delete-bin-6-line'} aria-hidden="true" />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </article>
+            )
+          })}
         </div>
       </section>
     </div>
@@ -1821,6 +2029,7 @@ function Composer({
   queueLimitReached,
   editingInstruction,
   attachments,
+  skills,
   queuedInstructions,
   deletingInstructionIds,
   focusSignal,
@@ -1840,6 +2049,7 @@ function Composer({
   queueLimitReached: boolean
   editingInstruction: InstructionRecord | null
   attachments: AttachmentRecord[]
+  skills: SkillRecord[]
   queuedInstructions: InstructionRecord[]
   deletingInstructionIds: string[]
   focusSignal: number
@@ -1855,8 +2065,11 @@ function Composer({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const composerRef = useRef<HTMLElement | null>(null)
   const [caretIndex, setCaretIndex] = useState(value.length)
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0)
+  const [dismissedSuggestionKey, setDismissedSuggestionKey] = useState('')
   const uniqueAttachments = useMemo(() => uniqueAttachmentsByName(attachments), [attachments])
   const mentionRange = useMemo(() => findMentionRange(value, caretIndex), [caretIndex, value])
+  const slashSkillRange = useMemo(() => findSlashSkillRange(value, caretIndex), [caretIndex, value])
   const mentionSuggestions = useMemo(() => {
     if (!mentionRange) return []
     const query = mentionRange.query.toLowerCase()
@@ -1864,6 +2077,33 @@ function Composer({
       .filter((attachment) => attachment.originalName.toLowerCase().includes(query))
       .slice(0, 6)
   }, [mentionRange, uniqueAttachments])
+  const slashSkillSuggestions = useMemo(() => {
+    if (!slashSkillRange) return []
+    const query = slashSkillRange.query.toLowerCase()
+    return skills
+      .filter((skill) => skill.name.toLowerCase().startsWith(query))
+      .slice(0, 6)
+  }, [skills, slashSkillRange])
+  const suggestionKind = mentionSuggestions.length > 0
+    ? 'attachment'
+    : slashSkillSuggestions.length > 0
+      ? 'skill'
+      : null
+  const suggestionContextKey = suggestionKind === 'attachment' && mentionRange
+    ? `attachment:${mentionRange.start}:${mentionRange.end}:${mentionRange.query}`
+    : suggestionKind === 'skill' && slashSkillRange
+      ? `skill:${slashSkillRange.start}:${slashSkillRange.end}:${slashSkillRange.query}`
+      : ''
+  const suggestionCount = suggestionKind === 'attachment'
+    ? mentionSuggestions.length
+    : suggestionKind === 'skill'
+      ? slashSkillSuggestions.length
+      : 0
+  const showSuggestionMenu = Boolean(
+    suggestionKind
+    && suggestionContextKey
+    && suggestionContextKey !== dismissedSuggestionKey,
+  )
   const mentionedAttachments = useMemo(
     () => uniqueAttachments.filter((attachment) => hasAttachmentMention(value, attachment.originalName)),
     [uniqueAttachments, value],
@@ -1879,7 +2119,7 @@ function Composer({
   useLayoutEffect(() => {
     resizeTextarea(textareaRef.current)
     reportComposerHeight()
-  }, [editingInstruction, value, queuedInstructions.length])
+  }, [editingInstruction, queuedInstructions.length, showSuggestionMenu, value])
 
   useEffect(() => {
     if (!mentionedImageSignature) return
@@ -1901,6 +2141,16 @@ function Composer({
     }
   }, [focusSignal])
 
+  useEffect(() => {
+    setActiveSuggestionIndex(0)
+  }, [suggestionContextKey])
+
+  useEffect(() => {
+    if (activeSuggestionIndex >= suggestionCount) {
+      setActiveSuggestionIndex(0)
+    }
+  }, [activeSuggestionIndex, suggestionCount])
+
   function reportComposerHeight() {
     const height = composerRef.current?.offsetHeight ?? 0
     if (height > 0) {
@@ -1913,14 +2163,55 @@ function Composer({
   }
 
   function handleChange(event: ChangeEvent<HTMLTextAreaElement>) {
-    onChange(event.target.value)
-    rememberCaret(event.target)
+    const textarea = event.target
+    const nextValue = textarea.value
+    const nextCaret = textarea.selectionStart ?? nextValue.length
+    const insertion = replaceExactSlashSkill(nextValue, nextCaret, skills)
+    if (!insertion) {
+      onChange(nextValue)
+      setCaretIndex(nextCaret)
+      return
+    }
+
+    onChange(insertion.value)
+    setCaretIndex(insertion.caretIndex)
+    window.requestAnimationFrame(() => {
+      textarea.focus()
+      textarea.setSelectionRange(insertion.caretIndex, insertion.caretIndex)
+      resizeTextarea(textarea)
+    })
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
       event.preventDefault()
       onSend()
+      return
+    }
+
+    if (!showSuggestionMenu) return
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setActiveSuggestionIndex((index) => cycleSuggestionIndex(index, suggestionCount, 'next'))
+      return
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setActiveSuggestionIndex((index) => cycleSuggestionIndex(index, suggestionCount, 'previous'))
+      return
+    }
+
+    if (event.key === 'Enter' || event.key === 'Tab') {
+      event.preventDefault()
+      insertActiveSuggestion()
+      return
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      setDismissedSuggestionKey(suggestionContextKey)
     }
   }
 
@@ -1959,6 +2250,36 @@ function Composer({
       textarea?.setSelectionRange(nextCaret, nextCaret)
       resizeTextarea(textarea)
     })
+  }
+
+  function insertSlashSkill(skill: SkillRecord) {
+    if (!slashSkillRange) return
+    const textarea = textareaRef.current
+    const insertion = replaceSlashSkillRange(value, slashSkillRange, skill.content)
+    onChange(insertion.value)
+    setCaretIndex(insertion.caretIndex)
+    window.requestAnimationFrame(() => {
+      textarea?.focus()
+      textarea?.setSelectionRange(insertion.caretIndex, insertion.caretIndex)
+      resizeTextarea(textarea)
+    })
+  }
+
+  function insertActiveSuggestion() {
+    if (suggestionKind === 'attachment') {
+      const attachment = mentionSuggestions[activeSuggestionIndex]
+      if (attachment) {
+        insertAttachmentMention(attachment)
+      }
+      return
+    }
+
+    if (suggestionKind === 'skill') {
+      const skill = slashSkillSuggestions[activeSuggestionIndex]
+      if (skill) {
+        insertSlashSkill(skill)
+      }
+    }
   }
 
   function handleRemoveAttachmentMention(attachment: AttachmentRecord) {
@@ -2016,6 +2337,46 @@ function Composer({
           ))}
         </div>
       )}
+      {showSuggestionMenu && suggestionKind === 'attachment' && (
+        <div className="composer-suggestion-menu" role="listbox" aria-label="Attachment mentions">
+          {mentionSuggestions.map((attachment, index) => (
+            <button
+              type="button"
+              key={attachment.id}
+              className={`composer-suggestion-option ${index === activeSuggestionIndex ? 'active' : ''}`}
+              role="option"
+              aria-selected={index === activeSuggestionIndex}
+              onMouseDown={(event) => event.preventDefault()}
+              onMouseEnter={() => setActiveSuggestionIndex(index)}
+              onClick={() => insertAttachmentMention(attachment)}
+            >
+              <i className="ri-attachment-2" aria-hidden="true" />
+              <span className="composer-suggestion-name">{attachment.originalName}</span>
+              <span className="composer-suggestion-meta">{formatBytes(attachment.sizeBytes)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {showSuggestionMenu && suggestionKind === 'skill' && (
+        <div className="composer-suggestion-menu" role="listbox" aria-label="Slash skills">
+          {slashSkillSuggestions.map((skill, index) => (
+            <button
+              type="button"
+              key={skill.id}
+              className={`composer-suggestion-option ${index === activeSuggestionIndex ? 'active' : ''}`}
+              role="option"
+              aria-selected={index === activeSuggestionIndex}
+              onMouseDown={(event) => event.preventDefault()}
+              onMouseEnter={() => setActiveSuggestionIndex(index)}
+              onClick={() => insertSlashSkill(skill)}
+            >
+              <i className="ri-brain-line" aria-hidden="true" />
+              <span className="composer-suggestion-name">/{skill.name}</span>
+              <span className="composer-suggestion-meta">{skill.origin}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <div className="composer-row">
         <label className="composer-upload-button" title="Attach file">
           <i className="ri-attachment-2" aria-hidden="true" />
@@ -2035,17 +2396,6 @@ function Composer({
             onPaste={(event) => void handlePaste(event)}
             placeholder={queueLimitReached ? 'Instruction queue is full.' : disabled ? 'Session is stopped.' : queueMode ? 'Queue the next instruction...' : 'Message Codex Pro Max...'}
           />
-          {mentionSuggestions.length > 0 && (
-            <div className="mention-popover">
-              {mentionSuggestions.map((attachment) => (
-                <button type="button" key={attachment.id} onMouseDown={(event) => event.preventDefault()} onClick={() => insertAttachmentMention(attachment)}>
-                  <span>{attachmentKind(attachment)}</span>
-                  <strong>{attachment.originalName}</strong>
-                  <small>{formatBytes(attachment.sizeBytes)}</small>
-                </button>
-              ))}
-            </div>
-          )}
         </div>
         <button type="button" className="send-button" disabled={disabled || pending || !value.trim()} onClick={onSend} title={editingInstruction ? 'Save queued instruction' : queueMode ? 'Queue instruction' : 'Send instruction'}>
           <i className={pending ? 'ri-loader-4-line spinning' : editingInstruction ? 'ri-check-line' : queueMode ? 'ri-inbox-archive-line' : 'ri-arrow-up-line'} aria-hidden="true" />

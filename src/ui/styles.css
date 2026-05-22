@@ -217,12 +217,12 @@ a {
 @keyframes popupDialogFadeIn {
   from {
     opacity: 0;
-    transform: translateY(6px) scale(0.98);
+    transform: scale(0.9) translateY(10px);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: scale(1) translateY(0);
   }
 }
 
@@ -1679,62 +1679,58 @@ textarea::placeholder {
   transform: scale(1.05) rotate(-5deg);
 }
 
-.mention-popover {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 12px);
-  z-index: 45;
-  width: min(320px, 86vw);
-  display: grid;
-  gap: 3px;
-  padding: 5px;
+.composer-suggestion-menu {
+  width: min(100%, var(--chat-column-width));
+  max-height: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  margin: 0 auto 4px;
+  padding: 4px;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: var(--shadow-lg);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-md);
 }
 
-.mention-popover button {
+.composer-suggestion-option {
+  width: 100%;
   min-width: 0;
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) auto;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  padding: 5px;
-  border-radius: 8px;
-  color: var(--text-main);
+  padding: 4px 6px;
+  border-radius: 6px;
+  color: var(--text-muted);
   text-align: left;
 }
 
-.mention-popover button:hover {
+.composer-suggestion-option:hover,
+.composer-suggestion-option.active {
   background: var(--bg-hover);
-}
-
-.mention-popover span {
-  width: 32px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--border);
-  border-radius: 6px;
   color: var(--primary);
-  font-family: var(--font-mono);
-  font-size: 8px;
-  font-weight: 800;
 }
 
-.mention-popover strong {
+.composer-suggestion-option i {
+  font-size: 13px;
+}
+
+.composer-suggestion-name {
   min-width: 0;
   overflow: hidden;
+  color: var(--text-main);
   font-size: 10px;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.mention-popover small {
+.composer-suggestion-meta {
   color: var(--text-light);
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 9px;
 }
 
 .protocol-sidebar {
@@ -2133,7 +2129,7 @@ textarea::placeholder {
   display: grid;
   place-items: center;
   padding: 18px;
-  animation: popupBackdropFadeIn 0.16s ease-out both;
+  animation: popupBackdropFadeIn 0.16s ease-out forwards;
 }
 
 .preview-dialog {
@@ -2144,7 +2140,10 @@ textarea::placeholder {
   background: transparent;
   display: grid;
   grid-template-rows: 1fr;
-  animation: popupDialogFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+  opacity: 0;
+  transform: scale(0.9) translateY(10px);
+  animation: popupDialogFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: 0.02s;
 }
 
 .preview-screen-chrome {
@@ -2262,7 +2261,10 @@ textarea::placeholder {
   border-radius: 16px;
   background: #ffffff;
   box-shadow: var(--shadow-lg);
-  animation: popupDialogFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+  opacity: 0;
+  transform: scale(0.9) translateY(10px);
+  animation: popupDialogFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: 0.02s;
 }
 
 .confirm-dialog {
@@ -2454,6 +2456,192 @@ textarea::placeholder {
   gap: 8px;
 }
 
+.skills-dialog {
+  width: min(620px, 92vw);
+  max-height: min(720px, 92vh);
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.skill-editor {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.skill-create {
+  grid-template-columns: minmax(160px, 0.42fr) minmax(240px, 1fr) auto;
+  align-items: end;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-app);
+}
+
+.skill-field {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.skill-field > span:first-child {
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.skill-name-input,
+.skill-field input,
+.skill-field textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text-main);
+  font-size: 11px;
+}
+
+.skill-name-input {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.skill-name-input b {
+  width: 27px;
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  border-right: 1px solid var(--border);
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.skill-field input {
+  min-height: 32px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  font-family: var(--font-mono);
+}
+
+.skill-field textarea {
+  min-height: 58px;
+  max-height: 150px;
+  padding: 8px 9px;
+  resize: vertical;
+  outline: 0;
+  line-height: 1.45;
+}
+
+.skill-save-button,
+.skill-editor-actions .confirm-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.skill-save-button {
+  min-width: 68px;
+}
+
+.skill-list {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.skill-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.skill-row.is-editing {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.skill-row-copy {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
+.skill-row-copy strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.skill-row-copy small {
+  justify-self: start;
+  padding: 2px 5px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-light);
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.skill-row-copy p {
+  grid-column: 1 / -1;
+  margin: 0;
+  max-height: 68px;
+  overflow: auto;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.skill-row-actions {
+  display: flex;
+  align-items: start;
+  gap: 4px;
+}
+
+.skill-row-actions button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-app);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.skill-row-actions button:last-child:hover:not(:disabled) {
+  border-color: rgba(225, 29, 72, 0.18);
+  background: #fff1f2;
+  color: var(--danger);
+}
+
+.skill-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .settings-toggle {
   display: flex;
   align-items: center;
@@ -2590,5 +2778,11 @@ textarea::placeholder {
     background: rgba(15, 23, 42, 0.4);
     backdrop-filter: blur(2px);
     animation: popupBackdropFadeIn 0.2s ease-out;
+  }
+}
+
+@media (max-width: 640px) {
+  .skill-create {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

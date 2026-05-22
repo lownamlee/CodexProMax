@@ -72,6 +72,17 @@ export interface AttachmentRecord {
   createdAt: string
 }
 
+export type SkillOrigin = 'system' | 'user'
+
+export interface SkillRecord {
+  id: string
+  name: string
+  content: string
+  origin: SkillOrigin
+  createdAt: string
+  updatedAt: string
+}
+
 export interface CodexLiveContextUsage {
   timestamp: string
   contextWindow: number

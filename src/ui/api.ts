@@ -9,6 +9,7 @@ import type {
   SessionDetail,
   SessionRecord,
   SessionSummary,
+  SkillRecord,
 } from '../types'
 
 export interface HealthResponse {
@@ -89,6 +90,19 @@ export interface StopSessionResponse {
   session: SessionRecord
 }
 
+export interface SkillsResponse {
+  ok: true
+  skills: SkillRecord[]
+}
+
+export interface SkillMutationResponse extends SkillsResponse {
+  skill: SkillRecord
+}
+
+export interface DeleteSkillResponse extends SkillsResponse {
+  deletedSkill: SkillRecord
+}
+
 export interface ApiErrorResponse {
   ok: false
   error: string
@@ -100,6 +114,10 @@ export async function fetchHealth(): Promise<HealthResponse> {
 
 export async function fetchSessions(): Promise<SessionsResponse> {
   return parseJsonResponse(await fetch('/api/sessions'))
+}
+
+export async function fetchSkills(): Promise<SkillsResponse> {
+  return parseJsonResponse(await fetch('/api/skills'))
 }
 
 export async function fetchSession(sessionId: string): Promise<SessionResponse> {
@@ -158,6 +176,28 @@ export async function stopSession(sessionId: string): Promise<StopSessionRespons
 
 export async function deleteSession(sessionId: string): Promise<DeleteSessionResponse> {
   return parseJsonResponse(await fetch(`/api/sessions/${encodeURIComponent(sessionId)}`, {
+    method: 'DELETE',
+  }))
+}
+
+export async function createSkill(name: string, content: string): Promise<SkillMutationResponse> {
+  return parseJsonResponse(await fetch('/api/skills', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, content }),
+  }))
+}
+
+export async function updateSkill(skillId: string, name: string, content: string): Promise<SkillMutationResponse> {
+  return parseJsonResponse(await fetch(`/api/skills/${encodeURIComponent(skillId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, content }),
+  }))
+}
+
+export async function deleteSkill(skillId: string): Promise<DeleteSkillResponse> {
+  return parseJsonResponse(await fetch(`/api/skills/${encodeURIComponent(skillId)}`, {
     method: 'DELETE',
   }))
 }
