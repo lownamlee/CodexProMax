@@ -755,9 +755,20 @@ export default function App() {
 
       <main className="chat-shell">
         <header className="chat-header">
-          <div>
-            <p className="eyebrow">Current session</p>
-            <h2>{sessionDetail ? sessionLabel(sessionDetail) : 'No active session'}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+            <button
+              className="icon-button mobile-left-toggle"
+              type="button"
+              onClick={() => setLeftCollapsed((value) => !value)}
+              aria-label={leftCollapsed ? 'Expand left sidebar' : 'Collapse left sidebar'}
+              title={leftCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              <i className="ri-menu-line" aria-hidden="true" />
+            </button>
+            <div style={{ minWidth: 0 }}>
+              <p className="eyebrow">Current session</p>
+              <h2>{sessionDetail ? sessionLabel(sessionDetail) : 'No active session'}</h2>
+            </div>
           </div>
           <div className="toolbar">
             <button type="button" onClick={() => void handleStopSession()} disabled={!sessionDetail || pending === 'stop'} title="Stop session">
@@ -923,6 +934,13 @@ export default function App() {
       )}
       {skillsOpen && <SimpleProfileDialog title="Skills" icon="ri-brain-line" message="Codex skills are configured from the local Codex environment." onClose={() => setSkillsOpen(false)} />}
       {logoutErrorOpen && <SimpleProfileDialog title="Cannot sign out" icon="ri-error-warning-line" message="This is a local development build. There is no remote account session to sign out from." onClose={() => setLogoutErrorOpen(false)} tone="danger" />}
+      <div
+        className="sidebar-mobile-backdrop"
+        onClick={() => {
+          setLeftCollapsed(true)
+          setRightCollapsed(true)
+        }}
+      />
     </div>
   )
 }

@@ -2494,34 +2494,101 @@ textarea::placeholder {
   align-items: start;
 }
 
+.mobile-left-toggle {
+  display: none;
+}
+
+.sidebar-mobile-backdrop {
+  display: none;
+}
+
 @media (max-width: 900px) {
   body {
-    overflow: auto;
+    overflow: hidden;
+  }
+
+  .mobile-left-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--text-muted);
+    font-size: 15px;
+    transition: all 0.2s var(--ease-out, ease);
+  }
+
+  .mobile-left-toggle:hover {
+    border-color: var(--border);
+    background: var(--bg-surface);
+    color: var(--primary);
   }
 
   .app-shell {
     --chat-column-width: calc(100vw - 28px);
-    min-height: 100%;
-    display: flex;
-    flex-direction: column;
-    overflow: visible;
   }
 
-  .run-inbox,
-  .protocol-sidebar {
-    position: relative;
-    inset: auto;
-    width: 100%;
-    flex-basis: auto;
-    transform: none;
-  }
-
-  .chat-shell {
-    position: relative;
-    inset: auto;
-    min-height: 70vh;
+  .app-shell .chat-shell,
+  .app-shell.left-collapsed .chat-shell,
+  .app-shell.right-collapsed .chat-shell {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
     margin: 0;
     border-radius: 0;
-    border-left: 0;
+    border: 0;
+    left: 0;
+    right: 0;
+  }
+
+  .run-inbox {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 260px;
+    z-index: 100;
+    background: var(--bg-app);
+    box-shadow: 4px 0 24px rgba(15, 23, 42, 0.15);
+    transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+    transform: translateX(0);
+  }
+
+  .run-inbox.collapsed {
+    width: 260px;
+    transform: translateX(-100%);
+  }
+
+  .protocol-sidebar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 280px;
+    z-index: 100;
+    background: var(--bg-app);
+    box-shadow: -4px 0 24px rgba(15, 23, 42, 0.15);
+    transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+    transform: translateX(0);
+    padding: 14px 8px;
+  }
+
+  .protocol-sidebar.collapsed {
+    width: 280px;
+    padding: 14px 8px;
+    transform: translateX(100%);
+  }
+
+  .app-shell:not(.left-collapsed) .sidebar-mobile-backdrop,
+  .app-shell:not(.right-collapsed) .sidebar-mobile-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(2px);
+    animation: popupBackdropFadeIn 0.2s ease-out;
   }
 }
