@@ -19,7 +19,7 @@ import {
 const DEFAULT_PORT = 53127
 const MAX_WAIT_TIMEOUT_MS = 30 * 60 * 1000
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
-const MAX_QUEUED_INSTRUCTIONS = 10
+const MAX_QUEUED_INSTRUCTIONS = 100
 
 export interface CreateAppOptions {
   dataRoot?: string

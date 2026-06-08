@@ -736,14 +736,14 @@ describe('Codex Pro Max API', () => {
     })
   })
 
-  it('limits a session to ten queued instructions', async () => {
+  it('limits a session to one hundred queued instructions', async () => {
     const threadId = '019e4914-8bbe-7d70-9e55-3ec6fc52d221'
     await writeRollout(threadId)
     handle = createApp({ dataRoot, sessionsRoot })
     const createResponse = await request(handle.app).post(`/api/codex/sessions/by-thread/${threadId}`).send({}).expect(201)
     const sessionId = createResponse.body.session.id as string
 
-    for (let index = 0; index < 10; index += 1) {
+    for (let index = 0; index < 100; index += 1) {
       await request(handle.app)
         .post(`/api/sessions/${sessionId}/instructions`)
         .send({ content: `Queued instruction ${index + 1}` })

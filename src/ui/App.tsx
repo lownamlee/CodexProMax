@@ -170,7 +170,7 @@ export default function App() {
     () => (sessionDetail?.instructions ?? []).filter((item) => !item.consumedAt),
     [sessionDetail?.instructions],
   )
-  const queueLimitReached = queuedInstructions.length >= 10
+  const queueLimitReached = queuedInstructions.length >= 100
   const editingInstruction = useMemo(
     () => queuedInstructions.find((item) => item.id === editingInstructionId) ?? null,
     [editingInstructionId, queuedInstructions],
