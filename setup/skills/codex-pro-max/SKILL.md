@@ -17,8 +17,14 @@ Invoke-RestMethod -Method Post "http://127.0.0.1:53127/api/codex/sessions/by-thr
 
 Do the user's task.
 
+Build the conclusion body with `ConvertTo-Json`. Do not hand-build JSON or paste raw AI text into a JSON string.
+
 ```powershell
-Invoke-RestMethod -Method Post "http://127.0.0.1:53127/api/codex/sessions/by-thread/<threadId>/conclusion" -ContentType "application/json" -Body (@{ content = "<normal Codex conclusion>" } | ConvertTo-Json)
+$conclusion = @'
+<normal Codex conclusion>
+'@
+$body = @{ content = $conclusion } | ConvertTo-Json -Depth 4
+Invoke-RestMethod -Method Post "http://127.0.0.1:53127/api/codex/sessions/by-thread/<threadId>/conclusion" -ContentType "application/json" -Body $body
 ```
 
 ```powershell

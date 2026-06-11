@@ -359,6 +359,12 @@ export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
     const threadId = parseThreadId(request.params.threadId)
     const session = await ensureSessionForCodex(store, sessionsRoot, threadId)
     const timeoutMs = readWaitTimeout(Number(request.query.timeoutMs || readBodyNumber(request.body, 'timeoutMs') || 0))
+    const abortController = new AbortController()
+    const abortWaitOnDisconnect = () => {
+      if (!response.writableEnded) {
+        abortController.abort()
+      }
+    }
 
     if (session.status === 'STOPPED') {
       response.json({
@@ -384,7 +390,12 @@ export function createApp(options: CreateAppOptions = {}): CodexProMaxApp {
     }
 
     store.markSessionStatus(session.id, 'WAITING_FOR_INSTRUCTION')
-    const waitResult = await waitHub.wait(session.id, timeoutMs)
+    response.once('close', abortWaitOnDisconnect)
+    const waitResult = await waitHub.wait(session.id, timeoutMs, abortController.signal)
+    response.off('close', abortWaitOnDisconnect)
+    if (waitResult.aborted || response.writableEnded || response.destroyed) {
+      return
+    }
 
     const instruction = waitResult.instructionId
       ? store.consumeInstructionById(session.id, waitResult.instructionId) ?? store.getInstructionById(waitResult.instructionId)
@@ -893,6 +904,11 @@ const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => 
     return
   }
 
+  if (isJsonParseError(error)) {
+    response.status(400).json({ ok: false, error: 'Invalid JSON body.' })
+    return
+  }
+
   if (error instanceof HttpError) {
     response.status(error.status).json({ ok: false, error: error.message })
     return
@@ -905,4 +921,13 @@ const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => 
 
   console.error(error)
   response.status(500).json({ ok: false, error: 'Internal server error' })
+}
+
+function isJsonParseError(error: unknown): boolean {
+  return Boolean(
+    error
+    && typeof error === 'object'
+    && (error as { type?: unknown }).type === 'entity.parse.failed'
+    && (error as { status?: unknown }).status === 400,
+  )
 }

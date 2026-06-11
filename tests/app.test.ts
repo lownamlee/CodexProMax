@@ -1,4 +1,6 @@
 import fs from 'node:fs/promises'
+import type { Server } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import request from 'supertest'
@@ -179,6 +181,46 @@ describe('Codex Pro Max API', () => {
     expect(detail.body.session.instructions[0].consumedAt).toBeTruthy()
   })
 
+  it('records AI conclusions with JSON, code fences, and entity-like text', async () => {
+    const threadId = '019e4914-8bbe-7d70-9e55-3ec6fc52d221'
+    await writeRollout(threadId)
+    handle = createApp({ dataRoot, sessionsRoot })
+    await request(handle.app).post(`/api/codex/sessions/by-thread/${threadId}`).send({}).expect(201)
+
+    const content = [
+      'Parser diagnostic.',
+      '',
+      'Quotes: "entity" and \'single quotes\'.',
+      'JSON snippet: {"message":"hello", "body":"entity"}',
+      'HTML-ish text: &entity; &amp; <tag attr="value">body</tag>',
+      '```json',
+      '{"ok":true,"body":"entity"}',
+      '```',
+    ].join('\n')
+
+    const response = await request(handle.app)
+      .post(`/api/codex/sessions/by-thread/${threadId}/conclusion`)
+      .send({ content })
+      .expect(201)
+
+    expect(response.body.conclusion.content).toBe(content)
+  })
+
+  it('returns a clean 400 for malformed JSON request bodies', async () => {
+    const threadId = '019e4914-8bbe-7d70-9e55-3ec6fc52d221'
+    await writeRollout(threadId)
+    handle = createApp({ dataRoot, sessionsRoot })
+    await request(handle.app).post(`/api/codex/sessions/by-thread/${threadId}`).send({}).expect(201)
+
+    const response = await request(handle.app)
+      .post(`/api/codex/sessions/by-thread/${threadId}/conclusion`)
+      .set('Content-Type', 'application/json')
+      .send('{"content":"Bad "entity" JSON"}')
+      .expect(400)
+
+    expect(response.body).toEqual({ ok: false, error: 'Invalid JSON body.' })
+  })
+
   it('adds stored file paths for mentioned attachments in Codex wait responses', async () => {
     const threadId = '019e4914-8bbe-7d70-9e55-3ec6fc52d221'
     await writeRollout(threadId)
@@ -264,6 +306,58 @@ describe('Codex Pro Max API', () => {
 
     const detail = await request(handle.app).get(`/api/sessions/${sessionId}`).expect(200)
     expect(detail.body.session.messages.filter((message: { role: string }) => message.role === 'user')).toHaveLength(1)
+  })
+
+  it('does not let an aborted wait consume the next queued instruction', async () => {
+    const threadId = '019e4914-8bbe-7d70-9e55-3ec6fc52d221'
+    await writeRollout(threadId)
+    handle = createApp({ dataRoot, sessionsRoot })
+    const createResponse = await request(handle.app).post(`/api/codex/sessions/by-thread/${threadId}`).send({}).expect(201)
+    const sessionId = createResponse.body.session.id as string
+
+    await request(handle.app)
+      .post(`/api/codex/sessions/by-thread/${threadId}/conclusion`)
+      .send({ content: 'Ready for the next instruction.' })
+      .expect(201)
+
+    const server = handle.app.listen(0, '127.0.0.1')
+    try {
+      await waitForServer(server)
+      const address = server.address() as AddressInfo
+      const baseUrl = `http://127.0.0.1:${address.port}`
+      const controller = new AbortController()
+      const abortedWait = fetch(`${baseUrl}/api/codex/sessions/by-thread/${threadId}/wait`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+        signal: controller.signal,
+      }).catch(() => null)
+
+      await delay(50)
+      controller.abort()
+      await abortedWait
+      await delay(50)
+
+      await request(handle.app)
+        .post(`/api/sessions/${sessionId}/instructions`)
+        .send({ content: 'This must reach the next live waiter.' })
+        .expect(201)
+
+      const waitResponse = await request(handle.app)
+        .post(`/api/codex/sessions/by-thread/${threadId}/wait?timeoutMs=500`)
+        .send({})
+        .expect(200)
+
+      expect(waitResponse.body).toMatchObject({
+        ok: true,
+        timedOut: false,
+        instruction: {
+          content: 'This must reach the next live waiter.',
+        },
+      })
+    } finally {
+      await closeServer(server)
+    }
   })
 
   it('reads conversation usage and rate limits from the current rollout', async () => {
@@ -905,6 +999,27 @@ async function writeRollout(threadId: string, lines: string[] = []): Promise<str
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms)
+  })
+}
+
+function waitForServer(server: Server): Promise<void> {
+  if (server.listening) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    server.once('listening', resolve)
+    server.once('error', reject)
+  })
+}
+
+function closeServer(server: Server): Promise<void> {
+  if (!server.listening) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error)
+        return
+      }
+      resolve()
+    })
   })
 }
 
